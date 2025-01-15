@@ -158,7 +158,6 @@ func (c *Storage) Open(ctx context.Context, id npio.ObjectID) (_ npio.Object, er
 		if isNotExist(err) {
 			return nil, storerrors.WrapNotFound(object.Path(), err)
 		}
-		err = nil
 	}
 	if err = c.loadObjectManifest(ctx, object); err != nil {
 		if !isNotExist(err) {
@@ -222,9 +221,8 @@ func (c *Storage) Remove(ctx context.Context, id npio.ObjectID, names ...string)
 	metaUpdated := false
 	for _, name := range names {
 		var (
-			key     = name
-			updated = false
-			_, err  = c.c.DeleteObject(&awss3.DeleteObjectInput{
+			key    = name
+			_, err = c.c.DeleteObject(&awss3.DeleteObjectInput{
 				Bucket: c._bucketName(bucket),
 				Key:    &key,
 			})
@@ -232,6 +230,7 @@ func (c *Storage) Remove(ctx context.Context, id npio.ObjectID, names ...string)
 		if err == nil {
 			// Remove meta from file
 			baseName := filepath.Base(name)
+			updated := false
 			if updated, err = object.Meta().RemoveItemByName(baseName); updated {
 				metaUpdated = true
 			}

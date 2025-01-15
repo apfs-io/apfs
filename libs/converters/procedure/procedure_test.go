@@ -3,22 +3,16 @@ package procedure
 import (
 	"encoding/json"
 	"io"
-	"math/rand"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/apfs-io/apfs/internal/storage/converters"
 	"github.com/apfs-io/apfs/models"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 func TestProcedureProcess(t *testing.T) {
 	var (

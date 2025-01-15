@@ -73,7 +73,7 @@ func WithS3FromURL(connect string) Options {
 		accessKey := urlParsed.Query().Get("access")
 		secretKey := urlParsed.Query().Get("secret")
 		region := urlParsed.Query().Get("region")
-		insecure := gocast.ToBool(urlParsed.Query().Get("insecure"))
+		insecure := gocast.Bool(urlParsed.Query().Get("insecure"))
 
 		err = WithMainBucket(urlParsed.Path)(conf)
 		if err != nil {

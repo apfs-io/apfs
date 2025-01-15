@@ -372,7 +372,6 @@ func (c *Storage) removeFiles(ctx context.Context, id npio.ObjectID, names ...st
 		obj, err   = c._ID2Object(ctx, id)
 		fullname   string
 		objectpath = c.fullpath(id)
-		updated    = false
 	)
 	if err != nil {
 		return errors.Wrap(err, `remove specific files`)
@@ -410,6 +409,7 @@ func (c *Storage) removeFiles(ctx context.Context, id npio.ObjectID, names ...st
 				zap.Error(err))
 		}
 		// Remove meta from file
+		updated := false
 		if updated, err = obj.Meta().RemoveItemByName(fullname); updated && err == nil {
 			err = c.saveMeta(obj)
 		}

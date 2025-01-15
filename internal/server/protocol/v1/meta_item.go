@@ -38,6 +38,6 @@ func (m *ItemMeta) ToModel() *models.ItemMeta {
 		Bitrate:     m.Bitrate,
 		Codec:       m.Codec,
 	}
-	meta.FromExtJSON([]byte(m.GetExtJson()))
+	_ = meta.FromExtJSON([]byte(m.GetExtJson()))
 	return meta
 }

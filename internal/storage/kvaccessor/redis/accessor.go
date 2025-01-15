@@ -33,10 +33,10 @@ func New(connection string) (*Accessor, error) {
 		Network:      parsedURL.Scheme,
 		Addr:         parsedURL.Host,
 		Password:     parsedURL.User.Username(),
-		DB:           gocast.ToInt(strings.Trim(parsedURL.Path, "/")),
-		PoolSize:     gocast.ToInt(parsedURL.Query().Get(`pool`)),
-		MaxRetries:   gocast.ToInt(parsedURL.Query().Get(`max_retries`)),
-		MinIdleConns: gocast.ToInt(parsedURL.Query().Get(`idle_cons`)),
+		DB:           gocast.Int(strings.Trim(parsedURL.Path, "/")),
+		PoolSize:     gocast.Int(parsedURL.Query().Get(`pool`)),
+		MaxRetries:   gocast.Int(parsedURL.Query().Get(`max_retries`)),
+		MinIdleConns: gocast.Int(parsedURL.Query().Get(`idle_cons`)),
 	})
 	lifetime, _ := time.ParseDuration(parsedURL.Query().Get(`lifetime`))
 	if lifetime == 0 {

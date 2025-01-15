@@ -121,7 +121,6 @@ func ContentTypeByReadSeeker(data io.ReadSeeker) (contentType string, err error)
 		if err != io.EOF {
 			return "", err
 		}
-		err = nil
 	}
 	head = head[:headSize]
 	if _, err = data.Seek(0, io.SeekStart); err != nil {

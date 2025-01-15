@@ -3,7 +3,6 @@ package actionprocessors
 import (
 	"encoding/base64"
 	"io"
-	"io/ioutil"
 	"path/filepath"
 
 	"github.com/apfs-io/apfs/internal/storage/converters"
@@ -28,7 +27,7 @@ func (ActionProcessorBase64) Process(in converters.Input, out converters.Output,
 }
 
 func encodeB64Reader(reader io.Reader, contentType string) string {
-	data, _ := ioutil.ReadAll(reader)
+	data, _ := io.ReadAll(reader)
 	return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data)
 }
 

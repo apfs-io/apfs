@@ -27,8 +27,8 @@ func Connect(connectURL string) (storage.DB, error) {
 		connectURL = strings.TrimPrefix(connectURL, "sqlite3://")
 	}
 	return New(u.Scheme, connectURL,
-		gocast.ToBool(u.Query().Get(`automigrate`)),
-		gocast.ToBool(u.Query().Get(`debug`)))
+		gocast.Bool(u.Query().Get(`automigrate`)),
+		gocast.Bool(u.Query().Get(`debug`)))
 }
 
 // New db connector

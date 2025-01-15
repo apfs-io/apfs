@@ -125,7 +125,7 @@ func (c *client) Upload(ctx context.Context, group, id string, data io.Reader,
 	if err != nil {
 		return nil, err
 	}
-	defer func() { uploadClient.CloseSend() }()
+	defer func() { _ = uploadClient.CloseSend() }()
 
 	// Init upload
 	if err = uploadClient.Send(&protocol.Data{
@@ -223,6 +223,7 @@ func dial(ctx context.Context, network, addr string, opts ...grpc.DialOption) (*
 	case "tcp", "grpc":
 		return dialTCP(ctx, addr, opts...)
 	case "dns":
+		//nolint:staticcheck
 		return grpc.DialContext(ctx, addr, opts...)
 	case "unix":
 		return dialUnix(ctx, addr, opts...)
@@ -245,18 +246,20 @@ func dialTCP(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.C
 		}
 		addr = ip.String() + ":" + port
 	}
+	//nolint:staticcheck
 	return grpc.DialContext(ctx, addr, opts...)
 }
 
 // dialUnix creates a client connection via a unix domain socket.
 // "addr" must be a valid path to the socket.
 func dialUnix(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	//nolint:staticcheck
 	return grpc.DialContext(ctx, addr, append(opts,
 		grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 			if deadline, ok := ctx.Deadline(); ok {
-				return net.DialTimeout("unix", addr, time.Until(deadline))
+				return (&net.Dialer{Timeout: time.Until(deadline)}).DialContext(ctx, "unix", addr)
 			}
-			return net.DialTimeout("unix", addr, 0)
+			return (&net.Dialer{}).DialContext(ctx, "unix", addr)
 		}))...)
 }
 

@@ -3,7 +3,7 @@ package s3
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -47,7 +47,7 @@ func TestS3Collection(t *testing.T) {
 	dataStream, err := collection.Read(ctx, object, models.OriginalFilename)
 	assert.NoError(t, err, "get original object data")
 
-	data, err := ioutil.ReadAll(dataStream)
+	data, err := io.ReadAll(dataStream)
 	assert.NoError(t, err, "read data content")
 
 	assert.Equal(t, []byte(`data`), data, "data matching")

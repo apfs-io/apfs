@@ -515,8 +515,8 @@ func (s *server) Receive(message nc.Message) error {
 			if !isNotFound {
 				// send processed error event
 				if event.Object != nil {
-					event.Object.Manifest.SetValue(cObject.Manifest())
-					event.Object.Meta.SetValue(cObject.Meta())
+					_ = event.Object.Manifest.SetValue(cObject.Manifest())
+					_ = event.Object.Meta.SetValue(cObject.Meta())
 				}
 				s.sendEvent(ctx, models.ProcessedEventType, event.Object, err)
 			} else {
@@ -586,8 +586,8 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 	case isComplete:
 		ctxlogger.Get(ctx).Info("process complete", fields...)
 		if event.Object != nil {
-			event.Object.Manifest.SetValue(cObject.Manifest())
-			event.Object.Meta.SetValue(cObject.Meta())
+			_ = event.Object.Manifest.SetValue(cObject.Manifest())
+			_ = event.Object.Meta.SetValue(cObject.Meta())
 		}
 		s.sendEvent(ctx, models.ProcessedEventType, event.Object, nil)
 	default:

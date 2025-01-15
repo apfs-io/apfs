@@ -36,7 +36,7 @@ func NewHTTPWrapper(s any) *ServerHTTPWrapper {
 func (s *ServerHTTPWrapper) UploadHTTPHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	customID := r.URL.Query().Get("id")
-	overwrite := gocast.ToBool(r.URL.Query().Get("overwrite"))
+	overwrite := gocast.Bool(r.URL.Query().Get("overwrite"))
 	group := chi.URLParam(r, "group")
 	if group == "" {
 		group = r.URL.Query().Get("group")
@@ -88,7 +88,7 @@ func (s *ServerHTTPWrapper) UploadHTTPHandler(w http.ResponseWriter, r *http.Req
 	}
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(&protocol.SimpleObjectResponse{
+	_ = json.NewEncoder(w).Encode(&protocol.SimpleObjectResponse{
 		Status: protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_OK,
 		Object: pobj,
 	})
@@ -162,7 +162,7 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 	} else {
 		w.Header().Add("X-Content-Size", gocast.Str(itemSize))
 	}
-	if headOnly || gocast.ToBool(query.Get("meta")) {
+	if headOnly || gocast.Bool(query.Get("meta")) {
 		w.Header().Add("X-Content-Meta", encodeJSONBase64(sObject.MustMeta()))
 	}
 	if len(sObject.MustMeta().Tags) > 0 {
@@ -183,7 +183,7 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 func errorResponse(w http.ResponseWriter, err string) {
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusInternalServerError)
-	json.NewEncoder(w).Encode(&protocol.SimpleObjectResponse{
+	_ = json.NewEncoder(w).Encode(&protocol.SimpleObjectResponse{
 		Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_FAILED,
 		Message: err,
 	})

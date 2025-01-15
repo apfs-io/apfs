@@ -26,7 +26,7 @@ func Open(connect string) (storage.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	connector, _ := registry[u.Scheme]
+	connector := registry[u.Scheme]
 	if connector == nil {
 		return nil, errors.Wrap(errUnsupportedDatabaseDriver, u.Scheme)
 	}

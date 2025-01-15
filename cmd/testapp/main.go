@@ -47,7 +47,7 @@ func main() {
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	enc.Encode(obj)
+	_ = enc.Encode(obj)
 }
 
 func initImageStore(storageClient apfs.Client) error {

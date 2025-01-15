@@ -3,7 +3,7 @@ package imagereader
 import (
 	"bytes"
 	_ "image/gif"
-	"io/ioutil"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,7 +16,7 @@ func TestImageDecode(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, imgReader.Image())
 
-	data, err := ioutil.ReadAll(imgReader)
+	data, err := io.ReadAll(imgReader)
 	assert.NoError(t, err, `read image data`)
 	assert.True(t, len(gifCode) > len(data)-5 && len(gifCode) < len(data)+5)
 	assert.NotNil(t, imgReader.Image())

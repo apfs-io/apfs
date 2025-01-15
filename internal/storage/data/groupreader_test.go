@@ -1,7 +1,7 @@
 package data
 
 import (
-	"io/ioutil"
+	"io"
 	"strings"
 	"testing"
 
@@ -11,7 +11,7 @@ import (
 func TestGroupReader(t *testing.T) {
 	reader := NewGroupReader(strings.NewReader(`test`), strings.NewReader(`file`))
 	defer reader.Close()
-	data, err := ioutil.ReadAll(reader)
+	data, err := io.ReadAll(reader)
 	assert.NoError(t, err)
 	assert.Equal(t, []byte(`testfile`), data)
 }

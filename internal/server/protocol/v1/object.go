@@ -44,10 +44,10 @@ func (m *Object) ToModel() *models.Object {
 		UpdatedAt: time.Unix(0, m.GetUpdatedAt()),
 	}
 	if m.GetMeta() != nil {
-		obj.Meta.SetValue(m.GetMeta().ToModel())
+		_ = obj.Meta.SetValue(m.GetMeta().ToModel())
 	}
 	if m.GetManifest() != nil {
-		obj.Manifest.SetValue(m.GetManifest().ToModel())
+		_ = obj.Manifest.SetValue(m.GetManifest().ToModel())
 	}
 	return obj
 }
