@@ -1,0 +1,9 @@
+.tmp
+.data
+.vscode
+cmd
+libs
+docs
+internal
+models
+protocol

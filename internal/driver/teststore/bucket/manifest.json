@@ -1,0 +1,15 @@
+{
+  "ext": "jpg",
+  "tags": ["test", "image"],
+  "tasks": [
+    {
+      "action": "resize",
+      "source": "@",
+      "target": "icon",
+      "ext":    "png",
+      "type":   "image/png",
+      "width":  50,
+      "height": 50
+    }
+  ]
+}

@@ -1,0 +1,711 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "apfs file-processing stream tool",
+    "version": "1.0",
+    "contact": {
+      "name": "apfs file-processing project",
+      "url": "https://apfs.io/gateway",
+      "email": "info@apfs.io"
+    }
+  },
+  "tags": [
+    {
+      "name": "ServiceAPI"
+    }
+  ],
+  "host": "localhost:9678",
+  "schemes": [
+    "http",
+    "https",
+    "wss"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/head/{id}": {
+      "get": {
+        "summary": "Get object information",
+        "operationId": "ServiceAPI_Head",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SimpleObjectResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "pattern": ".+"
+          },
+          {
+            "name": "name",
+            "description": "The list of possible required files. Will be taked only first existing file",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "ServiceAPI"
+        ]
+      }
+    },
+    "/manifest/{group}": {
+      "get": {
+        "summary": "GetManifest of the group",
+        "operationId": "ServiceAPI_GetManifest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ManifestResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ServiceAPI"
+        ]
+      },
+      "put": {
+        "summary": "SetManifest of the group",
+        "operationId": "ServiceAPI_SetManifest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SimpleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "group",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ServiceAPISetManifestBody"
+            }
+          }
+        ],
+        "tags": [
+          "ServiceAPI"
+        ]
+      }
+    },
+    "/object": {
+      "post": {
+        "summary": "Upload new file as a stream",
+        "operationId": "ServiceAPI_Upload",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SimpleObjectResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": " (streaming inputs)",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1Data"
+            }
+          }
+        ],
+        "tags": [
+          "ServiceAPI"
+        ]
+      }
+    },
+    "/object/{id}": {
+      "get": {
+        "summary": "Get object and data",
+        "operationId": "ServiceAPI_Get",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/v1ObjectResponse"
+                },
+                "error": {
+                  "$ref": "#/definitions/rpcStatus"
+                }
+              },
+              "title": "Stream result of v1ObjectResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "description": "The list of possible required files. Will be taked only first existing file",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "ServiceAPI"
+        ]
+      },
+      "delete": {
+        "summary": "Delete file object or subitems",
+        "operationId": "ServiceAPI_Delete",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SimpleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "pattern": ".+"
+          },
+          {
+            "name": "names",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "ServiceAPI"
+        ]
+      }
+    },
+    "/refresh/{id}": {
+      "put": {
+        "summary": "Refresh object and reprocess",
+        "operationId": "ServiceAPI_Refresh",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SimpleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "pattern": ".+"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ServiceAPIRefreshBody"
+            }
+          }
+        ],
+        "tags": [
+          "ServiceAPI"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "ServiceAPIRefreshBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "The list of possible required files. Will be taked only first existing file"
+        }
+      }
+    },
+    "ServiceAPISetManifestBody": {
+      "type": "object",
+      "properties": {
+        "manifest": {
+          "$ref": "#/definitions/v1Manifest"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1Action": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Param"
+          }
+        }
+      },
+      "title": "Action which must be applied to source"
+    },
+    "v1Data": {
+      "type": "object",
+      "properties": {
+        "info": {
+          "$ref": "#/definitions/v1DataCustomID"
+        },
+        "content": {
+          "$ref": "#/definitions/v1DataContent"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "v1DataContent": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "v1DataCustomID": {
+      "type": "object",
+      "properties": {
+        "group": {
+          "type": "string"
+        },
+        "customId": {
+          "type": "string"
+        },
+        "overwrite": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1ItemMeta": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "nameExt": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "hashId": {
+          "type": "string"
+        },
+        "width": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "height": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "size": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "duration": {
+          "type": "string",
+          "format": "int64"
+        },
+        "bitrate": {
+          "type": "string"
+        },
+        "codec": {
+          "type": "string"
+        },
+        "extJson": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/v1ObjectStatus"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "int64"
+        }
+      },
+      "title": "ItemMeta information"
+    },
+    "v1Manifest": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "contentTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ManifestTaskStage"
+          }
+        }
+      },
+      "title": "Manifest model object"
+    },
+    "v1ManifestResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/v1ResponseStatusCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "manifest": {
+          "$ref": "#/definitions/v1Manifest"
+        }
+      }
+    },
+    "v1ManifestTask": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string",
+          "title": "'' -\u003e @ = original file"
+        },
+        "target": {
+          "type": "string",
+          "title": "Name of file"
+        },
+        "type": {
+          "type": "string",
+          "title": "Target type"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Action"
+          },
+          "title": "Applied to source before save to target"
+        }
+      },
+      "title": "ManifestTask file processing"
+    },
+    "v1ManifestTaskStage": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ManifestTask"
+          }
+        }
+      },
+      "title": "ManifestTaskStage model object"
+    },
+    "v1Meta": {
+      "type": "object",
+      "properties": {
+        "manifestVersion": {
+          "type": "string"
+        },
+        "main": {
+          "$ref": "#/definitions/v1ItemMeta"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ItemMeta"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "int64"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "int64"
+        }
+      },
+      "title": "Meta information of the file object"
+    },
+    "v1Object": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "bucket": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "hashId": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/v1ObjectStatus"
+        },
+        "objectType": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "manifest": {
+          "$ref": "#/definitions/v1Manifest"
+        },
+        "meta": {
+          "$ref": "#/definitions/v1Meta"
+        },
+        "size": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "int64"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "v1ObjectResponse": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "$ref": "#/definitions/v1SimpleObjectResponse"
+        },
+        "content": {
+          "$ref": "#/definitions/v1DataContent"
+        }
+      }
+    },
+    "v1ObjectStatus": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "v1Param": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "valueBytes": {
+          "type": "string",
+          "format": "byte"
+        },
+        "valueString": {
+          "type": "string"
+        },
+        "valueInt": {
+          "type": "string",
+          "format": "int64"
+        },
+        "valueFloat": {
+          "type": "number",
+          "format": "double"
+        },
+        "valueStringArray": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ResponseStatusCode": {
+      "type": "string",
+      "enum": [
+        "RESPONSE_STATUS_CODE_UNKNOWN_INVALID",
+        "RESPONSE_STATUS_CODE_OK",
+        "RESPONSE_STATUS_CODE_FAILED",
+        "RESPONSE_STATUS_CODE_NOT_FOUND"
+      ],
+      "default": "RESPONSE_STATUS_CODE_UNKNOWN_INVALID"
+    },
+    "v1SimpleObjectResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/v1ResponseStatusCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "object": {
+          "$ref": "#/definitions/v1Object"
+        }
+      }
+    },
+    "v1SimpleResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/v1ResponseStatusCode"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "externalDocs": {
+    "description": "apfs API docs",
+    "url": "https://docs.apfs.io/api"
+  }
+}

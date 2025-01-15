@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package v1;
+
+option go_package = "./v1";
+option java_multiple_files = true;
+option java_outer_classname = "Manifest";
+option java_package = "com.apfs.protocol.v1";
+
+import "v1/action.proto";
+
+// ManifestTask file processing
+message ManifestTask {
+  string                      id              = 1;
+  string                      source          = 2; // '' -> @ = original file
+  string                      target          = 3; // Name of file
+  string                      type            = 4; // Target type
+  repeated Action             actions         = 5; // Applied to source before save to target
+}
+
+// ManifestTaskStage model object
+message ManifestTaskStage {
+  string                      name            = 1;
+  repeated ManifestTask       tasks           = 2;
+}
+
+// Manifest model object
+message Manifest {
+  string                      version         = 1;
+  repeated string             content_types   = 2;
+  repeated ManifestTaskStage  stages          = 3;
+}

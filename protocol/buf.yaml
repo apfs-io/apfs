@@ -1,0 +1,17 @@
+version: v2
+name: ""
+
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - DEFAULT
+  except:
+    - RPC_REQUEST_RESPONSE_UNIQUE
+  enum_zero_value_suffix: _INVALID
+  service_suffix: API
+
+deps:
+  - buf.build/grpc-ecosystem/grpc-gateway:v2.25.1
+  - buf.build/googleapis/googleapis

@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package v1;
+
+option go_package = "./v1";
+option java_multiple_files = true;
+option java_outer_classname = "Action";
+option java_package = "com.apfs.protocol.v1";
+
+message Param {
+  string              name     = 1;
+  oneof test_oneof {
+    bytes             value_bytes         = 2;
+    string            value_string        = 3;
+    int64             value_int           = 4;
+    double            value_float         = 5;
+    string            value_string_array  = 6;
+  }
+}
+
+// Action which must be applied to source
+message Action {
+  string          name     = 1;
+  repeated Param  values   = 2;
+}

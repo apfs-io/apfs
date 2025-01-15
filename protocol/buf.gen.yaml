@@ -1,0 +1,22 @@
+version: v2
+
+plugins:
+  - remote: buf.build/grpc-ecosystem/openapiv2:v2.25.1
+    out: ../internal/server/protocol
+    opt:
+      - visibility_restriction_selectors=PREVIEW
+      - visibility_restriction_selectors=INTERNAL
+  - protoc_builtin: go
+    out: ../internal/server/protocol
+    opt:
+      - paths=source_relative
+  - protoc_builtin: go-grpc
+    out: ../internal/server/protocol
+    opt:
+      - paths=source_relative
+  - protoc_builtin: grpc-gateway
+    out: ../internal/server/protocol
+    opt:
+      - paths=source_relative
+      - generate_unbound_methods=true
+      # - standalone=true

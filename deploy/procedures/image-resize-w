@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+
+w=`identify -format "%w" $2`
+
+if [ $w -gt $1 ]; then
+  # https://imagemagick.org/MagickStudio/Interlace.html
+  convert $2 -resize "${1}x>" -interlace Plane -auto-orient $3
+fi

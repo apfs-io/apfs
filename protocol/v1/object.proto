@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package v1;
+
+option go_package = "./v1";
+option java_multiple_files = true;
+option java_outer_classname = "Object";
+option java_package = "com.apfs.protocol.v1";
+
+import "v1/manifest.proto";
+import "v1/meta.proto";
+
+message Object {
+  string        id              = 1;
+  string        bucket          = 2;
+  string        path            = 3;
+
+  string        hash_id         = 4;
+  ObjectStatus  status          = 5;
+  string        object_type     = 6;
+  string        content_type    = 7;
+  Manifest      manifest        = 8;
+  Meta          meta            = 9;
+  uint32        size            = 10;
+
+  int64         created_at      = 11;
+  int64         updated_at      = 12;
+}

@@ -1,0 +1,168 @@
+syntax = "proto3";
+
+package v1;
+
+option go_package = "./v1";
+option java_multiple_files = true;
+option java_outer_classname = "Server";
+option java_package = "com.apfs.protocol.v1";
+
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+import "v1/object.proto";
+import "v1/manifest.proto";
+
+enum ResponseStatusCode {
+  RESPONSE_STATUS_CODE_UNKNOWN_INVALID = 0;
+  RESPONSE_STATUS_CODE_OK              = 1;
+  RESPONSE_STATUS_CODE_FAILED          = 2;
+  RESPONSE_STATUS_CODE_NOT_FOUND       = 3;
+}
+
+message ManifestGroup {
+  string    group       = 1;
+}
+
+message DataManifest {
+  Manifest  manifest    = 1;
+  string    group       = 2;
+}
+
+message DataContent {
+  bytes     content     = 1;
+}
+
+message DataCustomID {
+  string    group       = 1;
+  string    custom_id   = 2;
+  bool      overwrite   = 3;
+}
+
+message Data {
+  oneof item {
+    DataCustomID  info      = 1;
+    DataContent   content   = 2;
+  }
+  repeated string tags      = 3;
+}
+
+message ObjectID {
+  string          id        = 1;
+  // The list of possible required files. Will be taked only first existing file
+  repeated string name      = 2;
+}
+
+message ObjectIDNames {
+  string          id        = 1;
+  repeated string names     = 2;
+}
+
+message ManifestResponse {
+  ResponseStatusCode  status        = 1;
+  string              message       = 2;
+  Manifest            manifest      = 3;
+}
+
+message SimpleResponse {
+  ResponseStatusCode  status        = 1;
+  string              message       = 2;
+}
+
+message SimpleObjectResponse {
+  ResponseStatusCode  status        = 1;
+  string              message       = 2;
+  Object              object        = 3;
+}
+
+message ObjectResponse {
+  oneof object {
+    SimpleObjectResponse response   = 1;
+    DataContent          content    = 2;
+  }
+}
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  host: "localhost:9678";
+  base_path: "";
+	info: {
+		title: "apfs file-processing stream tool";
+		version: "1.0";
+		contact: {
+			name: "apfs file-processing project";
+			url: "https://apfs.io/gateway";
+			email: "info@apfs.io";
+		};
+  };
+	// Overwriting host entry breaks tests, so this is not done here.
+	external_docs: {
+		url: "https://docs.apfs.io/api";
+		description: "apfs API docs";
+	}
+	schemes: HTTP;
+	schemes: HTTPS;
+	schemes: WSS;
+	consumes: "application/json";
+	produces: "application/json";
+};
+
+// defined in the system.
+service ServiceAPI {
+  // Get object information
+  rpc Head(ObjectID) returns (SimpleObjectResponse) {
+    option (google.api.http) = {
+      get: "/head/{id=**}"
+    };
+  };
+
+  // Get object and data
+  rpc Get(ObjectID) returns (stream ObjectResponse) {
+    option (google.api.http) = {
+      get: "/object/{id}"
+      // Example:
+      // curl -i "http://hostname:port/object/images/object/path?[name=subobject.name]&[meta=true]"
+      //
+      // Content-Type: based on file mime type
+      // Content-Length: size of file in bytes
+      // X-Content-Meta: Meta.JSON.Base64 encoded if "meta" is true
+    };
+  };
+
+  // Refresh object and reprocess
+  rpc Refresh(ObjectID) returns (SimpleResponse) {
+    option (google.api.http) = {
+      put: "/refresh/{id=**}"
+      body: "*"
+    };
+  };
+
+  // SetManifest of the group
+  rpc SetManifest(DataManifest) returns (SimpleResponse) {
+    option (google.api.http) = {
+      put: "/manifest/{group}"
+      body: "*"
+    };
+  };
+
+  // GetManifest of the group
+  rpc GetManifest(ManifestGroup) returns (ManifestResponse) {
+    option (google.api.http) = {
+      get: "/manifest/{group}"
+    };
+  };
+
+  // Upload new file as a stream
+  rpc Upload(stream Data) returns (SimpleObjectResponse) {
+    option (google.api.http) = {
+      post: "/object"
+      body: "*"
+    };
+  };
+
+  // Delete file object or subitems
+  rpc Delete(ObjectIDNames) returns (SimpleResponse) {
+    option (google.api.http) = {
+      delete: "/object/{id=**}"
+    };
+  };
+}
