@@ -106,22 +106,31 @@ func (s *Storage) Upload(ctx context.Context, group string, data io.Reader, opti
 	if group == "" {
 		return nil, ErrStorageInvalidGroupName
 	}
+
 	var option uploadOption
 	for _, opt := range options {
 		opt(&option)
 	}
+
 	// Create new object container
-	if obj, err = s.driver.Create(ctx, group, option.customID, option.overwrite, option.Params()); err != nil {
+	obj, err = s.driver.Create(ctx, group, option.customID, option.overwrite, option.Params())
+	if err != nil {
 		return nil, err
 	}
+
 	// Upload object data
-	if err = s.driver.Update(ctx, obj, models.OriginalFilename, data, nil); err == nil {
-		if err = s.UpdateObjectInfo(ctx, obj); err != nil {
-			if err2 := s.Delete(ctx, obj); err2 != nil {
-				err = fmt.Errorf("%s [%s]", err.Error(), err2.Error())
-			}
+	err = s.driver.Update(ctx, obj, models.OriginalFilename, data, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Refresh object cached information
+	if err = s.UpdateObjectInfo(ctx, obj); err != nil {
+		if err2 := s.Delete(ctx, obj); err2 != nil {
+			err = fmt.Errorf("%s [%s]", err.Error(), err2.Error())
 		}
 	}
+
 	if err != nil {
 		obj = nil
 	}
@@ -130,30 +139,30 @@ func (s *Storage) Upload(ctx context.Context, group string, data io.Reader, opti
 
 // Open storage file
 func (s *Storage) Open(ctx context.Context, obj any) (nObject npio.Object, err error) {
-	switch v := obj.(type) {
+	switch val := obj.(type) {
 	case string:
-		objectRecord, err := s.db.Get(v)
+		objectRecord, err := s.db.Get(val)
 		if err != nil || objectRecord == nil {
 			ctxlogger.Get(ctx).Debug("load object cache", zap.Error(err),
-				zap.String("object_id", v),
+				zap.String("object_id", val),
 				zap.Stack("stack"))
-			if nObject, err = s.driver.Open(ctx, npio.ObjectIDType(v)); err != nil {
+			if nObject, err = s.driver.Open(ctx, npio.ObjectIDType(val)); err != nil {
 				return nil, err
 			}
 			// Refresh object cache
 			if objectMode, err := object.ToModel(nObject); err == nil {
 				if err = s.db.Set(objectMode); err != nil {
 					ctxlogger.Get(ctx).Error("update object object cache", zap.Error(err),
-						zap.String("object_id", v))
+						zap.String("object_id", val))
 				}
 			}
 		} else {
 			nObject = object.FromModel(objectRecord)
 		}
 	case npio.Object:
-		nObject = v
+		nObject = val
 	default:
-		return nil, errors.Wrapf(ErrStorageInvalidParameterType, `%T`, obj)
+		return nil, errors.Wrapf(ErrStorageInvalidParameterType, `type:%T`, obj)
 	}
 	nObject.StatusUpdate(s.getProcessingStatus(ctx, nObject))
 	return nObject, nil

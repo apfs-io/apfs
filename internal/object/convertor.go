@@ -1,8 +1,6 @@
 package object
 
 import (
-	"github.com/geniusrabbit/gosql/v2"
-
 	"github.com/apfs-io/apfs/internal/io"
 	"github.com/apfs-io/apfs/models"
 )
@@ -21,15 +19,16 @@ func ToModel(inObj io.Object) (*models.Object, error) {
 		Type:          meta.Main.Type,
 		Size:          uint64(meta.Main.Size),
 	}
-	tags := gosql.NullableStringArray(inObj.Meta().Tags)
-	if err := obj.Tags.SetValue(tags); err != nil {
+	if err := obj.Tags.SetValue(inObj.Meta().Tags); err != nil {
 		return nil, err
 	}
 	if err := obj.Meta.SetValue(meta); err != nil {
 		return nil, err
 	}
-	if err := obj.Manifest.SetValue(inObj.Manifest()); err != nil {
-		return nil, err
+	if manifest := inObj.Manifest(); manifest != nil {
+		if err := obj.Manifest.SetValue(manifest); err != nil {
+			return nil, err
+		}
 	}
 	return obj, nil
 }

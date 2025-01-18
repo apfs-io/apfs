@@ -170,6 +170,7 @@ func (c *client) Upload(ctx context.Context, group, id string, data io.Reader,
 	return prepareSimpleObjectResponse(objResp, err)
 }
 
+// Delete object from storage
 func (c *client) Delete(ctx context.Context, id any, opts ...grpc.CallOption) error {
 	// Prepare object ID
 	var in *protocol.ObjectIDNames
@@ -200,6 +201,11 @@ func (c *client) Delete(ctx context.Context, id any, opts ...grpc.CallOption) er
 		err = errors.New(resp.GetMessage())
 	}
 	return err
+}
+
+// GroupClient returns group client with bucket name
+func (c *client) GroupClient(name string) *GroupClient {
+	return NewGroupClient(name, c)
 }
 
 // Close client connection

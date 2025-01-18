@@ -17,14 +17,14 @@ const (
 
 //easyjson:json
 type manifestObject struct {
-	Version      string               `json:"version"`
+	Version      string               `json:"version,omitempty"`
 	ContentTypes []string             `json:"content_types,omitempty"`
 	Stages       []*ManifestTaskStage `json:"stages,omitempty"`
 }
 
 // Manifest model object
 type Manifest struct {
-	Version      string               `json:"version"`
+	Version      string               `json:"version,omitempty"`
 	ContentTypes []string             `json:"content_types,omitempty"`
 	Stages       []*ManifestTaskStage `json:"stages,omitempty"`
 }

@@ -47,9 +47,12 @@ type GRPCServer struct {
 // RunGRPC server
 func (s *GRPCServer) RunGRPC(ctx context.Context, listen string) error {
 	network, address := parseNetwork(listen)
-	s.Logger.Info("Start GRPC API: " + network + " " + address)
+	s.Logger.Info("Start GRPC API",
+		zap.String("network", network),
+		zap.String("address", address))
 
-	l, err := net.Listen(network, address)
+	lis, err := (&net.ListenConfig{}).
+		Listen(ctx, network, address)
 	if err != nil {
 		return err
 	}
@@ -63,9 +66,11 @@ func (s *GRPCServer) RunGRPC(ctx context.Context, listen string) error {
 	// Init certification
 	creds, err := loadCreds(s.CertFile, s.KeyFile)
 	if err != nil {
-		if closeErr := l.Close(); err != nil {
+		if closeErr := lis.Close(); err != nil {
 			s.Logger.Error("failed to close",
-				zap.String(`network`, network), zap.String(`address`, address), zap.Error(closeErr))
+				zap.String(`network`, network),
+				zap.String(`address`, address),
+				zap.Error(closeErr))
 		}
 		return errors.Wrap(err, `failed to setup TLS:`)
 	}
@@ -98,14 +103,16 @@ func (s *GRPCServer) RunGRPC(ctx context.Context, listen string) error {
 	go func() {
 		<-ctx.Done()
 		srv.GracefulStop()
-		if closeErr := l.Close(); err != nil {
+		if closeErr := lis.Close(); err != nil {
 			s.Logger.Error("failed to close",
-				zap.String(`network`, network), zap.String(`address`, address), zap.Error(closeErr))
+				zap.String(`network`, network),
+				zap.String(`address`, address),
+				zap.Error(closeErr))
 		}
 	}()
 
-	s.Logger.Info(fmt.Sprintf("Starting listening at %s", listen))
-	return srv.Serve(l)
+	s.Logger.Info("Starting GRPC listening", zap.String("listen", listen))
+	return srv.Serve(lis)
 }
 
 // RunHTTP server
@@ -129,12 +136,20 @@ func (s *GRPCServer) RunHTTP(ctx context.Context, address string) error {
 	mux.Post("/object", s.API.UploadHTTPHandler)
 	mux.Post("/object/{group}", s.API.UploadHTTPHandler)
 	mux.Handle("/swagger/", s.swaggerHandler())
-	mux.HandleFunc("/healthcheck", tools.HealthCheck)
+	mux.HandleFunc("/health", tools.HealthCheck)
 	mux.Handle("/metrics", promhttp.Handler())
 
+	// Context and metrics wrapper
 	h := middleware.HTTPContextWrapper(mux, s.ContextWrap)
 
-	srv := &http.Server{Addr: address, Handler: h}
+	srv := &http.Server{
+		Addr:    address,
+		Handler: h,
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			return s.ContextWrap(ctx)
+		},
+	}
+
 	go func() {
 		<-ctx.Done()
 		s.Logger.Info("Shutting down the HTTP server")

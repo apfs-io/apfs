@@ -17,10 +17,7 @@ var (
 	ErrInvalidDeleteRequestArguments = errors.New(`invalid delete request arguments`)
 )
 
-// Client interface accessor to the Disk API
-type Client interface {
-	io.Closer
-
+type ObjectManagerClient interface {
 	// Refresg file object data
 	Refresh(ctx context.Context, id *protocol.ObjectID, opts ...grpc.CallOption) error
 
@@ -30,12 +27,6 @@ type Client interface {
 	// Read object with body
 	Get(ctx context.Context, id *protocol.ObjectID, opts ...grpc.CallOption) (*models.Object, io.ReadCloser, error)
 
-	// SetManifest of the group
-	SetManifest(ctx context.Context, group string, manifest *models.Manifest, opts ...grpc.CallOption) error
-
-	// GetManifest of the group
-	GetManifest(ctx context.Context, group string, opts ...grpc.CallOption) (*models.Manifest, error)
-
 	// UploadFile object into storage
 	UploadFile(ctx context.Context, group, id, filepath string, tags []string, overwrite bool, opts ...grpc.CallOption) (*models.Object, error)
 
@@ -44,4 +35,20 @@ type Client interface {
 
 	// Delete object from storage
 	Delete(ctx context.Context, id any, opts ...grpc.CallOption) error
+}
+
+type MetadataManagerClient interface {
+	// SetManifest of the group
+	SetManifest(ctx context.Context, group string, manifest *models.Manifest, opts ...grpc.CallOption) error
+
+	// GetManifest of the group
+	GetManifest(ctx context.Context, group string, opts ...grpc.CallOption) (*models.Manifest, error)
+}
+
+// Client interface accessor to the Disk API
+type Client interface {
+	io.Closer
+	ObjectManagerClient
+	MetadataManagerClient
+	GroupClient(name string) *GroupClient
 }

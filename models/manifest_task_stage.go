@@ -11,7 +11,7 @@ import (
 //
 //easyjson:json
 type ManifestTaskStage struct {
-	Name  string          `json:"name"`
+	Name  string          `json:"name,omitempty"`
 	Tasks []*ManifestTask `json:"tasks,omitempty"`
 }
 

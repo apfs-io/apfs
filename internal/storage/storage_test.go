@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -20,15 +21,25 @@ import (
 var (
 	testStorePath    = "teststore"
 	proceduresDir, _ = filepath.Abs("../../deploy/procedures")
-	fsdriver, _      = fs.NewStorage(testStorePath)
-	storage          = NewStorage(
+	fsdriver         *fs.Storage
+	storage          *Storage
+)
+
+func init() {
+	_, filePath, _, _ := runtime.Caller(0)
+	__dir, _ := filepath.Abs(filepath.Dir(filePath))
+	testStorePath = filepath.Join(__dir, "teststore")
+	proceduresDir, _ = filepath.Abs(filepath.Join(__dir, "../../deploy/procedures"))
+
+	fsdriver, _ = fs.NewStorage(testStorePath)
+	storage = NewStorage(
 		WithDatabase(&DatabaseMock{}),
 		WithDriver(fsdriver),
 		WithProcessingStatus(&memory.KVMemory{}),
 		WithConverters(image.NewDefaultConverter(),
 			procedure.New(proceduresDir)),
 	)
-)
+}
 
 func TestStorageUpload(t *testing.T) {
 	var (
@@ -38,28 +49,27 @@ func TestStorageUpload(t *testing.T) {
 	)
 	defer cancel()
 
-	t.Run("file-upload", func(t *testing.T) {
-		if obj, err = storage.UploadFile(ctx, "images", "teststore/bucket/file/original.jpg"); err != nil {
-			t.Error(err)
-		}
-	})
+	obj, err = storage.UploadFile(ctx, "images",
+		filepath.Join(testStorePath, "bucket/file/original.jpg"))
 
-	t.Run("file-delete", func(t *testing.T) {
-		if err = storage.Delete(ctx, obj); err != nil {
-			t.Error(err)
-		}
-	})
+	if assert.NoError(t, err, "upload file") {
+		assert.NoError(t, storage.Delete(ctx, obj), "delete object")
+	}
 
-	os.RemoveAll(filepath.Join(testStorePath, "images"))
+	_ = os.RemoveAll(filepath.Join(testStorePath, "images"))
 }
 
 func TestStorageProcess(t *testing.T) {
+	const (
+		imagesBucket = "images"
+	)
+
 	var (
-		object      npio.Object
-		err         error
-		tags        = []string{"tag1", "tag2"}
-		ctx, cancel = context.WithTimeout(context.TODO(), time.Second*10)
-		manifest    = &models.Manifest{
+		object           npio.Object
+		tags             = []string{"tag1", "tag2"}
+		originalFilepath = filepath.Join(testStorePath, "bucket/file/original.jpg")
+		ctx, cancel      = context.WithTimeout(context.TODO(), time.Second*10)
+		manifest         = &models.Manifest{
 			Stages: []*models.ManifestTaskStage{
 				{
 					Name: "",
@@ -154,49 +164,53 @@ func TestStorageProcess(t *testing.T) {
 		}
 	)
 	defer cancel()
+
+	// Prepare manifest info
 	manifest.PrepareInfo()
 
-	t.Run("set-images-manifest", func(t *testing.T) {
-		assert.NoError(t, storage.SetManifest(ctx, "images", manifest), "update images manifest")
-	})
+	// 1. Set images manifest
+	err := storage.SetManifest(ctx, imagesBucket, manifest)
+	if !assert.NoError(t, err, "Set images manifest") {
+		return
+	}
 
-	t.Run("object-upload", func(t *testing.T) {
-		object, err = storage.UploadFile(ctx,
-			"images", "teststore/bucket/file/original.jpg",
-			WithTags(tags),
-			WithParams(nil),
-		)
-		assert.NoError(t, err, "upload new file")
-	})
+	// 2. Upload new file to images bucket
+	object, err = storage.UploadFile(ctx, imagesBucket,
+		originalFilepath, WithTags(tags), WithParams(nil))
+	if !assert.NoError(t, err, "upload new file: "+originalFilepath) {
+		return
+	}
 
-	t.Run("object-process", func(t *testing.T) {
-		complete, err := storage.ProcessTasks(ctx, object, AllTasks, AllStages)
-		assert.NoError(t, err, "task processing error")
-		assert.True(t, complete, "processing must be completed")
-	})
+	// 3. Process uploaded object with all tasks and stages
+	complete, err := storage.ProcessTasks(ctx, object, AllTasks, AllStages)
+	if !assert.NoError(t, err, "task processing error") {
+		return
+	}
+	if !assert.True(t, complete, "processing must be completed") {
+		return
+	}
 
-	t.Run("object-adjust-process", func(t *testing.T) {
-		object, err := storage.Open(ctx, object.ID().String())
-		assert.NoError(t, err, "open object")
-		assert.NotNil(t, object, "object reference")
+	// 4. Adjust object with extra tasks
+	objectAdjust, err := storage.Open(ctx, object.ID().String())
+	if assert.NoError(t, err, "open object") && assert.NotNil(t, object, "object reference") {
+		manifest := objectAdjust.Manifest()
+		manifest.Stages[0].Tasks = manifest.Stages[0].Tasks[1:]
 
-		object.Manifest().Stages[0].Tasks = object.Manifest().Stages[0].Tasks[1:]
-		items := object.Meta().ExcessItems(object.Manifest())
+		items := objectAdjust.Meta().ExcessItems(manifest)
 		if assert.Equal(t, 1, len(items)) {
 			removeSubObjects := make([]string, 0, len(items))
 			for _, it := range items {
 				removeSubObjects = append(removeSubObjects, it.Fullname())
 			}
-			err := storage.Delete(ctx, object, removeSubObjects...)
+			err := storage.Delete(ctx, objectAdjust, removeSubObjects...)
 			assert.NoError(t, err, "remove extra objects")
-			assert.Equal(t, 3, len(object.Meta().Items))
+			assert.Equal(t, 3, len(objectAdjust.Meta().Items))
 		}
-	})
+	}
 
-	t.Run("object-delete", func(t *testing.T) {
-		err := storage.Delete(ctx, object)
-		assert.NoError(t, err)
-	})
+	// 5. Delete uploaded object from storage
+	assert.NoError(t, storage.Delete(ctx, object), "delete object")
 
-	os.RemoveAll(filepath.Join(testStorePath, "images"))
+	// Finaly remove all files
+	_ = os.RemoveAll(filepath.Join(testStorePath, imagesBucket))
 }

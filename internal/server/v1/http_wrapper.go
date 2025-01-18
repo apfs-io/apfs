@@ -34,33 +34,42 @@ func NewHTTPWrapper(s any) *ServerHTTPWrapper {
 //	id:string      - custom object ID
 //	overwrite:bool - overwrite with custom object ID
 func (s *ServerHTTPWrapper) UploadHTTPHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	customID := r.URL.Query().Get("id")
-	overwrite := gocast.Bool(r.URL.Query().Get("overwrite"))
-	group := chi.URLParam(r, "group")
+	var (
+		ctx       = r.Context()
+		customID  = r.URL.Query().Get("id")
+		overwrite = gocast.Bool(r.URL.Query().Get("overwrite"))
+		group     = chi.URLParam(r, "group")
+	)
 	if group == "" {
 		group = r.URL.Query().Get("group")
 	}
+
 	tags := r.URL.Query()["tags"]
 	if err := r.ParseForm(); err != nil {
 		ctxlogger.Get(ctx).Error("parse request form", zap.Error(err))
 		errorResponse(w, "parse request error: "+err.Error())
 		return
 	}
+
 	reader, err := r.MultipartReader()
 	if err != nil {
 		ctxlogger.Get(ctx).Error("parse request body", zap.Error(err))
 		errorResponse(w, "parse request body error: "+err.Error())
 		return
 	}
+
 	filePart, err := reader.NextPart()
 	if err != nil {
 		ctxlogger.Get(ctx).Error("parse request body part", zap.Error(err))
 		errorResponse(w, "parse request body part error: "+err.Error())
 		return
 	}
+
+	// Close all parts after finish
 	defer func() {
 		_ = filePart.Close()
+
+		// Close all parts
 		for {
 			filePart, err = reader.NextPart()
 			if err == io.EOF {
@@ -70,22 +79,25 @@ func (s *ServerHTTPWrapper) UploadHTTPHandler(w http.ResponseWriter, r *http.Req
 				ctxlogger.Get(ctx).Error("next parse", zap.Error(err))
 				break
 			} else {
-				filePart.Close()
+				_ = filePart.Close()
 			}
 		}
 	}()
+
 	nobj, err := s.server.UploadObject(ctx, group, customID, overwrite, tags, filePart)
 	if err != nil {
 		ctxlogger.Get(ctx).Error("upload to storage", zap.Error(err))
 		errorResponse(w, "upload to storage error: "+err.Error())
 		return
 	}
+
 	pobj, err := s.protoObject(nobj)
 	if err != nil {
 		ctxlogger.Get(ctx).Error("upload to storage", zap.Error(err))
 		errorResponse(w, "object convert error: "+err.Error())
 		return
 	}
+
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(&protocol.SimpleObjectResponse{

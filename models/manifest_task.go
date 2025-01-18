@@ -8,7 +8,7 @@ type actionTester interface {
 //
 //easyjson:json
 type ManifestTask struct {
-	ID       string     `json:"id"`
+	ID       string     `json:"id,omitempty"`       // Unique ID
 	Source   string     `json:"source,omitempty"`   // '' -> @ = original file
 	Target   string     `json:"target,omitempty"`   // Name of file
 	Type     ObjectType `json:"type,omitempty"`     // Target type
