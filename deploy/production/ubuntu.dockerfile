@@ -5,7 +5,7 @@ ARG BUILDPLATFORM
 
 LABEL maintainer="GeniusRabbit (Dmitry Ponomarev github.com/demdxx)"
 LABEL service.name=apfs
-LABEL service.veight=1
+LABEL service.weight=1
 
 ENV LOG_LEVEL=info
 ENV STORAGE_METADB_CONNECT=sqlite3:///data/apfs.db?cache=shared
