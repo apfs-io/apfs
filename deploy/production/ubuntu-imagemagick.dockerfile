@@ -15,7 +15,7 @@ ENV STORAGE_PROCEDURE_DIR=/procedures
 
 RUN apt-get update && apt-get install -y imagemagick curl && apt-get clean
 
-COPY .build//zoneinfo.zip /usr/local/go/lib/time/
+COPY .build/zoneinfo.zip /usr/local/go/lib/time/
 COPY .build/${TARGETPLATFORM}/apfs /
 COPY .build/.empty /data
 COPY deploy/procedures /procedures

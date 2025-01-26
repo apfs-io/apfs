@@ -12,7 +12,7 @@ ENV STORAGE_METADB_CONNECT=sqlite3:///data/apfs.db?cache=shared
 ENV STORAGE_STATE_CONNECT=memory
 ENV STORAGE_AUTOMIGRATE=true
 
-COPY .build//zoneinfo.zip /usr/local/go/lib/time/
+COPY .build/zoneinfo.zip /usr/local/go/lib/time/
 COPY .build/${TARGETPLATFORM}/apfs /
 COPY .build/.empty /data
 COPY deploy/procedures /procedures
