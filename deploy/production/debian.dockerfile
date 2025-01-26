@@ -24,7 +24,7 @@ RUN update-ca-certificates
 RUN cp /usr/local/go/lib/time/zoneinfo.zip /var/zoneinfo.zip
 
 ###############################################################################
-FROM --platform=$TARGETPLATFORM debian:stretch-slim
+FROM --platform=$TARGETPLATFORM debian:stable-slim
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM

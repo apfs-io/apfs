@@ -24,7 +24,7 @@ RUN update-ca-certificates
 RUN cp /usr/local/go/lib/time/zoneinfo.zip /var/zoneinfo.zip
 
 ###############################################################################
-FROM --platform=$TARGETPLATFORM ubuntu:bionic
+FROM --platform=$TARGETPLATFORM ubuntu:plucky
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM

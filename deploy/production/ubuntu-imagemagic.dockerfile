@@ -1,4 +1,4 @@
-FROM golang:latest AS builder
+FROM --platform=$TARGETPLATFORM golang:latest AS builder
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
@@ -24,7 +24,7 @@ RUN update-ca-certificates
 RUN cp /usr/local/go/lib/time/zoneinfo.zip /var/zoneinfo.zip
 
 ###############################################################################
-FROM ubuntu:bionic
+FROM --platform=$TARGETPLATFORM ubuntu:plucky
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM

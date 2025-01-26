@@ -42,7 +42,7 @@ jobs:
     # Temporarily disabled until switch process in production
     # if: startsWith(github.event.workflow_run.head_branch, 'v')
     needs: [can_continue]
-    if: needs.can_continue.outputs.is == 'true' || github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request' && (needs.can_continue.outputs.is == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
 
     permissions:
@@ -54,8 +54,6 @@ jobs:
 
     strategy:
       fail-fast: true
-      matrix:
-        dockerfile: [ debian, ubuntu, scratch, ubuntu-imagemagick ]
 
     steps:
       - name: Checkout repository
@@ -109,11 +107,38 @@ jobs:
 
       # Build and push Docker image with Buildx (don't push on PR)
       # https://github.com/docker/build-push-action
-      - name: Build and push Docker image of the service
+      - name: Build and push scratch Docker image of the service
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: deploy/production/${{ matrix.dockerfile }}.dockerfile
+          file: deploy/production/scratch.dockerfile
           platforms: ${{ env.DOCKER_BUILD_PLATFORMS }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: "${{ env.IMAGE_NAME }}:${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:latest"
+          push: true
+          tags: "${{ env.IMAGE_NAME }}:scratch-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:latest"
+
+      - name: Build and push debian Docker image of the service
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: deploy/production/debian.dockerfile
+          platforms: ${{ env.DOCKER_BUILD_PLATFORMS }}
+          push: true
+          tags: "${{ env.IMAGE_NAME }}:debian-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:debian-latest"
+
+      - name: Build and push ubuntu Docker image of the service
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: deploy/production/ubuntu.dockerfile
+          platforms: ${{ env.DOCKER_BUILD_PLATFORMS }}
+          push: true
+          tags: "${{ env.IMAGE_NAME }}:ubuntu-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:ubuntu-latest"
+
+      - name: Build and push ubuntu-imagemagick Docker image of the service
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: deploy/production/ubuntu-imagemagick.dockerfile
+          platforms: ${{ env.DOCKER_BUILD_PLATFORMS }}
+          push: true
+          tags: "${{ env.IMAGE_NAME }}:ubuntu-imagemagick-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:ubuntu-imagemagick-latest"
