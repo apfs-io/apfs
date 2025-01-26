@@ -28,16 +28,21 @@ type serverConfig struct {
 type storageConfig struct {
 	// Connect to the storage of files fs:///dir/path s3://host:9000/assets?access=${S3_ACCESS_KEY}&secret=${S3_SECRET_KEY}&region=default&insecure=true
 	Connect string `json:"connect" yaml:"connect" env:"STORAGE_CONNECT"`
+
 	// Metaintformation storage cache
 	MetadbConnect string `json:"meta_dbconnect" yaml:"meta_dbconnect" env:"STORAGE_METADB_CONNECT"`
 	StateConnect  string `json:"state_connect" yaml:"state_connect" env:"STORAGE_STATE_CONNECT"`
+
 	// List of converters available for the current storage
 	Converters []string `json:"converters" yaml:"converters" env:"STORAGE_CONVERTERS"`
+
 	// Directory where located predefined scripts and applications
 	ProcedureDirectory string `json:"procedure_directory" yaml:"procedure_directory" env:"STORAGE_PROCEDURE_DIR" default:"procedures"`
+
 	// The processing state locker to exclude simultaneous operations
 	ProcessingInterlockConnect string        `json:"processing_interlock_connection" yaml:"processing_interlock_connection" env:"PROCESSING_INTERLOCK_CONNECTION"`
 	ProcessingLifetime         time.Duration `json:"processing_lifetime" yaml:"processing_lifetime" env:"PROCESSING_LIFETIME" default:"5m"`
+
 	//Automigrate   bool   `json:"automigrate" yaml:"automigrate" env:"STORAGE_AUTOMIGRATE"`
 	// How many processing stages/tasks execute per one iteration
 	ProcessingStageLimit int `json:"processing_stage_limit" yaml:"processing_stage_limit" env:"PROCESSING_STAGE_LIMIT" default:"1"`
