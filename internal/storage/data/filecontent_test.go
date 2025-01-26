@@ -33,7 +33,7 @@ func TestExtensionByContentType(t *testing.T) {
 		},
 		{
 			contentType: `image/jpeg`,
-			ext:         []string{`.jpg`, `.jpeg`},
+			ext:         []string{`.jpg`, `.jpeg`, `.jfif`, `.pjpeg`, `.pjp`},
 		},
 		{
 			contentType: `undefined`,
