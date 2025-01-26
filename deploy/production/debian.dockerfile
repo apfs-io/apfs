@@ -1,4 +1,4 @@
-FROM --platform=$TARGETPLATFORM debian:stable-slim
+FROM debian:stable-slim
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM

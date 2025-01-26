@@ -110,7 +110,7 @@ jobs:
       - name: Build and push scratch Docker image of the service
         uses: docker/build-push-action@v4
         with:
-          context: .
+          context: ./
           file: deploy/production/scratch.dockerfile
           platforms: ${{ env.DOCKER_BUILD_PLATFORMS }}
           push: true
@@ -119,7 +119,7 @@ jobs:
       - name: Build and push debian Docker image of the service
         uses: docker/build-push-action@v4
         with:
-          context: .
+          context: ./
           file: deploy/production/debian.dockerfile
           platforms: linux/amd64,linux/arm/v7,linux/arm64/v8
           push: true
@@ -128,7 +128,7 @@ jobs:
       - name: Build and push ubuntu Docker image of the service
         uses: docker/build-push-action@v4
         with:
-          context: .
+          context: ./
           file: deploy/production/ubuntu.dockerfile
           platforms: linux/amd64,linux/arm/v7,linux/arm64/v8
           push: true
@@ -137,7 +137,7 @@ jobs:
       - name: Build and push ubuntu-imagemagick Docker image of the service
         uses: docker/build-push-action@v4
         with:
-          context: .
+          context: ./
           file: deploy/production/ubuntu-imagemagick.dockerfile
           platforms: linux/amd64,linux/arm/v7,linux/arm64/v8
           push: true

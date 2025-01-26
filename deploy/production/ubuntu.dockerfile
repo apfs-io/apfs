@@ -1,4 +1,4 @@
-FROM --platform=$TARGETPLATFORM ubuntu:plucky
+FROM ubuntu:plucky
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
