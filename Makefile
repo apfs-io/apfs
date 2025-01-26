@@ -72,6 +72,9 @@ __eval_srcs:
 build: ## Build application
 	@echo "Build application"
 	@$(call do_build,"cmd/apfs/main.go",apfs)
+	@cp "${shell go env GOROOT}/lib/time/zoneinfo.zip" .build/zoneinfo.zip
+	@mkdir -p .build/.empty
+	@chmod 777 .build/.empty
 
 .PHONY: build-testapp
 build-testapp: ## Build test application
@@ -87,6 +90,22 @@ build-docker-dev: build
 build-docker-testapp: build-testapp
 	echo "Build test app docker image"
 	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker build -t ${DOCKER_CONTAINER_TESTAPP_IMAGE} -f deploy/develop/testapp.dockerfile .
+
+.PHONY: buildx-docker-production
+buildx-docker-production:
+	echo "Build production docker image"
+	docker buildx build \
+		--platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
+		-t ${IMAGE_NAME}:ubunty-imagemagic -f deploy/production/ubuntu-imagemagic.dockerfile .
+	docker buildx build \
+		--platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
+		-t ${IMAGE_NAME}:ubuntu -f deploy/production/ubuntu.dockerfile .
+	docker buildx build \
+		--platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
+		-t ${IMAGE_NAME}:debian -f deploy/production/debian.dockerfile .
+	docker buildx build \
+		--platform ${DOCKER_PLATFORM_LIST} \
+		-t ${IMAGE_NAME}:scratch -f deploy/production/scratch.dockerfile .
 
 .PHONY: clean
 clean: ## Clean build files

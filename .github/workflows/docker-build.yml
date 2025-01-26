@@ -121,7 +121,7 @@ jobs:
         with:
           context: .
           file: deploy/production/debian.dockerfile
-          platforms: ${{ env.DOCKER_BUILD_PLATFORMS }}
+          platforms: linux/amd64,linux/arm/v7,linux/arm64/v8
           push: true
           tags: "${{ env.IMAGE_NAME }}:debian-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:debian-latest"
 
@@ -130,7 +130,7 @@ jobs:
         with:
           context: .
           file: deploy/production/ubuntu.dockerfile
-          platforms: ${{ env.DOCKER_BUILD_PLATFORMS }}
+          platforms: linux/amd64,linux/arm/v7,linux/arm64/v8
           push: true
           tags: "${{ env.IMAGE_NAME }}:ubuntu-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:ubuntu-latest"
 
@@ -139,6 +139,6 @@ jobs:
         with:
           context: .
           file: deploy/production/ubuntu-imagemagick.dockerfile
-          platforms: ${{ env.DOCKER_BUILD_PLATFORMS }}
+          platforms: linux/amd64,linux/arm/v7,linux/arm64/v8
           push: true
           tags: "${{ env.IMAGE_NAME }}:ubuntu-imagemagick-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:ubuntu-imagemagick-latest"
