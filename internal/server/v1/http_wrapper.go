@@ -128,7 +128,8 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 	}
 	ctxlogger.Get(ctx).Info("Object GET", zap.String("object_id", id))
 
-	sObject, err := s.store.Open(ctx, id)
+	// Get object reference by ID
+	sObject, err := s.store.Object(ctx, id)
 	if err != nil && !storerrors.IsNotFound(err) {
 		ctxlogger.Get(ctx).Error("open object link by ID",
 			zap.String("object_id", id),
@@ -152,7 +153,7 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 
 	var data io.ReadCloser
 	if !headOnly {
-		if data, err = s.store.OpenObject(ctx, sObject, name); err != nil {
+		if _, data, err = s.store.OpenObject(ctx, sObject, name); err != nil {
 			ctxlogger.Get(ctx).Error("open object by ID",
 				zap.String("object_id", id),
 				zap.String("object_name", name),
@@ -167,15 +168,13 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 		name = sObject.PrepareName(name)
 	}
 	contentType := mime.TypeByExtension(filepath.Ext(name))
-	itemSize := sObject.MustMeta().ItemByName(name).Size
+	sObjectMeta := sObject.MustMeta()
 	w.Header().Add("Content-Type", contentType)
-	if !headOnly {
-		w.Header().Add("Content-Length", gocast.Str(itemSize))
-	} else {
-		w.Header().Add("X-Content-Size", gocast.Str(itemSize))
-	}
+	w.Header().Add(
+		gocast.IfThen(headOnly, "X-Content-Size", "Content-Length"),
+		gocast.Str(sObjectMeta.ItemByName(name).Size))
 	if headOnly || gocast.Bool(query.Get("meta")) {
-		w.Header().Add("X-Content-Meta", encodeJSONBase64(sObject.MustMeta()))
+		w.Header().Add("X-Content-Meta", encodeJSONBase64(sObjectMeta))
 	}
 	if len(sObject.MustMeta().Tags) > 0 {
 		w.Header().Add("X-Content-Tags", strings.Join(sObject.MustMeta().Tags, ","))

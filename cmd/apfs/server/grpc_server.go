@@ -29,41 +29,69 @@ import (
 
 type contextWrapper func(context.Context) context.Context
 
-// GRPCServer wrapper object
+// GRPCServer is a wrapper object that encapsulates the gRPC and HTTP server configurations and logic.
 type GRPCServer struct {
-	API         *v1.ServerHTTPWrapper
-	ContextWrap contextWrapper
-	Logger      *zap.Logger
+	API         *v1.ServerHTTPWrapper // API implementation for handling requests.
+	ContextWrap contextWrapper        // Function to wrap context with additional data.
+	Logger      *zap.Logger           // Logger for logging server events.
 
-	Concurrency       uint32
-	RequestTimeout    time.Duration
-	ConnectionTimeout time.Duration
+	Concurrency       uint32        // Maximum number of concurrent streams.
+	RequestTimeout    time.Duration // Timeout for individual requests.
+	ConnectionTimeout time.Duration // Timeout for connections.
 
 	// Secure connection certificates
-	CertFile string
-	KeyFile  string
+	CertFile string // Path to the certificate file.
+	KeyFile  string // Path to the key file.
 }
 
-// RunGRPC server
+// Run starts the gRPC and/or HTTP server based on the provided addresses.
+func (s *GRPCServer) Run(ctx context.Context, httpAddr, grpcAddr string) error {
+	// If both HTTP and gRPC addresses are provided, run them concurrently.
+	if httpAddr != "" && grpcAddr != "" {
+		go func() {
+			if err := s.RunGRPC(ctx, grpcAddr); err != nil {
+				s.Logger.Error("failed to run GRPC server",
+					zap.String("address", grpcAddr),
+					zap.Error(err))
+			}
+		}()
+		return s.RunHTTP(ctx, httpAddr)
+	}
+	// Run only the HTTP server if the HTTP address is provided.
+	if httpAddr != "" {
+		return s.RunHTTP(ctx, httpAddr)
+	}
+	// Run only the gRPC server if the gRPC address is provided.
+	if grpcAddr != "" {
+		return s.RunGRPC(ctx, grpcAddr)
+	}
+	// Return an error if no address is provided.
+	return errors.New("no server address provided")
+}
+
+// RunGRPC starts the gRPC server on the specified address.
 func (s *GRPCServer) RunGRPC(ctx context.Context, listen string) error {
+	// Parse the network and address from the listen string.
 	network, address := parseNetwork(listen)
 	s.Logger.Info("Start GRPC API",
 		zap.String("network", network),
 		zap.String("address", address))
 
+	// Create a listener for the specified network and address.
 	lis, err := (&net.ListenConfig{}).
 		Listen(ctx, network, address)
 	if err != nil {
 		return err
 	}
 
+	// Configure logging options for gRPC.
 	zapOpts := []grpc_zap.Option{
 		grpc_zap.WithDurationField(func(duration time.Duration) zapcore.Field {
 			return zap.Int64("grpc.time_ns", duration.Nanoseconds())
 		}),
 	}
 
-	// Init certification
+	// Initialize TLS credentials if certificate and key files are provided.
 	creds, err := loadCreds(s.CertFile, s.KeyFile)
 	if err != nil {
 		if closeErr := lis.Close(); err != nil {
@@ -75,7 +103,7 @@ func (s *GRPCServer) RunGRPC(ctx context.Context, listen string) error {
 		return errors.Wrap(err, `failed to setup TLS:`)
 	}
 
-	// Create server instance
+	// Create the gRPC server instance with middleware and configurations.
 	srv := grpc.NewServer(
 		grpc.Creds(creds),
 		grpc.ChainUnaryInterceptor(
@@ -97,9 +125,10 @@ func (s *GRPCServer) RunGRPC(ctx context.Context, listen string) error {
 		}),
 	)
 
-	// Register service API
+	// Register the service API with the gRPC server.
 	protocol.RegisterServiceAPIServer(srv, s.API)
 
+	// Gracefully stop the server when the context is canceled.
 	go func() {
 		<-ctx.Done()
 		srv.GracefulStop()
@@ -115,21 +144,24 @@ func (s *GRPCServer) RunGRPC(ctx context.Context, listen string) error {
 	return srv.Serve(lis)
 }
 
-// RunHTTP server
+// RunHTTP starts the HTTP server on the specified address.
 func (s *GRPCServer) RunHTTP(ctx context.Context, address string) error {
 	s.Logger.Info("Start HTTP API: " + address)
 
+	// Create a new gRPC-Gateway multiplexer.
 	gw := runtime.NewServeMux()
 	if err := protocol.RegisterServiceAPIHandlerServer(ctx, gw, s.API); err != nil {
 		return err
 	}
 
+	// Set up the HTTP router with middleware and routes.
 	mux := chi.NewRouter()
 	mux.Use(chimiddleware.RequestID)
 	mux.Use(chimiddleware.RealIP)
 	mux.Use(chimiddleware.Logger)
 	mux.Use(chimiddleware.Recoverer)
 
+	// Define routes for the API and additional endpoints.
 	mux.Handle("/*", gw)
 	mux.Get("/object", s.API.GetHTTPHandler)
 	mux.Get("/object/*", s.API.GetHTTPHandler)
@@ -139,17 +171,18 @@ func (s *GRPCServer) RunHTTP(ctx context.Context, address string) error {
 	mux.HandleFunc("/health", tools.HealthCheck)
 	mux.Handle("/metrics", promhttp.Handler())
 
-	// Context and metrics wrapper
-	h := middleware.HTTPContextWrapper(mux, s.ContextWrap)
+	// Wrap the router with context and metrics middleware.
+	handler := middleware.HTTPContextWrapper(mux, s.ContextWrap)
 
+	// Create the HTTP server instance.
 	srv := &http.Server{
-		Addr:    address,
-		Handler: h,
-		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-			return s.ContextWrap(ctx)
-		},
+		Addr:        address,
+		Handler:     handler,
+		BaseContext: func(l net.Listener) context.Context { return ctx },
+		ConnContext: s.connContextWrapFnk(),
 	}
 
+	// Gracefully shut down the server when the context is canceled.
 	go func() {
 		<-ctx.Done()
 		s.Logger.Info("Shutting down the HTTP server")
@@ -166,18 +199,27 @@ func (s *GRPCServer) RunHTTP(ctx context.Context, address string) error {
 	return nil
 }
 
+// swaggerHandler serves the Swagger UI for API documentation.
 func (s *GRPCServer) swaggerHandler() http.Handler {
 	return http.StripPrefix("/swagger/",
-		tools.SwaggerServer("/swagger/swagger.json", true),
-	)
+		tools.SwaggerServer("/swagger/swagger.json", true))
 }
 
+// contextWrapFnk wraps the context with additional data for gRPC.
 func (s *GRPCServer) contextWrapFnk() func(ctx context.Context) (context.Context, error) {
 	return func(ctx context.Context) (context.Context, error) {
 		return s.ContextWrap(ctx), nil
 	}
 }
 
+// connContextWrapFnk wraps the connection context with additional data.
+func (s *GRPCServer) connContextWrapFnk() func(ctx context.Context, c net.Conn) context.Context {
+	return func(ctx context.Context, c net.Conn) context.Context {
+		return s.ContextWrap(ctx)
+	}
+}
+
+// parseNetwork parses the network and address from a URI.
 func parseNetwork(uri string) (network, address string) {
 	if !strings.Contains(uri, "://") {
 		return "tcp", uri
@@ -186,6 +228,7 @@ func parseNetwork(uri string) (network, address string) {
 	return addr[0], strings.TrimLeft(addr[1], "/")
 }
 
+// loadCreds loads TLS credentials from the provided certificate and key files.
 func loadCreds(crt, key string) (credentials.TransportCredentials, error) {
 	if crt == `` {
 		return insecure.NewCredentials(), nil

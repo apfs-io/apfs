@@ -84,7 +84,7 @@ message ObjectResponse {
 
 option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
   host: "localhost:9678";
-  base_path: "";
+  base_path: "/v1";
 	info: {
 		title: "apfs file-processing stream tool";
 		version: "1.0";
@@ -111,16 +111,16 @@ service ServiceAPI {
   // Get object information
   rpc Head(ObjectID) returns (SimpleObjectResponse) {
     option (google.api.http) = {
-      get: "/head/{id=**}"
+      get: "/v1/head/{id=**}"
     };
   };
 
   // Get object and data
   rpc Get(ObjectID) returns (stream ObjectResponse) {
     option (google.api.http) = {
-      get: "/object/{id}"
+      get: "/v1/object/{id}"
       // Example:
-      // curl -i "http://hostname:port/object/images/object/path?[name=subobject.name]&[meta=true]"
+      // curl -i "http://hostname:port/v1/object/images/object/path?[name=subobject.name]&[meta=true]"
       //
       // Content-Type: based on file mime type
       // Content-Length: size of file in bytes
@@ -131,7 +131,7 @@ service ServiceAPI {
   // Refresh object and reprocess
   rpc Refresh(ObjectID) returns (SimpleResponse) {
     option (google.api.http) = {
-      put: "/refresh/{id=**}"
+      put: "/v1/refresh/{id=**}"
       body: "*"
     };
   };
@@ -139,7 +139,7 @@ service ServiceAPI {
   // SetManifest of the group
   rpc SetManifest(DataManifest) returns (SimpleResponse) {
     option (google.api.http) = {
-      put: "/manifest/{group}"
+      put: "/v1/manifest/{group}"
       body: "*"
     };
   };
@@ -147,14 +147,14 @@ service ServiceAPI {
   // GetManifest of the group
   rpc GetManifest(ManifestGroup) returns (ManifestResponse) {
     option (google.api.http) = {
-      get: "/manifest/{group}"
+      get: "/v1/manifest/{group}"
     };
   };
 
   // Upload new file as a stream
   rpc Upload(stream Data) returns (SimpleObjectResponse) {
     option (google.api.http) = {
-      post: "/object"
+      post: "/v1/object"
       body: "*"
     };
   };
@@ -162,7 +162,7 @@ service ServiceAPI {
   // Delete file object or subitems
   rpc Delete(ObjectIDNames) returns (SimpleResponse) {
     option (google.api.http) = {
-      delete: "/object/{id=**}"
+      delete: "/v1/object/{id=**}"
     };
   };
 }

@@ -23,7 +23,6 @@ type (
 	ManifestTask      = models.ManifestTask
 	Action            = models.Action
 	Client            = client.Client
-	GroupClient       = client.GroupClient
 )
 
 // List of constants...

@@ -53,12 +53,9 @@ func (stage *ManifestTaskStage) PrepareInfo() {
 		if task.ID != `` {
 			continue
 		}
-		objectPath := task.Target
-		if objectPath == "" {
-			objectPath = task.Source
-		}
-		ext := filepath.Ext(objectPath)
-		prefix := SourceFilename(strings.TrimSuffix(objectPath, ext), ext)
+		objectPath := gocast.IfThen(task.Target != ``, task.Target, task.Source)
+		fileext := filepath.Ext(objectPath)
+		prefix := SourceFilename(strings.TrimSuffix(objectPath, fileext), fileext)
 		if stage.Name != `` {
 			prefix = stage.Name + `:` + prefix
 		}

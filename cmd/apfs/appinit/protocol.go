@@ -16,22 +16,22 @@ import (
 const EventStreamName = "events"
 
 // ProtocolAPIObject inites the API implementation
-func ProtocolAPIObject(ctx context.Context, conf *appcontext.ConfigType, logger *zap.Logger) (api.ServiceServer, error) {
+func ProtocolAPIObject(ctx context.Context, eventsConf *appcontext.EventstreamConfig, storageConf *appcontext.StorageConfig, logger *zap.Logger) (api.ServiceServer, error) {
 	// Register the notification stream
-	events, err := registerStream(ctx, EventStreamName, conf.Eventstream.Connect)
+	events, err := registerStream(ctx, EventStreamName, eventsConf.Connect)
 	if err != nil {
 		return nil, err
 	}
 	srvLogic, err := api.NewServer(
-		conf.Storage.MetadbConnect,
-		conf.Storage.Connect,
-		conf.Storage.StateConnect,
-		api.WithStageProcessingLimit(conf.Storage.ProcessingStageLimit),
-		api.WithTaskProcessingLimit(conf.Storage.ProcessingTaskLimit),
+		storageConf.MetadbConnect,
+		storageConf.Connect,
+		storageConf.StateConnect,
+		api.WithStageProcessingLimit(storageConf.ProcessingStageLimit),
+		api.WithTaskProcessingLimit(storageConf.ProcessingTaskLimit),
 		api.WithEventstream(events),
-		api.WithUpdateState(updateLocker(conf)),
-		api.WithStorageConverters(Converters(conf, logger)),
-		api.WithRetries(conf.Storage.ProcessingMaxRetries),
+		api.WithUpdateState(updateLocker(storageConf)),
+		api.WithStorageConverters(Converters(storageConf, logger)),
+		api.WithRetries(storageConf.ProcessingMaxRetries),
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "server create")

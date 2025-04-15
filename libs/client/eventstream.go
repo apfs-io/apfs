@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"io"
 
+	nc "github.com/geniusrabbit/notificationcenter/v2"
+
 	"github.com/apfs-io/apfs/internal/stream"
 	"github.com/apfs-io/apfs/models"
-
-	nc "github.com/geniusrabbit/notificationcenter/v2"
 )
 
 // EventHandler function callback

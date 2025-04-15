@@ -1,4 +1,4 @@
-package storage
+package processor
 
 type closer func() error
 

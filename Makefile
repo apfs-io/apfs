@@ -1,11 +1,13 @@
 include .env
 export
 
-IMAGE_NAME=apfs-io/apfs
+IMAGE_NAME=github.com/apfs-io/apfs
 DOCKER_CONTAINER_IMAGE=${IMAGE_NAME}:latest
 DOCKER_CONTAINER_TESTAPP_IMAGE=${IMAGE_NAME}-testapp:latest
 
 APP_TAGS=${BUILD_TAGS}
+
+DCMD:=docker compose -p apfs -f deploy/develop/docker-compose.yml
 
 include deploy/build.mk
 
@@ -96,7 +98,7 @@ buildx-docker-production:
 	echo "Build production docker image"
 	docker buildx build \
 		--platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
-		-t ${IMAGE_NAME}:ubunty-imagemagic -f deploy/production/ubuntu-imagemagic.dockerfile .
+		-t ${IMAGE_NAME}:ubunty-imagemagick -f deploy/production/ubuntu-imagemagick.dockerfile .
 	docker buildx build \
 		--platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
 		-t ${IMAGE_NAME}:ubuntu -f deploy/production/ubuntu.dockerfile .
@@ -113,15 +115,15 @@ clean: ## Clean build files
 
 .PHONY: run
 run: devdocker_build_test ## Run application
-	docker-compose -p ${MAIN} -f deploy/develop/docker-compose.yml run --rm --service-ports apfsserver
+	${DCMD} run --rm --service-ports server
 
 .PHONY: runtest
 runtest: devdocker_build_test ## Run test application
-	docker-compose -p ${MAIN} -f deploy/develop/docker-compose.yml run --rm --service-ports apfstest
+	${DCMD} run --rm --service-ports test
 
 .PHONY: stop
 stop: ## Stop all services
-	docker-compose -p ${MAIN} -f deploy/develop/docker-compose.yml stop
+	${DCMD} stop
 
 .PHONY: help
 help:

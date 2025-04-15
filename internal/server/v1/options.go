@@ -5,6 +5,7 @@ import (
 	"github.com/apfs-io/apfs/internal/storage"
 	"github.com/apfs-io/apfs/internal/storage/converters"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor"
+	"github.com/apfs-io/apfs/internal/storage/processor"
 
 	nc "github.com/geniusrabbit/notificationcenter/v2"
 )
@@ -41,9 +42,21 @@ func (opts *Options) _storage(database storage.DB, driver io.StorageAccessor, st
 		storage.WithDatabase(database),
 		storage.WithDriver(driver),
 		storage.WithProcessingStatus(stateKV),
-		storage.WithConverters(opts.convs...),
-		storage.WithMaxRetries(opts.maxRetries),
 	)
+}
+
+func (opts *Options) _processor(driver io.StorageAccessor, stateKV kvaccessor.KVAccessor) *processor.Processor {
+	proc, err := processor.NewProcessor(
+		processor.WithDriver(driver),
+		processor.WithProcessingStatus(stateKV),
+		processor.WithConverters(opts.convs...),
+		processor.WithStorage(opts.store),
+		processor.WithMaxRetries(opts.maxRetries),
+	)
+	if err != nil {
+		panic(err)
+	}
+	return proc
 }
 
 // WithStageProcessingLimit custom option

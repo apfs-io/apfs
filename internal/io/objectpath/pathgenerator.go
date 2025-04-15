@@ -64,7 +64,7 @@ func NewBasePathgenerator(pattern string, options ...Option) Generator {
 
 // Generate new object path
 func (gen *BasePathgenerator) Generate(prefix string) (path string, err error) {
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		path = gen.pattern
 		for _, rep := range gen.replacers {
 			if path, err = rep(path); err != nil {
@@ -95,7 +95,12 @@ func md5Replacer(path string) (string, error) {
 	return strings.NewReplacer(
 		"{{md5}}", hash,
 		"{{md5:1}}", hash[:1],
+		"{{md5:1-2}}", hash[:2],
+		"{{md5:1-3}}", hash[:3],
 		"{{md5:2}}", hash[1:2],
 		"{{md5:3}}", hash[2:3],
+		"{{md5:last}}", hash[len(hash)-1:],
+		"{{md5:last-2}}", hash[len(hash)-2:],
+		"{{md5:last-3}}", hash[len(hash)-3:],
 	).Replace(path), nil
 }

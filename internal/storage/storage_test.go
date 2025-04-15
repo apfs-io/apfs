@@ -13,6 +13,7 @@ import (
 	"github.com/apfs-io/apfs/internal/driver/fs"
 	npio "github.com/apfs-io/apfs/internal/io"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor/memory"
+	"github.com/apfs-io/apfs/internal/storage/processor"
 	"github.com/apfs-io/apfs/libs/converters/image"
 	"github.com/apfs-io/apfs/libs/converters/procedure"
 	"github.com/apfs-io/apfs/models"
@@ -23,6 +24,7 @@ var (
 	proceduresDir, _ = filepath.Abs("../../deploy/procedures")
 	fsdriver         *fs.Storage
 	storage          *Storage
+	procc            *processor.Processor
 )
 
 func init() {
@@ -31,13 +33,27 @@ func init() {
 	testStorePath = filepath.Join(__dir, "teststore")
 	proceduresDir, _ = filepath.Abs(filepath.Join(__dir, "../../deploy/procedures"))
 
+	// Init file system driver for storage
 	fsdriver, _ = fs.NewStorage(testStorePath)
+
+	// Init state KV driver
+	processingState := &memory.KVMemory{}
+
+	// Init storage of the file objects
 	storage = NewStorage(
 		WithDatabase(&DatabaseMock{}),
 		WithDriver(fsdriver),
-		WithProcessingStatus(&memory.KVMemory{}),
-		WithConverters(image.NewDefaultConverter(),
+		WithProcessingStatus(processingState),
+	)
+
+	// Init object processor
+	procc, _ = processor.NewProcessor(
+		processor.WithConverters(image.NewDefaultConverter(),
 			procedure.New(proceduresDir)),
+		processor.WithStorage(storage),
+		processor.WithDriver(fsdriver),
+		processor.WithProcessingStatus(processingState),
+		processor.WithMaxRetries(3),
 	)
 }
 
@@ -182,7 +198,7 @@ func TestStorageProcess(t *testing.T) {
 	}
 
 	// 3. Process uploaded object with all tasks and stages
-	complete, err := storage.ProcessTasks(ctx, object, AllTasks, AllStages)
+	complete, err := procc.ProcessTasks(ctx, object, AllTasks, AllStages)
 	if !assert.NoError(t, err, "task processing error") {
 		return
 	}
@@ -191,7 +207,7 @@ func TestStorageProcess(t *testing.T) {
 	}
 
 	// 4. Adjust object with extra tasks
-	objectAdjust, err := storage.Open(ctx, object.ID().String())
+	objectAdjust, err := storage.Object(ctx, object.ID().String())
 	if assert.NoError(t, err, "open object") && assert.NotNil(t, object, "object reference") {
 		manifest := objectAdjust.Manifest()
 		manifest.Stages[0].Tasks = manifest.Stages[0].Tasks[1:]

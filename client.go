@@ -1,6 +1,6 @@
 //
-// @project apfs 2018 - 2022
-// @author Dmitry Ponomarev <demdxx@gmail.com> 2018 - 2022
+// @project apfs 2018 - 2022, 2025
+// @author Dmitry Ponomarev <demdxx@gmail.com> 2018 - 2022, 2025
 //
 
 package apfs
@@ -14,19 +14,16 @@ import (
 	"github.com/apfs-io/apfs/libs/storerrors"
 )
 
-// NewClient to apfs
-func NewClient(ctx context.Context, address string, opts ...grpc.DialOption) (Client, error) {
-	return client.Open(ctx, address, opts...)
+// Connect new client to disk service
+// address should be in format tcp://host:port/default-group-name
+// Scheme tcp:// or dns:// is required
+func Connect(ctx context.Context, address string, opts ...grpc.DialOption) (Client, error) {
+	return client.Connect(ctx, address, opts...)
 }
 
-// NewGroupClient wrapper
-func NewGroupClient(name string, cli Client) *GroupClient {
-	return client.NewGroupClient(name, cli)
-}
-
-// ContextGet returns API client object
-func ContextGet(ctx context.Context) Client {
-	return client.ContextGet(ctx)
+// FromContext returns API client object
+func FromContext(ctx context.Context) Client {
+	return client.FromContext(ctx)
 }
 
 // WithClient puts client object to context

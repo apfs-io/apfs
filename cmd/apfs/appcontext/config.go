@@ -8,7 +8,7 @@ import (
 	"github.com/demdxx/goconfig"
 )
 
-type serverConfig struct {
+type ServerConfig struct {
 	HTTP struct {
 		Listen       string        `default:":8080" json:"listen" yaml:"listen" cli:"http-listen" env:"SERVER_HTTP_LISTEN"`
 		ReadTimeout  time.Duration `default:"120s" json:"read_timeout" yaml:"read_timeout" env:"SERVER_HTTP_READ_TIMEOUT"`
@@ -25,7 +25,7 @@ type serverConfig struct {
 	}
 }
 
-type storageConfig struct {
+type StorageConfig struct {
 	// Connect to the storage of files fs:///dir/path s3://host:9000/assets?access=${S3_ACCESS_KEY}&secret=${S3_SECRET_KEY}&region=default&insecure=true
 	Connect string `json:"connect" yaml:"connect" env:"STORAGE_CONNECT"`
 
@@ -50,7 +50,7 @@ type storageConfig struct {
 	ProcessingMaxRetries int `json:"processing_max_retries" yaml:"processing_max_retries" env:"PROCESSING_MAX_RETRIES" default:"1"`
 }
 
-type eventstreamConfig struct {
+type EventstreamConfig struct {
 	Connect     string `json:"connect" yaml:"connect" env:"EVENTSTREAM_CONNECT"`
 	Concurrency int    `json:"concurrency" yaml:"concurrency" env:"EVENTSTREAM_CONCURRENCY"`
 	PoolSize    int    `json:"pool_size" yaml:"pool_size" env:"EVENTSTREAM_POOL_SIZE"`
@@ -65,12 +65,13 @@ type ConfigType struct {
 	Hostname       string `json:"hostname" yaml:"hostname" env:"HOSTNAME" default:""`
 	Hostcode       string `json:"hostcode" yaml:"hostcode" env:"HOSTCODE" default:""`
 
-	LogAddr  string `default:"" env:"LOG_ADDR"`
-	LogLevel string `default:"debug" env:"LOG_LEVEL"`
+	LogAddr    string `default:"" env:"LOG_ADDR"`
+	LogLevel   string `default:"debug" env:"LOG_LEVEL"`
+	LogEncoder string `json:"log_encoder" env:"LOG_ENCODER"`
 
-	Server      serverConfig      `json:"server" yaml:"server"`
-	Storage     storageConfig     `json:"storage" yaml:"storage"`
-	Eventstream eventstreamConfig `json:"eventstream" yaml:"eventstream"`
+	Server      ServerConfig      `json:"server" yaml:"server"`
+	Storage     StorageConfig     `json:"storage" yaml:"storage"`
+	Eventstream EventstreamConfig `json:"eventstream" yaml:"eventstream"`
 }
 
 // String implementation of Stringer interface

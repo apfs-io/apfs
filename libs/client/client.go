@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/demdxx/gocast/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -21,12 +22,16 @@ import (
 )
 
 type client struct {
-	conn    *grpc.ClientConn
-	sclient protocol.ServiceAPIClient
+	noClose      bool
+	defaultGroup string
+	conn         *grpc.ClientConn
+	sclient      protocol.ServiceAPIClient
 }
 
-// Open new client to disk service
-func Open(ctx context.Context, address string, opts ...grpc.DialOption) (Client, error) {
+// Connect new client to disk service
+// address should be in format tcp://host:port/default-group-name
+// Scheme tcp:// or dns:// is required
+func Connect(ctx context.Context, address string, opts ...grpc.DialOption) (Client, error) {
 	if len(opts) < 1 {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
@@ -44,28 +49,54 @@ func Open(ctx context.Context, address string, opts ...grpc.DialOption) (Client,
 	return &client{
 		conn:    conn,
 		sclient: protocol.NewServiceAPIClient(conn),
+		defaultGroup: gocast.Or(
+			url.Query().Get("group"),
+			strings.TrimLeft(url.Path, "/"),
+			"default",
+		),
 	}, nil
 }
 
-func (c *client) Head(ctx context.Context, id *protocol.ObjectID, opts ...grpc.CallOption) (*models.Object, error) {
-	objResp, err := c.sclient.Head(prepareContext(ctx), id, opts...)
+// Head returns object info
+func (c *client) Head(ctx context.Context, id *protocol.ObjectID, opts ...RequestOption) (*models.Object, error) {
+	var requestOptions RequestOptions
+	for _, opt := range opts {
+		opt(&requestOptions)
+	}
+	objResp, err := c.sclient.Head(prepareContext(ctx), id, requestOptions.grpcOpts...)
 	return prepareSimpleObjectResponse(objResp, err)
 }
 
-func (c *client) Refresh(ctx context.Context, id *protocol.ObjectID, opts ...grpc.CallOption) error {
-	objResp, err := c.sclient.Refresh(prepareContext(ctx), id, opts...)
+// Refresh object in state in storage
+func (c *client) Refresh(ctx context.Context, id *protocol.ObjectID, opts ...RequestOption) error {
+	var requestOptions RequestOptions
+	for _, opt := range opts {
+		opt(&requestOptions)
+	}
+
+	objResp, err := c.sclient.Refresh(prepareContext(ctx), id, requestOptions.grpcOpts...)
 	if err != nil {
 		return err
 	}
+
 	if objResp.Status.IsFailed() {
 		return errors.New(objResp.GetMessage())
 	}
+
 	return nil
 }
 
-func (c *client) Get(ctx context.Context, id *protocol.ObjectID, opts ...grpc.CallOption) (obj *models.Object, reader io.ReadCloser, err error) {
-	var cli protocol.ServiceAPI_GetClient
-	if cli, err = c.sclient.Get(prepareContext(ctx), id, opts...); err != nil {
+// Get object from storage and return reader
+func (c *client) Get(ctx context.Context, id *protocol.ObjectID, opts ...RequestOption) (obj *models.Object, reader io.ReadCloser, err error) {
+	var (
+		cli            protocol.ServiceAPI_GetClient
+		requestOptions RequestOptions
+	)
+	for _, opt := range opts {
+		opt(&requestOptions)
+	}
+
+	if cli, err = c.sclient.Get(prepareContext(ctx), id, requestOptions.grpcOpts...); err != nil {
 		return nil, nil, err
 	}
 
@@ -77,19 +108,26 @@ func (c *client) Get(ctx context.Context, id *protocol.ObjectID, opts ...grpc.Ca
 		}
 		obj, err = prepareObjectResponse(recv, err)
 	}
+
 	return obj, reader, err
 }
 
 // SetManifest of the group
-func (c *client) SetManifest(ctx context.Context, group string, manifest *models.Manifest, opts ...grpc.CallOption) error {
+func (c *client) SetManifest(ctx context.Context, manifest *models.Manifest, opts ...RequestOption) error {
 	protoManifest, err := protocol.ManifestFromModel(manifest.PrepareInfo())
 	if err != nil {
 		return err
 	}
+
+	var requestOptions RequestOptions
+	for _, opt := range opts {
+		opt(&requestOptions)
+	}
+
 	status, err := c.sclient.SetManifest(ctx, &protocol.DataManifest{
-		Group:    group,
+		Group:    gocast.Or(requestOptions.group, c.defaultGroup),
 		Manifest: protoManifest,
-	}, opts...)
+	}, requestOptions.grpcOpts...)
 	if err == nil && !status.GetStatus().IsOK() {
 		err = errors.New(status.GetMessage())
 	}
@@ -97,31 +135,45 @@ func (c *client) SetManifest(ctx context.Context, group string, manifest *models
 }
 
 // GetManifest of the group
-func (c *client) GetManifest(ctx context.Context, group string, opts ...grpc.CallOption) (*models.Manifest, error) {
-	response, err := c.sclient.GetManifest(ctx, &protocol.ManifestGroup{Group: group}, opts...)
+func (c *client) GetManifest(ctx context.Context, opts ...RequestOption) (*models.Manifest, error) {
+	var requestOptions RequestOptions
+	for _, opt := range opts {
+		opt(&requestOptions)
+	}
+
+	response, err := c.sclient.GetManifest(ctx,
+		&protocol.ManifestGroup{
+			Group: gocast.Or(requestOptions.group, c.defaultGroup),
+		}, requestOptions.grpcOpts...)
 	if err != nil {
 		return nil, err
 	}
+
 	if !response.GetStatus().IsOK() {
 		return nil, errors.New(response.GetMessage())
 	}
+
 	return response.GetManifest().ToModel(), nil
 }
 
 // UploadFile object into storage
-func (c *client) UploadFile(ctx context.Context, group, id, filepath string, tags []string, overwrite bool, opts ...grpc.CallOption) (*models.Object, error) {
+func (c *client) UploadFile(ctx context.Context, filepath string, opts ...RequestOption) (*models.Object, error) {
 	file, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
-	return c.Upload(ctx, group, id, file, tags, overwrite, opts...)
+	defer func() { _ = file.Close() }()
+	return c.Upload(ctx, file, opts...)
 }
 
 // Upload file object into storage
-func (c *client) Upload(ctx context.Context, group, id string, data io.Reader,
-	tags []string, overwrite bool, opts ...grpc.CallOption) (*models.Object, error) {
-	uploadClient, err := c.sclient.Upload(prepareContext(ctx), opts...)
+func (c *client) Upload(ctx context.Context, data io.Reader, opts ...RequestOption) (*models.Object, error) {
+	var requestOptions RequestOptions
+	for _, opt := range opts {
+		opt(&requestOptions)
+	}
+
+	uploadClient, err := c.sclient.Upload(prepareContext(ctx), requestOptions.grpcOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -131,12 +183,12 @@ func (c *client) Upload(ctx context.Context, group, id string, data io.Reader,
 	if err = uploadClient.Send(&protocol.Data{
 		Item: &protocol.Data_Info{
 			Info: &protocol.DataCustomID{
-				Group:     group,
-				CustomId:  id,
-				Overwrite: overwrite,
+				Group:     gocast.Or(requestOptions.group, c.defaultGroup),
+				CustomId:  requestOptions.customID,
+				Overwrite: requestOptions.overwrite,
 			},
 		},
-		Tags: tags,
+		Tags: requestOptions.tags,
 	}); err != nil {
 		return nil, err
 	}
@@ -171,7 +223,7 @@ func (c *client) Upload(ctx context.Context, group, id string, data io.Reader,
 }
 
 // Delete object from storage
-func (c *client) Delete(ctx context.Context, id any, opts ...grpc.CallOption) error {
+func (c *client) Delete(ctx context.Context, id any, opts ...RequestOption) error {
 	// Prepare object ID
 	var in *protocol.ObjectIDNames
 	switch v := id.(type) {
@@ -193,7 +245,12 @@ func (c *client) Delete(ctx context.Context, id any, opts ...grpc.CallOption) er
 		return ErrInvalidParams
 	}
 
-	resp, err := c.sclient.Delete(prepareContext(ctx), in, opts...)
+	var requestOptions RequestOptions
+	for _, opt := range opts {
+		opt(&requestOptions)
+	}
+
+	resp, err := c.sclient.Delete(prepareContext(ctx), in, requestOptions.grpcOpts...)
 	if err != nil {
 		return err
 	}
@@ -203,21 +260,26 @@ func (c *client) Delete(ctx context.Context, id any, opts ...grpc.CallOption) er
 	return err
 }
 
-// GroupClient returns group client with bucket name
-func (c *client) GroupClient(name string) *GroupClient {
-	return NewGroupClient(name, c)
+// WithGroup returns client with group name by default
+func (c *client) WithGroup(name string) Client {
+	return &client{
+		noClose:      true,
+		defaultGroup: name,
+		conn:         c.conn,
+		sclient:      c.sclient,
+	}
 }
 
 // Close client connection
 func (c *client) Close() (err error) {
-	if c.conn == nil {
+	if c.conn == nil || c.noClose {
 		return nil
 	}
 	if err = c.conn.Close(); err != nil {
 		c.conn = nil
 		c.sclient = nil
 	}
-	return
+	return err
 }
 
 ///////////////////////////////////////////////////////////////////////////////

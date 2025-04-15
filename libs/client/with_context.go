@@ -9,8 +9,8 @@ var (
 	CtxClientObject = struct{ s string }{"apfs.client"}
 )
 
-// ContextGet returns API client object
-func ContextGet(ctx context.Context) Client {
+// FromContext returns API client object
+func FromContext(ctx context.Context) Client {
 	if logObj := ctx.Value(CtxClientObject); logObj != nil {
 		return logObj.(Client)
 	}

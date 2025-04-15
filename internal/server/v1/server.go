@@ -19,6 +19,7 @@ import (
 	protocol "github.com/apfs-io/apfs/internal/server/protocol/v1"
 	"github.com/apfs-io/apfs/internal/storage"
 	"github.com/apfs-io/apfs/internal/storage/database"
+	"github.com/apfs-io/apfs/internal/storage/processor"
 	"github.com/apfs-io/apfs/libs/storerrors"
 	"github.com/apfs-io/apfs/models"
 )
@@ -49,6 +50,9 @@ type server struct {
 
 	// Storage object
 	store *storage.Storage
+
+	// Processor object
+	processor *processor.Processor
 
 	// Event stream object chanel
 	eventStream nc.Publisher
@@ -85,6 +89,7 @@ func NewServer(connect, storageConnect, stateConnect string, opts ...Option) (Se
 		eventStream:          options.eventStream,
 		updateState:          options.updateState,
 		store:                options._storage(database, driver, stateKV),
+		processor:            options._processor(driver, stateKV),
 	}, nil
 }
 
@@ -93,7 +98,7 @@ func (s *server) Head(ctx context.Context, obj *protocol.ObjectID) (*protocol.Si
 	ctxlogger.Get(ctx).Info("Object HEAD", zap.String("object_id", obj.GetId()))
 
 	// Get object descriptor
-	sObject, err := s.store.Open(ctx, obj.GetId())
+	sObject, err := s.store.Object(ctx, obj.GetId())
 	if err != nil && !storerrors.IsNotFound(err) {
 		return &protocol.SimpleObjectResponse{
 			Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_FAILED,
@@ -134,7 +139,7 @@ func (s *server) Head(ctx context.Context, obj *protocol.ObjectID) (*protocol.Si
 func (s *server) Refresh(ctx context.Context, obj *protocol.ObjectID) (*protocol.SimpleResponse, error) {
 	ctxlogger.Get(ctx).Info("Refresh PUT", zap.String("object_id", obj.GetId()))
 
-	sObject, err := s.store.Open(ctx, obj.GetId())
+	sObject, err := s.store.Object(ctx, obj.GetId())
 	if err != nil && !storerrors.IsNotFound(err) {
 		return &protocol.SimpleResponse{
 			Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_FAILED,
@@ -162,7 +167,7 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 	ctx := stream.Context()
 	ctxlogger.Get(ctx).Info("Object GET", zap.String("object_id", obj.GetId()))
 
-	sObject, err := s.store.Open(ctx, obj.GetId())
+	sObject, err := s.store.Object(ctx, obj.GetId())
 	if err != nil {
 		return err
 	}
@@ -185,7 +190,7 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 			continue
 		}
 		fileTry[name] = true
-		if data, err = s.store.OpenObject(ctx, sObject, name); err == nil {
+		if _, data, err = s.store.OpenObject(ctx, sObject, name); err == nil {
 			break
 		}
 		if !storerrors.IsNotFound(err) {
@@ -507,7 +512,7 @@ func (s *server) Receive(message nc.Message) error {
 
 	// Preload object for event type
 	if event.Type == models.RefreshEventType || event.Type == models.UpdateEventType {
-		cObject, err = s.store.Open(ctx, event.Object.ObjectID())
+		cObject, err = s.store.Object(ctx, event.Object.ObjectID())
 		if err != nil {
 			isNotFound := storerrors.IsNotFound(err)
 			ctxlogger.Get(ctx).Error("process",
@@ -570,7 +575,7 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 	// Remove redundant extra objects
 	_ = s.removeObjectItems(ctx, cObject, items, fields...)
 	// Process next task actions
-	isComplete, err = s.store.ProcessTasks(ctx, cObject,
+	isComplete, err = s.processor.ProcessTasks(ctx, cObject,
 		s.taskProcessingLimit, s.taskProcessingLimit)
 	switch {
 	case err != nil:

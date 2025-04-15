@@ -4,7 +4,6 @@ import (
 	"net/url"
 
 	npio "github.com/apfs-io/apfs/internal/io"
-	"github.com/apfs-io/apfs/internal/storage/converters"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor"
 )
 
@@ -70,15 +69,9 @@ type Options struct {
 	// collection of file objects
 	Driver npio.StorageAccessor
 
-	// converter list of processing
-	Converters []converters.Converter
-
 	// Processing status KeyValue accessor.
 	// contains statuses of the object processing stages
-	ProcessingStatus kvaccessor.KVAccessor
-
-	// MaxRetries of the task processing
-	MaxRetries int
+	processingStatus kvaccessor.KVAccessor
 }
 
 func (opts *Options) validate() error {
@@ -108,20 +101,6 @@ func WithDriver(driver npio.StorageAccessor) Option {
 // WithProcessingStatus object status accessor interface
 func WithProcessingStatus(processingStatus kvaccessor.KVAccessor) Option {
 	return func(opts *Options) {
-		opts.ProcessingStatus = processingStatus
-	}
-}
-
-// WithConverters list of processors
-func WithConverters(converters ...converters.Converter) Option {
-	return func(opts *Options) {
-		opts.Converters = append(opts.Converters, converters...)
-	}
-}
-
-// WithMaxRetries of the task execution
-func WithMaxRetries(maxRetries int) Option {
-	return func(opts *Options) {
-		opts.MaxRetries = maxRetries
+		opts.processingStatus = processingStatus
 	}
 }

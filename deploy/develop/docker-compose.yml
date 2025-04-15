@@ -33,13 +33,13 @@ services:
     image: nats
     expose: [ "4222" ]
 
-  apfsserver:
+  server:
     image: github.com/apfs-io/apfs:latest
     ports:
       - "18080:8080"
       - "18082:8082"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/healthcheck"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 5s
       timeout: 2s
       retries: 5
@@ -50,15 +50,17 @@ services:
         condition: service_started
       fileserver:
         condition: service_started
+      s3server:
+        condition: service_started
     env_file:
       - ../../.env
     volumes:
       - /tmp/data/minio/:/tmp/data/storage
 
-  apfstest:
+  test:
     image: github.com/apfs-io/apfs-testapp:latest
     depends_on:
-      apfsserver:
+      server:
         condition: service_healthy
     environment:
-      STORAGE_CONNECT: dns://apfsserver:8081
+      STORAGE_CONNECT: dns://server:8081
