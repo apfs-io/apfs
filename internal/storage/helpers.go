@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	npio "github.com/apfs-io/apfs/internal/io"
-	"github.com/apfs-io/apfs/models"
 )
 
 func objcID(obj any) string {
@@ -24,19 +23,4 @@ func splitPath(path string) (group, newpath string) {
 		return "", path
 	}
 	return data[0], data[1]
-}
-
-func updateProcessingState(cObject npio.Object, manifest *models.Manifest) {
-	meta := cObject.MustMeta()
-	if meta.IsProcessingComplete(manifest) {
-		if meta.IsComplete(manifest) {
-			cObject.StatusUpdate(models.StatusOK)
-		} else if meta.ErrorTaskCount() > 0 {
-			cObject.StatusUpdate(models.StatusError)
-		} else {
-			cObject.StatusUpdate(models.StatusUndefined)
-		}
-	} else {
-		cObject.StatusUpdate(models.StatusProcessing)
-	}
 }

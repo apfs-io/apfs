@@ -50,15 +50,15 @@
 
 ## API Endpoints
 
-| Method   | Endpoint                | Description                        |
-|----------|-------------------------|------------------------------------|
-| `GET`    | `/head/{id}`            | Retrieve object metadata.          |
-| `GET`    | `/object/{id}`          | Retrieve object and data.          |
-| `PUT`    | `/refresh/{id}`         | Reprocess an object.               |
-| `PUT`    | `/manifest/{group}`     | Set a manifest for a group.        |
-| `GET`    | `/manifest/{group}`     | Retrieve a group manifest.         |
-| `POST`   | `/object`               | Upload new file data.              |
-| `DELETE` | `/object/{id}`          | Delete an object or subitems.      |
+| Method   | Endpoint                   | Description                        |
+|----------|----------------------------|------------------------------------|
+| `GET`    | `/v1/head/{id}`            | Retrieve object metadata.          |
+| `GET`    | `/v1/object/{id}`          | Retrieve object and data.          |
+| `PUT`    | `/v1/refresh/{id}`         | Reprocess an object.               |
+| `PUT`    | `/v1/manifest/{group}`     | Set a manifest for a group.        |
+| `GET`    | `/v1/manifest/{group}`     | Retrieve a group manifest.         |
+| `POST`   | `/v1/object`               | Upload new file data.              |
+| `DELETE` | `/v1/object/{id}`          | Delete an object or subitems.      |
 
 ## License
 

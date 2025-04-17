@@ -43,7 +43,9 @@ func New(ctx context.Context, connect string, automigrate, debug bool) (*connect
 		conn = conn.Set("gorm:table_options", "ENGINE=InnoDB")
 	}
 	if automigrate {
-		conn.AutoMigrate(&models.Object{})
+		if err := conn.AutoMigrate(&models.Object{}); err != nil {
+			return nil, err
+		}
 	}
 	return &connector{conn: conn}, nil
 }

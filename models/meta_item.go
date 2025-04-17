@@ -72,7 +72,7 @@ func (m *ItemMeta) UpdateName(name string) {
 
 // ExtJSON variable
 func (m *ItemMeta) ExtJSON() string {
-	if m.Ext == nil || len(m.Ext) < 1 {
+	if m == nil || len(m.Ext) < 1 {
 		return ""
 	}
 	data, _ := json.Marshal(m.Ext)
