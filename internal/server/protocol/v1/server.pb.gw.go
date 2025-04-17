@@ -447,7 +447,7 @@ func RegisterServiceAPIHandlerServer(ctx context.Context, mux *runtime.ServeMux,
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/v1.ServiceAPI/Head", runtime.WithHTTPPathPattern("/head/{id=**}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/v1.ServiceAPI/Head", runtime.WithHTTPPathPattern("/v1/head/{id=**}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -479,7 +479,7 @@ func RegisterServiceAPIHandlerServer(ctx context.Context, mux *runtime.ServeMux,
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/v1.ServiceAPI/Refresh", runtime.WithHTTPPathPattern("/refresh/{id=**}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/v1.ServiceAPI/Refresh", runtime.WithHTTPPathPattern("/v1/refresh/{id=**}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -504,7 +504,7 @@ func RegisterServiceAPIHandlerServer(ctx context.Context, mux *runtime.ServeMux,
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/v1.ServiceAPI/SetManifest", runtime.WithHTTPPathPattern("/manifest/{group}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/v1.ServiceAPI/SetManifest", runtime.WithHTTPPathPattern("/v1/manifest/{group}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -529,7 +529,7 @@ func RegisterServiceAPIHandlerServer(ctx context.Context, mux *runtime.ServeMux,
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/v1.ServiceAPI/GetManifest", runtime.WithHTTPPathPattern("/manifest/{group}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/v1.ServiceAPI/GetManifest", runtime.WithHTTPPathPattern("/v1/manifest/{group}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -561,7 +561,7 @@ func RegisterServiceAPIHandlerServer(ctx context.Context, mux *runtime.ServeMux,
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/v1.ServiceAPI/Delete", runtime.WithHTTPPathPattern("/object/{id=**}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/v1.ServiceAPI/Delete", runtime.WithHTTPPathPattern("/v1/object/{id=**}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -625,7 +625,7 @@ func RegisterServiceAPIHandlerClient(ctx context.Context, mux *runtime.ServeMux,
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/Head", runtime.WithHTTPPathPattern("/head/{id=**}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/Head", runtime.WithHTTPPathPattern("/v1/head/{id=**}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -647,7 +647,7 @@ func RegisterServiceAPIHandlerClient(ctx context.Context, mux *runtime.ServeMux,
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/Get", runtime.WithHTTPPathPattern("/object/{id}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/Get", runtime.WithHTTPPathPattern("/v1/object/{id}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -669,7 +669,7 @@ func RegisterServiceAPIHandlerClient(ctx context.Context, mux *runtime.ServeMux,
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/Refresh", runtime.WithHTTPPathPattern("/refresh/{id=**}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/Refresh", runtime.WithHTTPPathPattern("/v1/refresh/{id=**}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -691,7 +691,7 @@ func RegisterServiceAPIHandlerClient(ctx context.Context, mux *runtime.ServeMux,
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/SetManifest", runtime.WithHTTPPathPattern("/manifest/{group}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/SetManifest", runtime.WithHTTPPathPattern("/v1/manifest/{group}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -713,7 +713,7 @@ func RegisterServiceAPIHandlerClient(ctx context.Context, mux *runtime.ServeMux,
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/GetManifest", runtime.WithHTTPPathPattern("/manifest/{group}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/GetManifest", runtime.WithHTTPPathPattern("/v1/manifest/{group}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -735,7 +735,7 @@ func RegisterServiceAPIHandlerClient(ctx context.Context, mux *runtime.ServeMux,
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/Upload", runtime.WithHTTPPathPattern("/object"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/Upload", runtime.WithHTTPPathPattern("/v1/object"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -757,7 +757,7 @@ func RegisterServiceAPIHandlerClient(ctx context.Context, mux *runtime.ServeMux,
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/Delete", runtime.WithHTTPPathPattern("/object/{id=**}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/v1.ServiceAPI/Delete", runtime.WithHTTPPathPattern("/v1/object/{id=**}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -777,19 +777,19 @@ func RegisterServiceAPIHandlerClient(ctx context.Context, mux *runtime.ServeMux,
 }
 
 var (
-	pattern_ServiceAPI_Head_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 3, 0, 4, 1, 5, 1}, []string{"head", "id"}, ""))
+	pattern_ServiceAPI_Head_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 3, 0, 4, 1, 5, 2}, []string{"v1", "head", "id"}, ""))
 
-	pattern_ServiceAPI_Get_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"object", "id"}, ""))
+	pattern_ServiceAPI_Get_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v1", "object", "id"}, ""))
 
-	pattern_ServiceAPI_Refresh_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 3, 0, 4, 1, 5, 1}, []string{"refresh", "id"}, ""))
+	pattern_ServiceAPI_Refresh_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 3, 0, 4, 1, 5, 2}, []string{"v1", "refresh", "id"}, ""))
 
-	pattern_ServiceAPI_SetManifest_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"manifest", "group"}, ""))
+	pattern_ServiceAPI_SetManifest_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v1", "manifest", "group"}, ""))
 
-	pattern_ServiceAPI_GetManifest_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"manifest", "group"}, ""))
+	pattern_ServiceAPI_GetManifest_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v1", "manifest", "group"}, ""))
 
-	pattern_ServiceAPI_Upload_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"object"}, ""))
+	pattern_ServiceAPI_Upload_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "object"}, ""))
 
-	pattern_ServiceAPI_Delete_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 3, 0, 4, 1, 5, 1}, []string{"object", "id"}, ""))
+	pattern_ServiceAPI_Delete_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 3, 0, 4, 1, 5, 2}, []string{"v1", "object", "id"}, ""))
 )
 
 var (

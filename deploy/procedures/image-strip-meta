@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+magick mogrify -strip $1 -interlace Plane -auto-orient $2

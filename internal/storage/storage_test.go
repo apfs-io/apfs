@@ -66,7 +66,7 @@ func TestStorageUpload(t *testing.T) {
 	defer cancel()
 
 	obj, err = storage.UploadFile(ctx, "images",
-		filepath.Join(testStorePath, "bucket/file/original.jpg"))
+		filepath.Join(testStorePath, "bucket/file/prim.jpg"))
 
 	if assert.NoError(t, err, "upload file") {
 		assert.NoError(t, storage.Delete(ctx, obj), "delete object")
@@ -83,7 +83,7 @@ func TestStorageProcess(t *testing.T) {
 	var (
 		object           npio.Object
 		tags             = []string{"tag1", "tag2"}
-		originalFilepath = filepath.Join(testStorePath, "bucket/file/original.jpg")
+		originalFilepath = filepath.Join(testStorePath, "bucket/file/prim.jpg")
 		ctx, cancel      = context.WithTimeout(context.TODO(), time.Second*10)
 		manifest         = &models.Manifest{
 			Stages: []*models.ManifestTaskStage{

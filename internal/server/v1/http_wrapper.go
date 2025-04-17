@@ -3,6 +3,8 @@ package v1
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -45,52 +47,31 @@ func (s *ServerHTTPWrapper) UploadHTTPHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	tags := r.URL.Query()["tags"]
+	fmt.Println("tags", tags, len(tags))
 	if err := r.ParseForm(); err != nil {
 		ctxlogger.Get(ctx).Error("parse request form", zap.Error(err))
 		errorResponse(w, "parse request error: "+err.Error())
 		return
 	}
 
-	reader, err := r.MultipartReader()
+	// Parse the multipart form data or the request body
+	data, dataCloser, err := dataReader(r)
 	if err != nil {
 		ctxlogger.Get(ctx).Error("parse request body", zap.Error(err))
 		errorResponse(w, "parse request body error: "+err.Error())
 		return
 	}
+	defer func() { _ = dataCloser.Close() }()
 
-	filePart, err := reader.NextPart()
-	if err != nil {
-		ctxlogger.Get(ctx).Error("parse request body part", zap.Error(err))
-		errorResponse(w, "parse request body part error: "+err.Error())
-		return
-	}
-
-	// Close all parts after finish
-	defer func() {
-		_ = filePart.Close()
-
-		// Close all parts
-		for {
-			filePart, err = reader.NextPart()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				ctxlogger.Get(ctx).Error("next parse", zap.Error(err))
-				break
-			} else {
-				_ = filePart.Close()
-			}
-		}
-	}()
-
-	nobj, err := s.server.UploadObject(ctx, group, customID, overwrite, tags, filePart)
+	// Upload the object to the storage
+	nobj, err := s.server.UploadObject(ctx, group, customID, overwrite, tags, data)
 	if err != nil {
 		ctxlogger.Get(ctx).Error("upload to storage", zap.Error(err))
 		errorResponse(w, "upload to storage error: "+err.Error())
 		return
 	}
 
+	// Convert the object to a protocol object
 	pobj, err := s.protoObject(nobj)
 	if err != nil {
 		ctxlogger.Get(ctx).Error("upload to storage", zap.Error(err))
@@ -101,7 +82,7 @@ func (s *ServerHTTPWrapper) UploadHTTPHandler(w http.ResponseWriter, r *http.Req
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(&protocol.SimpleObjectResponse{
-		Status: protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_OK,
+		Status: protocol.ResponseStatusCode_OK,
 		Object: pobj,
 	})
 }
@@ -173,7 +154,7 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 	w.Header().Add(
 		gocast.IfThen(headOnly, "X-Content-Size", "Content-Length"),
 		gocast.Str(sObjectMeta.ItemByName(name).Size))
-	if headOnly || gocast.Bool(query.Get("meta")) {
+	if !headOnly && gocast.Bool(query.Get("meta")) {
 		w.Header().Add("X-Content-Meta", encodeJSONBase64(sObjectMeta))
 	}
 	if len(sObject.MustMeta().Tags) > 0 {
@@ -188,14 +169,37 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 				zap.String("object_name", name),
 				zap.Error(err))
 		}
+	} else {
+		_ = json.NewEncoder(w).Encode(sObjectMeta)
 	}
+}
+
+func dataReader(r *http.Request) (io.Reader, io.Closer, error) {
+	reader, err := r.MultipartReader()
+
+	// If the request is not multipart, return the body as is
+	if errors.Is(err, http.ErrNotMultipart) {
+		return r.Body, r.Body, nil
+	}
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Read the first part of the multipart request
+	filePart, err := reader.NextPart()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return filePart, &multipartCloser{filePart: filePart, reader: reader}, nil
 }
 
 func errorResponse(w http.ResponseWriter, err string) {
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusInternalServerError)
 	_ = json.NewEncoder(w).Encode(&protocol.SimpleObjectResponse{
-		Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_FAILED,
+		Status:  protocol.ResponseStatusCode_FAILED,
 		Message: err,
 	})
 }

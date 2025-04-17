@@ -15,8 +15,11 @@ LABEL service.public=false
 
 RUN apt-get update
 RUN apt-get install -y imagemagick
+RUN apt-get install -y curl
 RUN apt-get clean
 RUN update-ca-certificates
+
+ENV STORAGE_PROCEDURE_DIR=/procedures
 
 RUN mkdir -p /tmp/data/
 ADD deploy/procedures /procedures

@@ -3,6 +3,7 @@ package utils
 import (
 	"image"
 	"io"
+	"mime"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,6 +42,12 @@ func CollectReadSeekerInfo(meta *models.ItemMeta, reader io.ReadSeeker, fileFull
 		objectType    = models.ObjectTypeByContentType(contentType)
 		width, height int
 	)
+
+	if fileExt == "" {
+		if types, _ := mime.ExtensionsByType(contentType); len(types) > 0 {
+			fileExt = types[0]
+		}
+	}
 
 	if meta == nil {
 		meta = &models.ItemMeta{}

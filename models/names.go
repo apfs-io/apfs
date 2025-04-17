@@ -11,7 +11,7 @@ import (
 
 // Consts ...
 const (
-	OriginalFilename = "original"
+	OriginalFilename = "prim"
 )
 
 // IsOriginal file name

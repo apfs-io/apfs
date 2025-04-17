@@ -22,7 +22,7 @@ var (
 func TestDiskCollectionCreate(t *testing.T) {
 	var (
 		testGroup   = "test"
-		srcfile     = storageDir + "/bucket/file/original.jpg"
+		srcfile     = storageDir + "/bucket/file/prim.jpg"
 		tags        = []string{"images", "test"}
 		ctx, cancel = context.WithTimeout(context.TODO(), time.Second*10)
 		file, err   = diskCollection.Create(ctx, testGroup, nil, false, url.Values{"tags": tags})

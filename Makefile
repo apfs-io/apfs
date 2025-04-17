@@ -5,11 +5,11 @@ IMAGE_NAME=github.com/apfs-io/apfs
 DOCKER_CONTAINER_IMAGE=${IMAGE_NAME}:latest
 DOCKER_CONTAINER_TESTAPP_IMAGE=${IMAGE_NAME}-testapp:latest
 
-APP_TAGS=${BUILD_TAGS}
-
-DCMD:=docker compose -p apfs -f deploy/develop/docker-compose.yml
+APP_BUILD_TAGS=alldb,memory,nats,redis,kafka,s3,fs
 
 include deploy/build.mk
+
+DCMD:=docker compose -p apfs -f deploy/develop/docker-compose.yml
 
 .PHONY: all
 all: lint cover
@@ -114,16 +114,31 @@ clean: ## Clean build files
 	@rm -rf .build
 
 .PHONY: run
-run: devdocker_build_test ## Run application
+run: build-docker-dev ## Run application
 	${DCMD} run --rm --service-ports server
 
 .PHONY: runtest
-runtest: devdocker_build_test ## Run test application
+runtest: build-docker-testapp ## Run test application
 	${DCMD} run --rm --service-ports test
 
 .PHONY: stop
 stop: ## Stop all services
 	${DCMD} stop
+
+.PHONY: test-upload
+test-upload:
+	curl -X POST -v -F 'file=@"testdata/cat.jpg"' \
+		"http://localhost:18080/object/images?tags=test1&tags=test2"
+
+.PHONY: test-manifest
+test-manifest:
+	curl -X PUT -v \
+		-H 'Content-Type: application/json' \
+		--data-binary '@testdata/images.manifest.json' \
+		"http://localhost:18080/v1/manifest/images"
+
+test-get-manifest:
+	curl -X GET -s "http://localhost:18080/v1/manifest/images" | jq '.'
 
 .PHONY: help
 help:

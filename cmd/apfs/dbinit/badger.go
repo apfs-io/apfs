@@ -4,5 +4,10 @@
 package dbinit
 
 import (
-	_ "github.com/apfs-io/apfs/internal/storage/database/badger"
+	"github.com/apfs-io/apfs/internal/storage/database"
+	"github.com/apfs-io/apfs/internal/storage/database/badger"
 )
+
+func init() {
+	database.Register(`badger`, badger.Connect)
+}

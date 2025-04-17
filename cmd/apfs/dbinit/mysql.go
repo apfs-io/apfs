@@ -4,5 +4,10 @@
 package dbinit
 
 import (
-	_ "github.com/jinzhu/gorm/dialects/mysql"
+	"github.com/apfs-io/apfs/internal/storage/database"
+	"github.com/apfs-io/apfs/internal/storage/database/gorm"
 )
+
+func init() {
+	database.Register(`mysql`, gorm.Connect)
+}

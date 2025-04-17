@@ -1,9 +1,14 @@
-//go:build (sqlite || alldb) && !nosqlite
-// +build sqlite alldb
-// +build !nosqlite
+//go:build sqlite || sqlite3 || alldb
+// +build sqlite sqlite3 alldb
 
 package dbinit
 
 import (
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
+	"github.com/apfs-io/apfs/internal/storage/database"
+	"github.com/apfs-io/apfs/internal/storage/database/gorm"
 )
+
+func init() {
+	database.Register(`sqlite`, gorm.Connect)
+	database.Register(`sqlite3`, gorm.Connect)
+}

@@ -1,9 +1,11 @@
 package processor
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -267,16 +269,21 @@ func (s *Processor) executeTask(ctx context.Context, cObject npio.Object, manife
 		out = nil
 	}
 
+	// Mark the task as complete or failed if an error occurred
 	meta.Complete(targetMeta, task, err)
 
-	if err != nil || (out != nil && out.ObjectReader() != nil) || !targetMeta.IsEmpty() {
+	if err != nil || (out != nil && !isEmptyOutput(out.ObjectReader())) || !targetMeta.IsEmpty() {
 		targetMeta.UpdatedAt = time.Now()
 		targetMeta.UpdateName(targetFilename)
 		var outputStream io.Reader
 		if out != nil {
 			outputStream = out.ObjectReader()
 		}
+
+		// Update the processing status
 		updateProcessingState(cObject, manifest)
+
+		// Upload the processed output
 		if isNil(outputStream) {
 			if err := s.driver.UpdateMeta(ctx, cObject, targetFilename, targetMeta); err != nil {
 				return errors.Wrapf(err, "execute task update meta:'%s'", targetFilename)
@@ -287,9 +294,12 @@ func (s *Processor) executeTask(ctx context.Context, cObject npio.Object, manife
 			}
 		}
 	}
+
+	// If the task is not required, then skip error handling
 	if err != nil && task.Required {
 		return err
 	}
+
 	return nil
 }
 
@@ -347,4 +357,16 @@ func getFinishCloser(conv converters.Converter, in converters.Input, out convert
 		}
 	}
 	return nil
+}
+
+func isEmptyOutput(out io.Reader) bool {
+	switch v := out.(type) {
+	case nil:
+		return true
+	case *bytes.Buffer:
+		return v.Len() == 0
+	case *os.File:
+		return v.Name() == ""
+	}
+	return false
 }

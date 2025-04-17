@@ -14,6 +14,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	awss3 "github.com/aws/aws-sdk-go/service/s3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -28,8 +29,8 @@ import (
 )
 
 const (
-	manifestObjectName = "manifest"
-	metaObjectName     = "meta"
+	manifestObjectName = "manifest.json"
+	metaObjectName     = "meta.json"
 )
 
 // Errors list...
@@ -122,7 +123,18 @@ func (c *Storage) Create(ctx context.Context, bucket string, id npio.ObjectID, o
 	if err != nil {
 		return nil, err
 	}
+
+	// Init new object container
 	object := newObject(bucket, objectName)
+
+	// Load manifest information
+	if err = c.loadManifest(ctx, object, true); err != nil {
+		if !isNotExist(err) {
+			return nil, err
+		}
+	}
+
+	// Update meta tags information
 	if params != nil && len(params["tags"]) > 0 {
 		object.MustMeta().Tags = params["tags"]
 		if err = c.saveMeta(ctx, object); err != nil {
@@ -153,18 +165,25 @@ func (c *Storage) UpdatePatams(ctx context.Context, id npio.ObjectID, params url
 
 // Open exixting file
 func (c *Storage) Open(ctx context.Context, id npio.ObjectID) (_ npio.Object, err error) {
+	// Init object container by ID
 	object := objectFromID(id)
+
+	// Load object meta information
 	if err = c.loadMeta(ctx, object); err != nil {
 		if isNotExist(err) {
 			return nil, storerrors.WrapNotFound(object.Path(), err)
 		}
 	}
+
+	// Load object manifest information
 	if err = c.loadObjectManifest(ctx, object); err != nil {
 		if !isNotExist(err) {
 			return nil, err
 		}
 		err = nil
 	}
+
+	// Remove all subfiles from object if no main file is present
 	meta := object.Meta()
 	if (len(meta.Tasks) > 0 || len(meta.Items) > 0) && meta.Main.IsEmpty() {
 		if err = c.Clean(ctx, object); err != nil {
@@ -176,21 +195,28 @@ func (c *Storage) Open(ctx context.Context, id npio.ObjectID) (_ npio.Object, er
 
 // Upload data as file
 func (c *Storage) Update(ctx context.Context, id npio.ObjectID, name string, reader io.Reader, meta *models.ItemMeta) error {
+	// Get object by ID
 	object, err := c._ID2Object(ctx, id)
 	if err != nil {
 		return err
 	}
+
+	// Update only metainformation of the object
 	if reader == nil {
-		// Update only metainformation of the object
 		return c.saveObjectMeta(ctx, name, object, meta)
 	}
+
+	// Extract meta information from the reader
 	data, meta, err := c.extractObjectMetaInfo(name, reader, object.Manifest(), meta)
 	if err != nil {
 		return err
 	}
-	name = filepath.Join(filepath.Dir(name), meta.Fullname())
+
+	// Update meta information
+	object.MustMeta().SetItem(meta)
+
 	// Save data to the S3 server
-	return c.putData(ctx, name, object, data, meta, false)
+	return c.putData(ctx, meta.Fullname(), object, data, meta, false)
 }
 
 // Update data in the storage
@@ -208,7 +234,11 @@ func (c *Storage) Remove(ctx context.Context, id npio.ObjectID, names ...string)
 	if err != nil {
 		return err
 	}
+
+	// Get object bucket name
 	bucket := object.Bucket()
+
+	// List of names to remove
 	if len(names) < 1 {
 		objects, err := c.listOfObjects(bucket, objectKey(object, ""))
 		if err != nil {
@@ -218,7 +248,11 @@ func (c *Storage) Remove(ctx context.Context, id npio.ObjectID, names ...string)
 			names = append(names, *obj.Key)
 		}
 	}
+
+	// Meta update flag
 	metaUpdated := false
+
+	// Remove all subfiles from object
 	for _, name := range names {
 		var (
 			key    = name
@@ -227,21 +261,25 @@ func (c *Storage) Remove(ctx context.Context, id npio.ObjectID, names ...string)
 				Key:    &key,
 			})
 		)
+
 		if err == nil {
+			baseName, updated := filepath.Base(name), false
 			// Remove meta from file
-			baseName := filepath.Base(name)
-			updated := false
 			if updated, err = object.Meta().RemoveItemByName(baseName); updated {
 				metaUpdated = true
 			}
 		}
-		if err != nil { // && err != s3.ErrCodeNoSuchKey {
+
+		// Check if the object is not exist or error
+		if err != nil && !strings.Contains(err.Error(), s3.ErrCodeNoSuchKey) {
 			if metaUpdated {
 				_ = c.saveMeta(ctx, object)
 			}
 			return err
 		}
 	}
+
+	// Save meta information if needed
 	if metaUpdated {
 		return c.saveMeta(ctx, object)
 	}
@@ -391,7 +429,7 @@ func (c *Storage) loadObjectManifest(ctx context.Context, object npio.Object) (e
 	if err = c.loadManifest(ctx, object, false); err == nil {
 		return nil
 	}
-	if err != nil && isNotExist(err) {
+	if isNotExist(err) {
 		err = c.loadManifest(ctx, object, true)
 	}
 	if err != nil && !isNotExist(err) {
@@ -443,30 +481,43 @@ func (c *Storage) putJSONObject(ctx context.Context, name string, object npio.Ob
 }
 
 func (c *Storage) putData(ctx context.Context, name string, object npio.Object, data io.ReadSeeker, meta *models.ItemMeta, global bool) (err error) {
+	// Prepare object input object
 	pubObjectInput := awss3.PutObjectInput{
 		Body:   data,
 		Bucket: c._bucketName(object.Bucket()),
 		Key:    c._bucketFilename(object, strIf(global, name, objectKey(object, name))),
 	}
+
+	// Add tags to the object
 	if len(object.MustMeta().Tags) != 0 {
-		pubObjectInput.SetTagging((url.Values{
-			"tags": []string{strings.Join(object.MustMeta().Tags, ",")},
-		}).Encode())
+		tags := url.Values{}
+		for _, tag := range object.MustMeta().Tags {
+			tags.Set(tag, "1")
+		}
+		pubObjectInput.SetTagging(tags.Encode())
 	}
+
+	// Set content type
 	if meta != nil {
 		pubObjectInput.ContentType = aws.String(meta.ContentType)
 	}
+
+	// Set permissions for the object in S3
 	c.grantPermissions(name, object, &pubObjectInput)
+
+	// Save data to the S3 server
 	if _, err = c.c.PutObjectWithContext(ctx, &pubObjectInput); err != nil {
 		return err
 	}
+
+	// Save meta information if needed
 	if meta != nil && name != metaObjectName && name != manifestObjectName {
 		err = c.saveObjectMeta(ctx, name, object, meta)
 	}
 	return err
 }
 
-func (c *Storage) saveObjectMeta(ctx context.Context, name string, object npio.Object, meta *models.ItemMeta) error {
+func (c *Storage) saveObjectMeta(ctx context.Context, _ string, object npio.Object, meta *models.ItemMeta) error {
 	meta.UpdatedAt = time.Now()
 	object.MustMeta().SetItem(meta)
 	return c.saveMeta(ctx, object)
@@ -537,7 +588,7 @@ func (c *Storage) listOfObjects(bucket, prefix string) ([]*awss3.Object, error) 
 	return output.Contents, nil
 }
 
-func (c *Storage) grantPermissions(name string, object npio.Object, obj *awss3.PutObjectInput) {
+func (c *Storage) grantPermissions(name string, _ npio.Object, obj *awss3.PutObjectInput) {
 	switch name {
 	case metaObjectName, manifestObjectName:
 		obj.SetACL(awss3.ObjectCannedACLPrivate)
@@ -578,7 +629,7 @@ func (c *Storage) extractObjectMetaInfo(name string, reader io.Reader, manifest 
 		return nil, nil, err
 	}
 
-	if !manifest.IsValidContentType(contentType) {
+	if models.IsOriginal(name) && !manifest.IsValidContentType(contentType) {
 		return nil, nil, errors.Wrap(ErrUnsupportedContentType, contentType)
 	}
 

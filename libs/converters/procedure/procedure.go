@@ -54,7 +54,6 @@ func (ic *Converter) Test(action *models.Action) bool {
 // By default it works as STDOUT file stream
 func (ic *Converter) Process(in converters.Input, out converters.Output) error {
 	var (
-		err                error
 		action             = in.Action()
 		procedureName      = action.ValueString(ParamName, "")
 		procedureArguments = action.ValueStringSlice(ParamArguments)
@@ -77,9 +76,6 @@ func (ic *Converter) Process(in converters.Input, out converters.Output) error {
 		}
 	}
 	command := filepath.Join(ic.procedureDirecory, procedureName)
-	if err != nil {
-		return err
-	}
 	return ic.Execute(command, procedureArguments,
 		targetMetaField, toJSONString,
 		inputFilepath == "{{inputFile}}",

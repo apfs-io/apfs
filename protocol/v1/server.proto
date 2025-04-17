@@ -14,10 +14,10 @@ import "v1/object.proto";
 import "v1/manifest.proto";
 
 enum ResponseStatusCode {
-  RESPONSE_STATUS_CODE_UNKNOWN_INVALID = 0;
-  RESPONSE_STATUS_CODE_OK              = 1;
-  RESPONSE_STATUS_CODE_FAILED          = 2;
-  RESPONSE_STATUS_CODE_NOT_FOUND       = 3;
+  UNKNOWN_INVALID = 0;
+  OK              = 1;
+  FAILED          = 2;
+  NOT_FOUND       = 3;
 }
 
 message ManifestGroup {

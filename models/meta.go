@@ -7,6 +7,7 @@ package models
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -135,7 +136,7 @@ func (m *Meta) Complete(itemMeta *ItemMeta, task *ManifestTask, err error) {
 	for i, prevTask := range m.Tasks {
 		if prevTask.ID == task.ID {
 			attempts = prevTask.Attempts + 1
-			m.Tasks = append(m.Tasks[:i], m.Tasks[i+1:]...)
+			m.Tasks = slices.Delete(m.Tasks, i, i+1)
 			break
 		}
 	}
@@ -204,6 +205,7 @@ func (m *Meta) RemoveExcessTasks(manifest *Manifest) {
 			continue
 		}
 		if task.TargetItemName == "" || task.TargetItemName == "." || task.TargetItemName == "@" {
+			fmt.Println(">>>> MAN", manifestTask.Target)
 			task.TargetItemName = manifestTask.Target
 		}
 		if task.Status.IsError() || task.Status.IsProcessing() ||

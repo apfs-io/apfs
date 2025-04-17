@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"net/url"
 
 	"github.com/pkg/errors"
@@ -13,7 +14,7 @@ var errUnsupportedDatabaseDriver = errors.New(`unsupported database driver`)
 var registry = map[string]Connector{}
 
 // Connector database type
-type Connector func(connect string) (storage.DB, error)
+type Connector func(ctx context.Context, connect string) (storage.DB, error)
 
 // Register database connector
 func Register(driver string, connector Connector) {
@@ -21,7 +22,7 @@ func Register(driver string, connector Connector) {
 }
 
 // Open new database connection
-func Open(connect string) (storage.DB, error) {
+func Open(ctx context.Context, connect string) (storage.DB, error) {
 	u, err := url.Parse(connect)
 	if err != nil {
 		return nil, err
@@ -30,5 +31,5 @@ func Open(connect string) (storage.DB, error) {
 	if connector == nil {
 		return nil, errors.Wrap(errUnsupportedDatabaseDriver, u.Scheme)
 	}
-	return connector(connect)
+	return connector(ctx, connect)
 }

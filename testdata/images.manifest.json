@@ -1,0 +1,140 @@
+{
+  "manifest": {
+    "version": "1",
+    "description": "Test image manifest",
+    "contentTypes": ["image/*"],
+    "stages": [
+      {
+        "tasks": [
+          {
+            "id": "preview",
+            "description": "Preview image",
+            "type": "image",
+            "required": false,
+            "target": "preview",
+            "actions": [
+              {
+                "name": "procedure",
+                "values": [
+                  {
+                    "name": "name",
+                    "value": {
+                      "@type": "type.googleapis.com/google.protobuf.StringValue",
+                      "value": "image-resize-w"
+                    }
+                  },
+                  {
+                    "name": "tojson",
+                    "value": {
+                      "@type": "type.googleapis.com/google.protobuf.BoolValue",
+                      "value": true
+                    }
+                  },
+                  {
+                    "name": "args",
+                    "value": {
+                      "@type": "type.googleapis.com/google.protobuf.ListValue",
+                      "value": [
+                        200,
+                        "{{inputFile}}",
+                        "{{outputFile}}"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "input-file",
+                    "value": {
+                      "@type": "type.googleapis.com/google.protobuf.StringValue",
+                      "value": "{{inputFile}}"
+                    }
+                  },
+                  {
+                    "name": "output-file",
+                    "value": {
+                      "@type": "type.googleapis.com/google.protobuf.StringValue",
+                      "value": ""
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "base64",
+            "description": "Base64 preview",
+            "type": "image",
+            "required": true,
+            "actions": [
+              {
+                "name": "image.extract-colors",
+                "values": [{
+                  "name": "value",
+                  "value": {
+                    "@type": "type.googleapis.com/google.protobuf.Int64Value",
+                    "value": 7
+                  }
+                }]
+              },
+              {
+                "name": "image.fit",
+                "values": [
+                  {
+                    "name": "width",
+                    "value": {
+                      "@type": "type.googleapis.com/google.protobuf.Int64Value",
+                      "value": 50
+                    }
+                  },
+                  {
+                    "name": "height",
+                    "value": {
+                      "@type": "type.googleapis.com/google.protobuf.Int64Value",
+                      "value": 50
+                    }
+                  },
+                  {
+                    "name": "filter",
+                    "value": {
+                      "@type": "type.googleapis.com/google.protobuf.StringValue",
+                      "value": "lanczos"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "image.blur",
+                "values":[{
+                  "name": "value",
+                  "value": {
+                    "@type": "type.googleapis.com/google.protobuf.Int64Value",
+                    "value": 3
+                  }
+                }]
+              },
+              {
+                "name": "image.base64",
+                "values": [{
+                  "name": "target-meta",
+                  "value": {
+                    "@type": "type.googleapis.com/google.protobuf.StringValue",
+                    "value": "b64preview"
+                  }
+                }]
+              },
+              {
+                "name": "image.save",
+                "values":[{
+                  "name": "save",
+                  "value": {
+                    "@type": "type.googleapis.com/google.protobuf.BoolValue",
+                    "value": false
+                  }
+                }]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

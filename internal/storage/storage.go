@@ -131,6 +131,10 @@ func (s *Storage) Object(ctx context.Context, obj any) (npio.Object, error) {
 	var nObject npio.Object
 	switch val := obj.(type) {
 	case string:
+		if val == "" {
+			return nil, errors.Wrap(ErrStorageInvalidParameterType, "empty object ID")
+		}
+
 		// Get object from cache
 		objectRecord, err := s.db.Get(val)
 
@@ -222,7 +226,9 @@ func (s *Storage) ClearObject(ctx context.Context, obj any) error {
 // ObjectManifest returns global manifest if no present in the object
 func (s *Storage) ObjectManifest(ctx context.Context, obj npio.Object) *models.Manifest {
 	if obj.Manifest().IsEmpty() {
+		fmt.Println("==== OBJECT MANIFEST ====", obj.ID().String(), obj.Bucket())
 		if manifestGlobal, _ := s.GetManifest(ctx, obj.Bucket()); manifestGlobal != nil {
+			fmt.Println("==== OK ====", obj.ID().String(), obj.Bucket())
 			*obj.MustManifest() = *manifestGlobal
 			return manifestGlobal
 		}

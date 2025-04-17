@@ -104,14 +104,26 @@ func (c *Storage) Create(ctx context.Context, bucket string, id npio.ObjectID, o
 	if err != nil {
 		return nil, err
 	}
+
+	// Init new object container
 	obj := object.NewObject(
 		npio.ObjectIDType(filepath.Join(bucket, path)),
 		bucket, path)
+
 	if overwrite {
 		if err := c.Remove(ctx, obj); err != nil && !os.IsNotExist(err) {
 			return nil, err
 		}
 	}
+
+	// Load manifest information
+	if err = c.loadManifest(obj); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+	}
+
+	// Update meta information of the object
 	if len(params) > 0 {
 		tags := params["tags"]
 		params.Del("tags")
@@ -127,7 +139,10 @@ func (c *Storage) Create(ctx context.Context, bucket string, id npio.ObjectID, o
 			return nil, err
 		}
 	}
+
+	// Save object information
 	updateObjectFileInfo(obj, info)
+
 	return obj, err
 }
 

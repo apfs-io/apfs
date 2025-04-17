@@ -38,15 +38,19 @@ type Options struct {
 }
 
 func (opts *Options) _storage(database storage.DB, driver io.StorageAccessor, stateKV kvaccessor.KVAccessor) *storage.Storage {
-	return storage.NewStorage(
-		storage.WithDatabase(database),
-		storage.WithDriver(driver),
-		storage.WithProcessingStatus(stateKV),
-	)
+	if opts.store == nil {
+		opts.store = storage.NewStorage(
+			storage.WithDatabase(database),
+			storage.WithDriver(driver),
+			storage.WithProcessingStatus(stateKV),
+		)
+	}
+	return opts.store
 }
 
 func (opts *Options) _processor(driver io.StorageAccessor, stateKV kvaccessor.KVAccessor) *processor.Processor {
 	proc, err := processor.NewProcessor(
+		processor.WithStorage(opts.store),
 		processor.WithDriver(driver),
 		processor.WithProcessingStatus(stateKV),
 		processor.WithConverters(opts.convs...),

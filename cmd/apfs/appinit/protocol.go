@@ -22,7 +22,7 @@ func ProtocolAPIObject(ctx context.Context, eventsConf *appcontext.EventstreamCo
 	if err != nil {
 		return nil, err
 	}
-	srvLogic, err := api.NewServer(
+	srvLogic, err := api.NewServer(ctx,
 		storageConf.MetadbConnect,
 		storageConf.Connect,
 		storageConf.StateConnect,

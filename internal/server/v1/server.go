@@ -62,12 +62,12 @@ type server struct {
 }
 
 // NewServer object which implements RPC actions
-func NewServer(connect, storageConnect, stateConnect string, opts ...Option) (ServiceServer, error) {
+func NewServer(ctx context.Context, connect, storageConnect, stateConnect string, opts ...Option) (ServiceServer, error) {
 	var options Options
 	for _, opt := range opts {
 		opt(&options)
 	}
-	database, err := database.Open(connect)
+	database, err := database.Open(ctx, connect)
 	if err != nil {
 		return nil, err
 	}
@@ -101,13 +101,13 @@ func (s *server) Head(ctx context.Context, obj *protocol.ObjectID) (*protocol.Si
 	sObject, err := s.store.Object(ctx, obj.GetId())
 	if err != nil && !storerrors.IsNotFound(err) {
 		return &protocol.SimpleObjectResponse{
-			Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_FAILED,
+			Status:  protocol.ResponseStatusCode_FAILED,
 			Message: err.Error(),
 		}, nil
 	}
 	if sObject == nil || storerrors.IsNotFound(err) {
 		return &protocol.SimpleObjectResponse{
-			Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_NOT_FOUND,
+			Status:  protocol.ResponseStatusCode_NOT_FOUND,
 			Message: "Not found",
 		}, nil
 	}
@@ -123,13 +123,13 @@ func (s *server) Head(ctx context.Context, obj *protocol.ObjectID) (*protocol.Si
 	object, err := s.protoObject(sObject)
 	if err != nil {
 		return &protocol.SimpleObjectResponse{
-			Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_FAILED,
+			Status:  protocol.ResponseStatusCode_FAILED,
 			Message: err.Error(),
 		}, err
 	}
 
 	return &protocol.SimpleObjectResponse{
-		Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_OK,
+		Status:  protocol.ResponseStatusCode_OK,
 		Message: "Object successfully loaded",
 		Object:  object,
 	}, nil
@@ -142,13 +142,13 @@ func (s *server) Refresh(ctx context.Context, obj *protocol.ObjectID) (*protocol
 	sObject, err := s.store.Object(ctx, obj.GetId())
 	if err != nil && !storerrors.IsNotFound(err) {
 		return &protocol.SimpleResponse{
-			Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_FAILED,
+			Status:  protocol.ResponseStatusCode_FAILED,
 			Message: err.Error(),
 		}, nil
 	}
 	if sObject == nil || storerrors.IsNotFound(err) {
 		return &protocol.SimpleResponse{
-			Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_NOT_FOUND,
+			Status:  protocol.ResponseStatusCode_NOT_FOUND,
 			Message: "Not found",
 		}, nil
 	}
@@ -157,7 +157,7 @@ func (s *server) Refresh(ctx context.Context, obj *protocol.ObjectID) (*protocol
 	s.refreshObjectState(ctx, sObject.ID().String())
 
 	return &protocol.SimpleResponse{
-		Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_OK,
+		Status:  protocol.ResponseStatusCode_OK,
 		Message: "Object successfully refreshed",
 	}, nil
 }
@@ -217,7 +217,7 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 	res = &protocol.ObjectResponse{
 		Object: &protocol.ObjectResponse_Response{
 			Response: &protocol.SimpleObjectResponse{
-				Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_OK,
+				Status:  protocol.ResponseStatusCode_OK,
 				Message: "Object successfully loaded",
 				Object:  object,
 			},
@@ -271,12 +271,12 @@ func (s *server) SetManifest(ctx context.Context, manifest *protocol.DataManifes
 	err = s.store.SetManifest(ctx, manifest.GetGroup(), manifestObj)
 	if err != nil {
 		return &protocol.SimpleResponse{
-			Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_FAILED,
+			Status:  protocol.ResponseStatusCode_FAILED,
 			Message: fmt.Sprintf("Manifest [%s] setup error: %s", manifest.GetGroup(), err.Error()),
 		}, err
 	}
 	return &protocol.SimpleResponse{
-		Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_OK,
+		Status:  protocol.ResponseStatusCode_OK,
 		Message: fmt.Sprintf("Manifest [%s] was setuped", manifest.GetGroup()),
 	}, nil
 }
@@ -293,9 +293,9 @@ func (s *server) GetManifest(ctx context.Context, group *protocol.ManifestGroup)
 	}()
 	manifest, err := s.store.GetManifest(ctx, group.GetGroup())
 	if err != nil {
-		status := protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_FAILED
+		status := protocol.ResponseStatusCode_FAILED
 		if storerrors.IsNotFound(err) {
-			status = protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_NOT_FOUND
+			status = protocol.ResponseStatusCode_NOT_FOUND
 		}
 		return &protocol.ManifestResponse{
 			Status:  status,
@@ -305,12 +305,12 @@ func (s *server) GetManifest(ctx context.Context, group *protocol.ManifestGroup)
 	manifestProto, err := protocol.ManifestFromModel(manifest)
 	if err != nil {
 		return &protocol.ManifestResponse{
-			Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_FAILED,
+			Status:  protocol.ResponseStatusCode_FAILED,
 			Message: fmt.Sprintf("Manifest [%s] converting error: %s", group.GetGroup(), err.Error()),
 		}, err
 	}
 	return &protocol.ManifestResponse{
-		Status:   protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_OK,
+		Status:   protocol.ResponseStatusCode_OK,
 		Manifest: manifestProto,
 	}, nil
 }
@@ -407,7 +407,7 @@ func (s *server) Upload(stream protocol.ServiceAPI_UploadServer) (err error) {
 		// confirmation if nothign went wrong
 		if err == nil {
 			err = stream.SendAndClose(&protocol.SimpleObjectResponse{
-				Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_OK,
+				Status:  protocol.ResponseStatusCode_OK,
 				Message: "Upload received with success",
 				Object:  object,
 			})
@@ -415,7 +415,7 @@ func (s *server) Upload(stream protocol.ServiceAPI_UploadServer) (err error) {
 	}
 	if err != nil {
 		_ = stream.SendAndClose(&protocol.SimpleObjectResponse{
-			Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_FAILED,
+			Status:  protocol.ResponseStatusCode_FAILED,
 			Message: "Upload failed: " + err.Error(),
 			Object:  nil,
 		})
@@ -473,7 +473,7 @@ func (s *server) Delete(ctx context.Context, obj *protocol.ObjectIDNames) (_ *pr
 	}
 	s.sendEvent(ctx, models.DeleteEventType, &models.Object{ID: obj.GetId()}, err)
 	return &protocol.SimpleResponse{
-		Status:  protocol.ResponseStatusCode_RESPONSE_STATUS_CODE_OK,
+		Status:  protocol.ResponseStatusCode_OK,
 		Message: fmt.Sprintf("Object %s was deleted", obj.GetId()),
 	}, nil
 }
@@ -688,7 +688,7 @@ func (s *server) sendEvent(ctx context.Context, etype models.EventType, obj *mod
 	}
 	ctxlogger.Get(ctx).Info("sendEvent",
 		zap.String("event_type", etype.String()),
-		zap.String("object_id", obj.ID))
+		zap.String("object_id", obj.ObjectID()))
 	s.errorLog(ctx, s.eventStream.Publish(ctx, &models.Event{
 		Type:   etype,
 		Error:  emsg,

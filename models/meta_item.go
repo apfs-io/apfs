@@ -95,6 +95,9 @@ func (m *ItemMeta) Fullname() string {
 	if strings.HasSuffix(m.Name, "."+m.NameExt) {
 		return m.Name
 	}
+	if m.NameExt == "" {
+		return m.Name
+	}
 	return m.Name + "." + m.NameExt
 }
 

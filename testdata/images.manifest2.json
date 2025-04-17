@@ -1,0 +1,88 @@
+{
+  "version": "1",
+  "description": "Test image manifest",
+  "content_types": ["image/*"],
+  "stages": [
+    {
+      "tasks": [
+        {
+          "id": "clear",
+          "description": "Clear image meta information",
+          "type": "image",
+          "required": true,
+          "actions": [
+            {
+              "name": "procedure",
+              "mustexecute": true,
+              "values": {
+                "name": "image-strip-meta",
+                "tojson": false,
+                "args": ["{{inputFile}}", "{{outputFile}}"],
+                "input-file": "{{inputFile}}",
+                "output-file": ""
+              }
+            }
+          ]
+        },
+        {
+          "id": "preview",
+          "description": "Preview image",
+          "type": "image",
+          "required": false,
+          "actions": [
+            {
+              "name": "procedure",
+              "values": {
+                "name": "image-resize-w",
+                "tojson": false,
+                "args": ["300", "{{inputFile}}", "{{outputFile}}"],
+                "input-file": "{{inputFile}}",
+                "output-file": ""
+              }
+            }
+          ]
+        },
+        {
+          "id": "base64",
+          "description": "Base64 preview",
+          "type": "image",
+          "required": true,
+          "actions": [
+            {
+              "name": "image.extract-colors",
+              "values": {
+                "value": 7
+              }
+            },
+            {
+              "name": "image.fit",
+              "values": {
+                "width": 50,
+                "height": 50,
+                "filter": "lanczos"
+              }
+            },
+            {
+              "name": "image.blur",
+              "values": {
+                "value": 3
+              }
+            },
+            {
+              "name": "image.base64",
+              "values": {
+                "target-meta": "b64preview"
+              }
+            },
+            {
+              "name": "image.save",
+              "values": {
+                "save": false
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

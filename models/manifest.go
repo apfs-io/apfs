@@ -7,6 +7,7 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -128,6 +129,7 @@ func (m *Manifest) TargetCount() int {
 
 // IsValidContentType checks the content type
 func (m *Manifest) IsValidContentType(contentType string) bool {
+	fmt.Println("=== Content types: ", m.ContentTypes, "Content type: ", contentType)
 	if m == nil || len(m.ContentTypes) == 0 {
 		return true
 	}
