@@ -111,13 +111,13 @@ func (c *Storage) Create(ctx context.Context, bucket string, id npio.ObjectID, o
 		bucket, path)
 
 	if overwrite {
-		if err := c.Remove(ctx, obj); err != nil && !os.IsNotExist(err) {
+		if err := c.Remove(ctx, obj); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
 	}
 
 	// Load manifest information
-	if err = c.loadManifest(obj); err != nil {
+	if err := c.loadManifest(obj); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}

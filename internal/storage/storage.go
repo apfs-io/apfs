@@ -226,9 +226,7 @@ func (s *Storage) ClearObject(ctx context.Context, obj any) error {
 // ObjectManifest returns global manifest if no present in the object
 func (s *Storage) ObjectManifest(ctx context.Context, obj npio.Object) *models.Manifest {
 	if obj.Manifest().IsEmpty() {
-		fmt.Println("==== OBJECT MANIFEST ====", obj.ID().String(), obj.Bucket())
 		if manifestGlobal, _ := s.GetManifest(ctx, obj.Bucket()); manifestGlobal != nil {
-			fmt.Println("==== OK ====", obj.ID().String(), obj.Bucket())
 			*obj.MustManifest() = *manifestGlobal
 			return manifestGlobal
 		}
