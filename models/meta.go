@@ -7,7 +7,6 @@ package models
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"time"
 
@@ -205,7 +204,6 @@ func (m *Meta) RemoveExcessTasks(manifest *Manifest) {
 			continue
 		}
 		if task.TargetItemName == "" || task.TargetItemName == "." || task.TargetItemName == "@" {
-			fmt.Println(">>>> MAN", manifestTask.Target)
 			task.TargetItemName = manifestTask.Target
 		}
 		if task.Status.IsError() || task.Status.IsProcessing() ||

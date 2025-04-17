@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
-	"reflect"
 
 	"github.com/demdxx/gocast/v2"
 	"github.com/demdxx/plugeproc"
@@ -139,7 +137,6 @@ func (ic *Converter) Execute(
 	}
 
 	// Process stdout
-	fmt.Println(">>>>> execTarget", execTarget, "##", reflect.TypeOf(execTarget), commandArgs)
 	switch target := execTarget.(type) {
 	case *io.ReadSeeker:
 		if _, err = (*target).Seek(0, io.SeekStart); err == nil {
@@ -152,7 +149,6 @@ func (ic *Converter) Execute(
 	case *io.ReadCloser:
 		err = out.SetOutput(*target)
 	case *bytes.Buffer:
-		fmt.Println("======!", target.Len(), "@@", target.String())
 		err = out.SetOutput(target)
 	default:
 		err = ErrInvalidOutput
