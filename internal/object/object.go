@@ -46,7 +46,13 @@ type Object struct {
 
 // NewObject liked to bucket and object codename
 func NewObject(id io.ObjectIDType, bucket, filepath string) *Object {
-	return &Object{id: id, bucket: bucket, filepath: filepath}
+	return &Object{
+		id:        id,
+		bucket:    bucket,
+		filepath:  filepath,
+		createdAt: time.Now(),
+		updatedAt: time.Now(),
+	}
 }
 
 func (f *Object) String() string {
@@ -199,9 +205,19 @@ func (f *Object) UnmarshalJSON(data []byte) error {
 	return err
 }
 
+// SetUpdatedAt time of the object
+func (f *Object) SetCreatedAt(t time.Time) {
+	f.createdAt = t
+}
+
 // CreatedAt returns time of the object
 func (f *Object) CreatedAt() time.Time {
 	return f.createdAt
+}
+
+// SetUpdatedAt time of the object
+func (f *Object) SetUpdatedAt(t time.Time) {
+	f.updatedAt = t
 }
 
 // UpdatedAt returns time of the object

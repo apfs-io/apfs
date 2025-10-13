@@ -11,6 +11,12 @@ type RequestOptions struct {
 	overwrite bool
 }
 
+func (o *RequestOptions) prepareGroup(defaultGroup string) {
+	if o.group == "" {
+		o.group = defaultGroup
+	}
+}
+
 // RequestOption is a type for a function that modifies RequestOptions.
 type RequestOption func(*RequestOptions)
 
@@ -45,6 +51,10 @@ func WithTags(opts ...string) func(*RequestOptions) {
 // WithOverwrite sets the overwrite option for the upload operation.
 func WithOverwrite(opts ...bool) func(*RequestOptions) {
 	return func(o *RequestOptions) {
-		o.overwrite = opts[0]
+		if len(opts) > 0 {
+			o.overwrite = opts[0]
+		} else {
+			o.overwrite = true
+		}
 	}
 }

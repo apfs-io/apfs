@@ -97,18 +97,19 @@ func (c *Storage) UpdateManifest(ctx context.Context, bucket string, manifest *m
 // Create new file object
 func (c *Storage) Create(ctx context.Context, bucket string, id npio.ObjectID, overwrite bool, params url.Values) (npio.Object, error) {
 	ctxlogger.Get(ctx).Info("Create", zap.Any("id", id))
+
 	var (
 		path, err = c.newPath(bucket, id, !overwrite)
 		info      os.FileInfo
 	)
+
 	if err != nil {
 		return nil, err
 	}
 
 	// Init new object container
 	obj := object.NewObject(
-		npio.ObjectIDType(filepath.Join(bucket, path)),
-		bucket, path)
+		npio.ObjectIDType(filepath.Join(bucket, path)), bucket, path)
 
 	if overwrite {
 		if err := c.Remove(ctx, obj); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -187,15 +188,16 @@ func (c *Storage) Open(ctx context.Context, id npio.ObjectID) (_ npio.Object, er
 		object   = objectFromID(id)
 		fullpath = c.fullpath(object)
 	)
+
 	if info, err = os.Stat(fullpath); os.IsNotExist(err) {
 		return nil, storerrors.WrapNotFound(fullpath, err)
-	}
-	if err != nil {
+	} else if err != nil {
 		return nil, err
-	}
-	if !info.IsDir() {
+	} else if !info.IsDir() {
 		return nil, ErrCollectionFilePathMustBeDirectory
 	}
+
+	// Load manifest and meta information
 	if err = c.loadManifest(object); err != nil {
 		if err == ErrCollectionFileOriginalFilepath {
 			return nil, err
@@ -204,12 +206,17 @@ func (c *Storage) Open(ctx context.Context, id npio.ObjectID) (_ npio.Object, er
 			return nil, errors.Wrap(err, manifestFileName)
 		}
 	}
+
+	// Load meta information
 	if err = c.loadMeta(object); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
 		}
 	}
+
+	// Update object information
 	updateObjectFileInfo(object, info)
+
 	return object, nil
 }
 
@@ -472,13 +479,9 @@ func (c *Storage) saveMeta(obj npio.Object) error {
 	return saveJSONFile(c.mcache, c.subfileFullpath(obj, metaFileName), meta)
 }
 
-func (c *Storage) saveObjectMeta(ctx context.Context, obj npio.Object, name string, meta *models.ItemMeta) error {
-	// if models.IsOriginal(name) {
-	// 	obj.MustMeta().Main = *meta
-	// } else {
+func (c *Storage) saveObjectMeta(_ context.Context, obj npio.Object, name string, meta *models.ItemMeta) error {
 	meta.UpdatedAt = time.Now()
 	obj.MustMeta().SetItem(meta)
-	// }
 	return c.saveMeta(obj)
 }
 

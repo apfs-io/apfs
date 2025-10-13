@@ -39,3 +39,8 @@ func NewObjectID(id string) *ObjectID {
 func NewObjectGroupID(group, id string) *ObjectID {
 	return protocol.NewObjectGroupID(group, id)
 }
+
+// ID returns a new ObjectID
+func ID(id string) *ObjectID {
+	return protocol.NewObjectID(id)
+}

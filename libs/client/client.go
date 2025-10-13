@@ -35,17 +35,25 @@ func Connect(ctx context.Context, address string, opts ...grpc.DialOption) (Clie
 	if len(opts) < 1 {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
+
+	// Add scheme if not exists
 	if !strings.Contains(address, "://") {
 		address = "tcp://" + address
 	}
+
+	// Parse URL from address
 	url, err := url.Parse(address)
 	if err != nil {
 		return nil, err
 	}
+
+	// Dial connection to server
 	conn, err := dial(ctx, url.Scheme, url.Host, opts...)
 	if err != nil {
 		return nil, err
 	}
+
+	// Create client instance and set default group
 	return &client{
 		conn:    conn,
 		sclient: protocol.NewServiceAPIClient(conn),
@@ -58,23 +66,35 @@ func Connect(ctx context.Context, address string, opts ...grpc.DialOption) (Clie
 }
 
 // Head returns object info
-func (c *client) Head(ctx context.Context, id *protocol.ObjectID, opts ...RequestOption) (*models.Object, error) {
+func (c *client) Head(ctx context.Context, id *ObjectID, opts ...RequestOption) (*models.Object, error) {
 	var requestOptions RequestOptions
 	for _, opt := range opts {
 		opt(&requestOptions)
 	}
-	objResp, err := c.sclient.Head(prepareContext(ctx), id, requestOptions.grpcOpts...)
+	requestOptions.prepareGroup(c.defaultGroup)
+
+	objResp, err := c.sclient.Head(
+		prepareContext(ctx),
+		PrepareObjectID(id, requestOptions.group),
+		requestOptions.grpcOpts...,
+	)
+
 	return prepareSimpleObjectResponse(objResp, err)
 }
 
 // Refresh object in state in storage
-func (c *client) Refresh(ctx context.Context, id *protocol.ObjectID, opts ...RequestOption) error {
+func (c *client) Refresh(ctx context.Context, id *ObjectID, opts ...RequestOption) error {
 	var requestOptions RequestOptions
 	for _, opt := range opts {
 		opt(&requestOptions)
 	}
+	requestOptions.prepareGroup(c.defaultGroup)
 
-	objResp, err := c.sclient.Refresh(prepareContext(ctx), id, requestOptions.grpcOpts...)
+	objResp, err := c.sclient.Refresh(
+		prepareContext(ctx),
+		PrepareObjectID(id, requestOptions.group),
+		requestOptions.grpcOpts...,
+	)
 	if err != nil {
 		return err
 	}
@@ -87,7 +107,7 @@ func (c *client) Refresh(ctx context.Context, id *protocol.ObjectID, opts ...Req
 }
 
 // Get object from storage and return reader
-func (c *client) Get(ctx context.Context, id *protocol.ObjectID, opts ...RequestOption) (obj *models.Object, reader io.ReadCloser, err error) {
+func (c *client) Get(ctx context.Context, id *ObjectID, opts ...RequestOption) (obj *models.Object, reader io.ReadCloser, err error) {
 	var (
 		cli            protocol.ServiceAPI_GetClient
 		requestOptions RequestOptions
@@ -95,8 +115,13 @@ func (c *client) Get(ctx context.Context, id *protocol.ObjectID, opts ...Request
 	for _, opt := range opts {
 		opt(&requestOptions)
 	}
+	requestOptions.prepareGroup(c.defaultGroup)
 
-	if cli, err = c.sclient.Get(prepareContext(ctx), id, requestOptions.grpcOpts...); err != nil {
+	if cli, err = c.sclient.Get(
+		prepareContext(ctx),
+		PrepareObjectID(id, requestOptions.group),
+		requestOptions.grpcOpts...,
+	); err != nil {
 		return nil, nil, err
 	}
 
@@ -123,9 +148,10 @@ func (c *client) SetManifest(ctx context.Context, manifest *models.Manifest, opt
 	for _, opt := range opts {
 		opt(&requestOptions)
 	}
+	requestOptions.prepareGroup(c.defaultGroup)
 
 	status, err := c.sclient.SetManifest(ctx, &protocol.DataManifest{
-		Group:    gocast.Or(requestOptions.group, c.defaultGroup),
+		Group:    requestOptions.group,
 		Manifest: protoManifest,
 	}, requestOptions.grpcOpts...)
 	if err == nil && !status.GetStatus().IsOK() {
@@ -140,10 +166,11 @@ func (c *client) GetManifest(ctx context.Context, opts ...RequestOption) (*model
 	for _, opt := range opts {
 		opt(&requestOptions)
 	}
+	requestOptions.prepareGroup(c.defaultGroup)
 
 	response, err := c.sclient.GetManifest(ctx,
 		&protocol.ManifestGroup{
-			Group: gocast.Or(requestOptions.group, c.defaultGroup),
+			Group: requestOptions.group,
 		}, requestOptions.grpcOpts...)
 	if err != nil {
 		return nil, err
@@ -172,6 +199,7 @@ func (c *client) Upload(ctx context.Context, data io.Reader, opts ...RequestOpti
 	for _, opt := range opts {
 		opt(&requestOptions)
 	}
+	requestOptions.prepareGroup(c.defaultGroup)
 
 	uploadClient, err := c.sclient.Upload(prepareContext(ctx), requestOptions.grpcOpts...)
 	if err != nil {
@@ -183,7 +211,7 @@ func (c *client) Upload(ctx context.Context, data io.Reader, opts ...RequestOpti
 	if err = uploadClient.Send(&protocol.Data{
 		Item: &protocol.Data_Info{
 			Info: &protocol.DataCustomID{
-				Group:     gocast.Or(requestOptions.group, c.defaultGroup),
+				Group:     requestOptions.group,
 				CustomId:  requestOptions.customID,
 				Overwrite: requestOptions.overwrite,
 			},
@@ -225,38 +253,48 @@ func (c *client) Upload(ctx context.Context, data io.Reader, opts ...RequestOpti
 // Delete object from storage
 func (c *client) Delete(ctx context.Context, id any, opts ...RequestOption) error {
 	// Prepare object ID
-	var in *protocol.ObjectIDNames
+	var idNames *ObjectIDNames
 	switch v := id.(type) {
 	case string:
-		in = &protocol.ObjectIDNames{Id: v}
-	case *protocol.ObjectIDNames:
-		in = v
-	case *protocol.ObjectID:
-		in = &protocol.ObjectIDNames{Id: v.Id}
+		idNames = &ObjectIDNames{Id: v}
+	case *ObjectIDNames:
+		idNames = v
+	case *ObjectID:
+		idNames = &ObjectIDNames{Id: v.Id}
 		if len(v.Name) > 0 {
 			if len(v.Name) != 1 {
 				return ErrInvalidDeleteRequestArguments
 			}
-			in.Names = append(in.Names, v.Name...)
+			idNames.Names = append(idNames.Names, v.Name...)
 		}
-	case *protocol.Object:
-		in = &protocol.ObjectIDNames{Id: v.Id}
+	case *Object:
+		idNames = &ObjectIDNames{Id: v.Id}
 	default:
 		return ErrInvalidParams
 	}
 
+	// Prepare request options
 	var requestOptions RequestOptions
 	for _, opt := range opts {
 		opt(&requestOptions)
 	}
+	requestOptions.prepareGroup(c.defaultGroup)
 
-	resp, err := c.sclient.Delete(prepareContext(ctx), in, requestOptions.grpcOpts...)
+	// Perform delete request
+	resp, err := c.sclient.Delete(
+		prepareContext(ctx),
+		PrepareObjectIDNames(idNames, requestOptions.group),
+		requestOptions.grpcOpts...,
+	)
 	if err != nil {
 		return err
 	}
+
+	// Check response status and return error if exists
 	if resp.GetStatus().IsFailed() {
 		err = errors.New(resp.GetMessage())
 	}
+
 	return err
 }
 

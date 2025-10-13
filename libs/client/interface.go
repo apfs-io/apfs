@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 
-	protocol "github.com/apfs-io/apfs/internal/server/protocol/v1"
 	"github.com/apfs-io/apfs/models"
 )
 
@@ -18,13 +17,13 @@ var (
 // ObjectManagerClient interface represents interaction with object storage
 type ObjectManagerClient interface {
 	// Refresg file object data
-	Refresh(ctx context.Context, id *protocol.ObjectID, opts ...RequestOption) error
+	Refresh(ctx context.Context, id *ObjectID, opts ...RequestOption) error
 
 	// Get file object from storage
-	Head(ctx context.Context, id *protocol.ObjectID, opts ...RequestOption) (*models.Object, error)
+	Head(ctx context.Context, id *ObjectID, opts ...RequestOption) (*models.Object, error)
 
 	// Read object with body
-	Get(ctx context.Context, id *protocol.ObjectID, opts ...RequestOption) (*models.Object, io.ReadCloser, error)
+	Get(ctx context.Context, id *ObjectID, opts ...RequestOption) (*models.Object, io.ReadCloser, error)
 
 	// UploadFile object into storage
 	UploadFile(ctx context.Context, filepath string, opts ...RequestOption) (*models.Object, error)

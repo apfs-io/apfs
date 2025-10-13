@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	npio "github.com/apfs-io/apfs/internal/io"
@@ -77,11 +78,17 @@ func prepareExt(ext string) string {
 	return "." + strings.ToLower(strings.TrimPrefix(ext, "."))
 }
 
-func updateObjectFileInfo(obj npio.Object, info os.FileInfo) {
+func updateObjectFileInfo(obj *object.Object, info os.FileInfo) {
 	meta := obj.MustMeta()
-	// Info can be nil in case if file or directory does not exists
-	if info != nil && obj.UpdatedAt().Unix() < info.ModTime().Unix() {
-		meta.UpdatedAt = info.ModTime()
+	modeTime := info.ModTime()
+
+	if meta.UpdatedAt.IsZero() {
+		meta.UpdatedAt = modeTime
+	}
+
+	obj.SetUpdatedAt(meta.UpdatedAt)
+	if !meta.CreatedAt.IsZero() {
+		obj.SetCreatedAt(meta.CreatedAt)
 	}
 }
 
@@ -100,7 +107,7 @@ func isValidID(id npio.ObjectID) bool {
 	return true
 }
 
-func objectFromID(id npio.ObjectID) npio.Object {
+func objectFromID(id npio.ObjectID) *object.Object {
 	filepath := strings.Trim(string(id.ID()), "/")
 	splits := strings.SplitN(filepath, "/", 2)
 	if len(splits) != 2 {
@@ -120,10 +127,5 @@ func isSystemDir(dir string) bool {
 	if dir == "" {
 		return true
 	}
-	for _, d := range systemDirs {
-		if d == dir {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(systemDirs, dir)
 }

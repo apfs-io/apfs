@@ -38,8 +38,8 @@ type Meta struct {
 	Tags            []string            `json:"tags,omitempty"`
 	Params          map[string][]string `json:"params,omitempty"`
 	ManifestVersion string              `json:"manifest_version,omitempty"`
-	CreatedAt       time.Time           `json:"created_at,omitempty"`
-	UpdatedAt       time.Time           `json:"updated_at,omitempty"`
+	CreatedAt       time.Time           `json:"created_at"`
+	UpdatedAt       time.Time           `json:"updated_at"`
 }
 
 // IsEmpty manifest object
@@ -68,7 +68,6 @@ func (m *Meta) ItemByName(name string) *ItemMeta {
 func (m *Meta) IsComplete(manifest *Manifest, stages ...string) bool {
 	completed := 0
 	for _, stage := range manifest.Stages {
-		slices.Contains(stages, stage.Name)
 		if len(stages) > 0 && !slices.Contains(stages, stage.Name) {
 			continue
 		}

@@ -88,6 +88,11 @@ build-docker-dev: build
 	echo "Build develop docker image"
 	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker build -t ${DOCKER_CONTAINER_IMAGE} -f deploy/develop/apfs.dockerfile .
 
+.PHONY: build-docker-dev-im
+build-docker-dev-im: build
+	echo "Build develop docker image with imagemagick"
+	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker build -t ${IMAGE_NAME}:ubuntu-imagemagick -f deploy/production/ubuntu-imagemagick.dockerfile .
+
 .PHONY: build-docker-testapp
 build-docker-testapp: build-testapp
 	echo "Build test app docker image"
@@ -98,7 +103,7 @@ buildx-docker-production:
 	echo "Build production docker image"
 	docker buildx build \
 		--platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
-		-t ${IMAGE_NAME}:ubunty-imagemagick -f deploy/production/ubuntu-imagemagick.dockerfile .
+		-t ${IMAGE_NAME}:ubuntu-imagemagick -f deploy/production/ubuntu-imagemagick.dockerfile .
 	docker buildx build \
 		--platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
 		-t ${IMAGE_NAME}:ubuntu -f deploy/production/ubuntu.dockerfile .
