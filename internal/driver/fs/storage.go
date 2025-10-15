@@ -98,11 +98,7 @@ func (c *Storage) UpdateManifest(ctx context.Context, bucket string, manifest *m
 func (c *Storage) Create(ctx context.Context, bucket string, id npio.ObjectID, overwrite bool, params url.Values) (npio.Object, error) {
 	ctxlogger.Get(ctx).Info("Create", zap.Any("id", id))
 
-	var (
-		path, err = c.newPath(bucket, id, !overwrite)
-		info      os.FileInfo
-	)
-
+	path, err := c.newPath(bucket, id, !overwrite)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +138,7 @@ func (c *Storage) Create(ctx context.Context, bucket string, id npio.ObjectID, o
 	}
 
 	// Save object information
-	updateObjectFileInfo(obj, info)
+	updateObjectFileInfo(obj, nil)
 
 	return obj, err
 }

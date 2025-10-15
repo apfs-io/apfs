@@ -80,10 +80,12 @@ func prepareExt(ext string) string {
 
 func updateObjectFileInfo(obj *object.Object, info os.FileInfo) {
 	meta := obj.MustMeta()
-	modeTime := info.ModTime()
 
-	if meta.UpdatedAt.IsZero() {
-		meta.UpdatedAt = modeTime
+	if info != nil {
+		modeTime := info.ModTime()
+		if meta.UpdatedAt.IsZero() {
+			meta.UpdatedAt = modeTime
+		}
 	}
 
 	obj.SetUpdatedAt(meta.UpdatedAt)
