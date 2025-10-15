@@ -43,7 +43,7 @@ func TestDiskCollectionCreate(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	defer file2.Close()
+	defer func() { _ = file2.Close() }()
 
 	// Update the file with original filename and content
 	if err = diskCollection.Update(ctx, file, models.OriginalFilename, file2, nil); err != nil {
@@ -64,7 +64,7 @@ func TestDiskCollectionCreate(t *testing.T) {
 	}
 
 	// Cleanup test group directory
-	os.RemoveAll(storageDir + "/" + testGroup)
+	_ = os.RemoveAll(storageDir + "/" + testGroup)
 }
 
 // TestDiskCollectionOpen tests opening a file and verifying its path.

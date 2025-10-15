@@ -14,7 +14,7 @@ import (
 
 var (
 	// ErrSkip step in case if this processing no satisfy some conditions
-	ErrSkip = errors.New(`Skip this step`)
+	ErrSkip = errors.New(`skip this step`)
 )
 
 // Input value interface

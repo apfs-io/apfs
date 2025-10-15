@@ -18,7 +18,7 @@ func CollectFileInfo(meta *models.ItemMeta, fileFullpath, contentType string) (_
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	return CollectReadSeekerInfo(meta, file, fileFullpath, contentType)
 }
 

@@ -539,7 +539,7 @@ func (c *Storage) loadJSONObject(ctx context.Context, object npio.Object, name s
 	if err != nil {
 		return err
 	}
-	defer data.Close()
+	defer func() { _ = data.Close() }()
 	return json.NewDecoder(data).Decode(target)
 }
 

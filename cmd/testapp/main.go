@@ -29,7 +29,7 @@ func main() {
 	// Connect to the APFS storage using the connection string from the environment variable.
 	apfsClient, err := apfs.Connect(ctx, os.Getenv("STORAGE_CONNECT"))
 	fatalError(err, "storage connection failed")
-	defer apfsClient.Close()
+	defer func() { _ = apfsClient.Close() }()
 
 	// Create a client for the "images" group.
 	imgClient := apfsClient.WithGroup("images")

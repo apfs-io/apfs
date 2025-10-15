@@ -53,7 +53,7 @@ func CopyFileContents(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	return SaveDataToFile(in, dst)
 }

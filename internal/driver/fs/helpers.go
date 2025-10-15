@@ -32,7 +32,7 @@ func loadJSONFile(ch FileCacher, filepath string, target any) (err error) {
 	if file, err = ch.Read(filepath); err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	return json.NewDecoder(file).Decode(target)
 }
 
@@ -50,7 +50,7 @@ func saveJSONFile(ch FileCacher, dst string, object any) (err error) {
 	if file, err = os.Create(dst); err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	return json.NewEncoder(file).Encode(object)
 }

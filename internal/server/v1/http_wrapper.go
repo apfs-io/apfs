@@ -64,7 +64,7 @@ func (s *ServerHTTPWrapper) UploadHTTPHandler(w http.ResponseWriter, r *http.Req
 	defer func() { _ = dataCloser.Close() }()
 
 	// Upload the object to the storage
-	nobj, err := s.server.UploadObject(ctx, group, customID, overwrite, tags, data)
+	nobj, err := s.UploadObject(ctx, group, customID, overwrite, tags, data)
 	if err != nil {
 		ctxlogger.Get(ctx).Error("upload to storage", zap.Error(err))
 		errorResponse(w, "upload to storage error: "+err.Error())

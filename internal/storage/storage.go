@@ -86,7 +86,7 @@ func (s *Storage) UploadFile(ctx context.Context, group string, sourceFilePath s
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	return s.Upload(ctx, group, file, options...)
 }
 
