@@ -71,7 +71,7 @@ func NewServer(ctx context.Context, connect, storageConnect, stateConnect string
 	if err != nil {
 		return nil, err
 	}
-	driver, err := newStorage(storageConnect)
+	driver, err := newStorage(ctx, storageConnect)
 	if err != nil {
 		return nil, err
 	}
@@ -188,6 +188,7 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 
 	// Try to open one of the object names
 	for _, name := range obj.Name {
+		fmt.Println(" ⇛ Try open object name", obj.Id, ">", name)
 		if fileTry[name] {
 			continue
 		}
@@ -277,6 +278,7 @@ func (s *server) SetManifest(ctx context.Context, manifest *protocol.DataManifes
 
 	// Save manifest into storage and update all objects (lazy by request) with the same group
 	err = s.store.SetManifest(ctx, manifest.GetGroup(), manifestObj)
+	fmt.Println(" ⇛ Manifest set for group", manifest.GetGroup(), err)
 	if err != nil {
 		return &protocol.SimpleResponse{
 			Status:  protocol.ResponseStatusCode_FAILED,

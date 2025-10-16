@@ -99,7 +99,7 @@ build-docker-testapp: build-testapp
 	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker build -t ${DOCKER_CONTAINER_TESTAPP_IMAGE} -f deploy/develop/testapp.dockerfile .
 
 .PHONY: buildx-docker-production
-buildx-docker-production:
+buildx-docker-production: ## Build production docker image
 	echo "Build production docker image"
 	docker buildx build \
 		--platform linux/amd64,linux/arm/v7,linux/arm64/v8 \

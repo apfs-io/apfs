@@ -140,6 +140,10 @@ func (f *Object) PrepareName(name string) string {
 		if name == `` {
 			name = models.OriginalFilename
 		}
+	} else if f.meta != nil {
+		if item := f.meta.ItemByName(name); item != nil {
+			name = item.Fullname()
+		}
 	}
 	return name
 }

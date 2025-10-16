@@ -8,14 +8,14 @@ import (
 	"io"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	awss3 "github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
+	awss3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
@@ -46,19 +46,19 @@ type Storage struct {
 	pathgen objectpath.Generator
 
 	// Connection to the S3 server
-	c *awss3.S3
+	c *awss3.Client
 
-	// Main baket name.
+	// Main bucket name.
 	// If this parameter was setup then all objects
 	// will be stored into the subdirectory
 	bucketName string
 
-	// List of used bakets for using
+	// List of used buckets for using
 	realBuckets map[string]bool
 }
 
 // NewStorage object returns storage according to options
-func NewStorage(options ...Options) (*Storage, error) {
+func NewStorage(ctx context.Context, options ...Options) (*Storage, error) {
 	optConfig := optionConfig{
 		config: aws.NewConfig(),
 	}
@@ -68,27 +68,22 @@ func NewStorage(options ...Options) (*Storage, error) {
 			return nil, err
 		}
 	}
-
-	// Use shared config file...
-	sessionOpts := session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	}
-
-	// ...but allow overwrite of region and credentials if they are set in the options.
-	sessionOpts.Config.MergeIn(optConfig.config)
-	session, err := session.NewSessionWithOptions(sessionOpts)
-	if err != nil {
-		return nil, err
+	if len(optConfig.s3confOptions) == 0 {
+		optConfig.s3confOptions = append(optConfig.s3confOptions, func(o *awss3.Options) {
+			o.UsePathStyle = true
+		})
 	}
 
 	store := &Storage{
-		c:           awss3.New(session),
-		bucketName:  strings.TrimLeft(optConfig.mainBucketName, "/"),
+		c:           awss3.NewFromConfig(*optConfig.config, optConfig.s3confOptions...),
+		bucketName:  optConfig.mainBucketName,
 		realBuckets: map[string]bool{},
 	}
-	store.pathgen = optConfig._pathgen(store.isValidObjectPath)
-	if optConfig.mainBucketName != "" {
-		if err := store.createBucketIfNotExists(optConfig.mainBucketName); err != nil {
+	store.pathgen = optConfig._pathgen(func(path string) bool {
+		return store.isValidObjectPath(ctx, path)
+	})
+	if store.bucketName != "" {
+		if err := store.createBucketIfNotExists(ctx, store.bucketName); err != nil {
 			return nil, err
 		}
 	}
@@ -119,7 +114,7 @@ func (c *Storage) UpdateManifest(ctx context.Context, bucket string, manifest *m
 
 // Create new file object
 func (c *Storage) Create(ctx context.Context, bucket string, id npio.ObjectID, overwrite bool, params url.Values) (npio.Object, error) {
-	objectName, err := c.newObjectName(bucket, id)
+	objectName, err := c.newObjectName(ctx, bucket, id)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +158,7 @@ func (c *Storage) UpdatePatams(ctx context.Context, id npio.ObjectID, params url
 	return c.saveMeta(ctx, obj)
 }
 
-// Open exixting file
+// Open existing file
 func (c *Storage) Open(ctx context.Context, id npio.ObjectID) (_ npio.Object, err error) {
 	// Init object container by ID
 	object := objectFromID(id)
@@ -240,7 +235,7 @@ func (c *Storage) Remove(ctx context.Context, id npio.ObjectID, names ...string)
 
 	// List of names to remove
 	if len(names) < 1 {
-		objects, err := c.listOfObjects(bucket, objectKey(object, ""))
+		objects, err := c.listOfObjects(ctx, bucket, objectKey(object, ""))
 		if err != nil {
 			return err
 		}
@@ -254,13 +249,10 @@ func (c *Storage) Remove(ctx context.Context, id npio.ObjectID, names ...string)
 
 	// Remove all subfiles from object
 	for _, name := range names {
-		var (
-			key    = name
-			_, err = c.c.DeleteObject(&awss3.DeleteObjectInput{
-				Bucket: c._bucketName(bucket),
-				Key:    &key,
-			})
-		)
+		_, err = c.c.DeleteObject(ctx, &awss3.DeleteObjectInput{
+			Bucket: c._bucketName(bucket),
+			Key:    aws.String(name),
+		})
 
 		if err == nil {
 			baseName, updated := filepath.Base(name), false
@@ -271,7 +263,7 @@ func (c *Storage) Remove(ctx context.Context, id npio.ObjectID, names ...string)
 		}
 
 		// Check if the object is not exist or error
-		if err != nil && !strings.Contains(err.Error(), s3.ErrCodeNoSuchKey) {
+		if err != nil && !isNoSuchKeyError(err) {
 			if metaUpdated {
 				_ = c.saveMeta(ctx, object)
 			}
@@ -307,7 +299,7 @@ func (c *Storage) Clean(ctx context.Context, id npio.ObjectID) error {
 	}
 	var (
 		bucket       = object.Bucket()
-		objects, err = c.listOfObjects(bucket, object.Path())
+		objects, err = c.listOfObjects(ctx, bucket, object.Path())
 		objectPath   = *c._bucketFilenameBasic(bucket, object.Path())
 	)
 	if err != nil {
@@ -326,7 +318,7 @@ func (c *Storage) Clean(ctx context.Context, id npio.ObjectID) error {
 			}
 			continue
 		}
-		_, err = c.c.DeleteObject(&awss3.DeleteObjectInput{
+		_, err = c.c.DeleteObject(ctx, &awss3.DeleteObjectInput{
 			Bucket: c._bucketName(bucket),
 			Key:    &[]string{*obj.Key}[0],
 		})
@@ -346,7 +338,7 @@ func (c *Storage) Scan(ctx context.Context, pattern string, walkf npio.WalkStora
 	pattern = strings.TrimLeft(pattern, "/")
 	arr := strings.SplitN(pattern, "/", 2)
 	bucket, prefix := arr[0], arr[1]
-	output, err := c.c.ListObjects(&awss3.ListObjectsInput{
+	output, err := c.c.ListObjects(ctx, &awss3.ListObjectsInput{
 		Bucket: c._bucketName(bucket),
 		Prefix: c._bucketFilenameBasic(bucket, prefix),
 	})
@@ -374,7 +366,7 @@ func (c *Storage) _ID2Object(ctx context.Context, id npio.ObjectID) (npio.Object
 }
 
 // Create the bucket if it doesn't exist yet.
-func (c *Storage) createBucketIfNotExists(bucketName string) error {
+func (c *Storage) createBucketIfNotExists(ctx context.Context, bucketName string) error {
 	if c.isBucketCreated(bucketName) {
 		return nil
 	}
@@ -382,24 +374,20 @@ func (c *Storage) createBucketIfNotExists(bucketName string) error {
 	c.mx.Lock()
 	defer c.mx.Unlock()
 
-	listBucketsOutput, err := c.c.ListBuckets(&awss3.ListBucketsInput{})
+	listBucketsOutput, err := c.c.ListBuckets(ctx, &awss3.ListBucketsInput{})
 	if err != nil {
 		return err
 	}
-	ownsBucket := false
-	if listBucketsOutput.Buckets != nil {
-		for _, bucket := range listBucketsOutput.Buckets {
-			if *bucket.Name == bucketName {
-				ownsBucket = true
-				break
-			}
-		}
-	}
+
+	ownsBucket := slices.ContainsFunc(listBucketsOutput.Buckets,
+		func(b awss3types.Bucket) bool { return *b.Name == bucketName })
+
 	if !ownsBucket {
-		_, err = c.c.CreateBucket(&awss3.CreateBucketInput{
+		_, err = c.c.CreateBucket(ctx, &awss3.CreateBucketInput{
 			Bucket: aws.String(bucketName),
 		})
 	}
+
 	if err == nil {
 		c.realBuckets[bucketName] = true
 	}
@@ -413,10 +401,10 @@ func (c *Storage) isBucketCreated(bucketName string) bool {
 }
 
 // newObjectName returns the object codename
-func (c *Storage) newObjectName(bucket string, id npio.ObjectID) (string, error) {
+func (c *Storage) newObjectName(ctx context.Context, bucket string, id npio.ObjectID) (string, error) {
 	if id != nil {
 		if sumPath := subPathFromID(bucket, id); sumPath != "" {
-			if !c.isValidObjectPath(filepath.Join(bucket, sumPath)) {
+			if !c.isValidObjectPath(ctx, filepath.Join(bucket, sumPath)) {
 				return "", errors.Wrap(ErrCustomObjectIDIsNotValid, sumPath)
 			}
 			return sumPath, nil
@@ -494,7 +482,7 @@ func (c *Storage) putData(ctx context.Context, name string, object npio.Object, 
 		for _, tag := range object.MustMeta().Tags {
 			tags.Set(tag, "1")
 		}
-		pubObjectInput.SetTagging(tags.Encode())
+		pubObjectInput.Tagging = aws.String(tags.Encode())
 	}
 
 	// Set content type
@@ -506,7 +494,7 @@ func (c *Storage) putData(ctx context.Context, name string, object npio.Object, 
 	c.grantPermissions(name, object, &pubObjectInput)
 
 	// Save data to the S3 server
-	if _, err = c.c.PutObjectWithContext(ctx, &pubObjectInput); err != nil {
+	if _, err = c.c.PutObject(ctx, &pubObjectInput); err != nil {
 		return err
 	}
 
@@ -524,7 +512,7 @@ func (c *Storage) saveObjectMeta(ctx context.Context, _ string, object npio.Obje
 }
 
 func (c *Storage) loadData(ctx context.Context, object npio.Object, name string, global bool) (io.ReadCloser, error) {
-	out, err := c.c.GetObjectWithContext(ctx, &awss3.GetObjectInput{
+	out, err := c.c.GetObject(ctx, &awss3.GetObjectInput{
 		Bucket: c._bucketName(object.Bucket()),
 		Key:    c._bucketFilename(object, strIf(global, name, objectKey(object, name))),
 	})
@@ -577,8 +565,8 @@ func (c *Storage) _bucketFilenameBasic(bucketName, name string) *string {
 	return &name
 }
 
-func (c *Storage) listOfObjects(bucket, prefix string) ([]*awss3.Object, error) {
-	output, err := c.c.ListObjects(&awss3.ListObjectsInput{
+func (c *Storage) listOfObjects(ctx context.Context, bucket, prefix string) ([]awss3types.Object, error) {
+	output, err := c.c.ListObjects(ctx, &awss3.ListObjectsInput{
 		Bucket: c._bucketName(bucket),
 		Prefix: c._bucketFilenameBasic(bucket, prefix),
 	})
@@ -591,9 +579,9 @@ func (c *Storage) listOfObjects(bucket, prefix string) ([]*awss3.Object, error) 
 func (c *Storage) grantPermissions(name string, _ npio.Object, obj *awss3.PutObjectInput) {
 	switch name {
 	case metaObjectName, manifestObjectName:
-		obj.SetACL(awss3.ObjectCannedACLPrivate)
+		obj.ACL = awss3types.ObjectCannedACLPrivate
 	default:
-		obj.SetACL(awss3.ObjectCannedACLPublicRead)
+		obj.ACL = awss3types.ObjectCannedACLPublicRead
 	}
 }
 
@@ -648,12 +636,12 @@ func (c *Storage) extractObjectMetaInfo(name string, reader io.Reader, manifest 
 	return data, meta, err
 }
 
-func (c *Storage) isValidObjectPath(fullpath string) bool {
+func (c *Storage) isValidObjectPath(ctx context.Context, fullpath string) bool {
 	paths := strings.SplitN(fullpath, "/", 2)
 	if len(paths) != 2 {
 		return false
 	}
-	objects, err := c.listOfObjects(paths[0], paths[1])
+	objects, err := c.listOfObjects(ctx, paths[0], paths[1])
 	if isNotExist(err) {
 		return true
 	}
@@ -667,6 +655,18 @@ func subPathFromID(bucket string, id npio.ObjectID) string {
 		sumPath = strings.Trim(sumPath, " \t\n/\\")
 	}
 	return sumPath
+}
+
+// isNoSuchKeyError checks if the error is an AWS S3 NoSuchKey error
+func isNoSuchKeyError(err error) bool {
+	var ae interface{ ErrorCode() string }
+	if err == nil {
+		return false
+	}
+	if errors.As(err, &ae) {
+		return ae.ErrorCode() == "NoSuchKey"
+	}
+	return strings.Contains(err.Error(), "NoSuchKey")
 }
 
 var _ npio.StorageAccessor = (*Storage)(nil)

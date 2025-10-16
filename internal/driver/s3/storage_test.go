@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/apfs-io/apfs/models"
@@ -27,14 +26,12 @@ func TestS3Collection(t *testing.T) {
 	}
 
 	collection, err := NewStorage(
+		ctx,
 		WithMainBucket("test"),
-		WithS3Config(func(config *aws.Config) *aws.Config {
-			config = config.WithEndpoint(endpointURL)
-			config = config.WithS3ForcePathStyle(true)
-			config = config.WithRegion("r")
-			return config
-		}),
-		WithS3Credentionals(accessKey, secretKey))
+		WithRegion("r"),
+		WithEndpoint(endpointURL),
+		WithS3Credentionals(accessKey, secretKey),
+	)
 	assert.NoError(t, err, `new collection`)
 
 	object, err := collection.Create(ctx, "assets", nil, false, nil)

@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -14,14 +15,14 @@ import (
 )
 
 // newStorage creates the new accessor collection object
-func newStorage(connect string) (io.StorageAccessor, error) {
+func newStorage(ctx context.Context, connect string) (io.StorageAccessor, error) {
 	var (
 		i      = strings.Index(connect, "://")
 		driver = connect[:i]
 	)
 	switch driver {
 	case "s3":
-		return s3.NewStorage(s3.WithS3FromURL(connect))
+		return s3.NewStorage(ctx, s3.WithS3FromURL(connect))
 	case "disk", "file", "fs":
 		return fs.NewStorage(connect[i+3:])
 	}
