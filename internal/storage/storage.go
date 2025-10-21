@@ -139,10 +139,9 @@ func (s *Storage) Object(ctx context.Context, obj any) (npio.Object, error) {
 		objectRecord, err := s.db.Get(val)
 
 		// Check if object is in cache
-		if err != nil || objectRecord == nil || true {
+		if err != nil || objectRecord == nil {
 			ctxlogger.Get(ctx).Debug("load object cache", zap.Error(err),
-				zap.String("object_id", val),
-				zap.Stack("stack"))
+				zap.String("object_id", val))
 
 			// Try to load object from storage
 			if nObject, err = s.driver.Open(ctx, npio.ObjectIDType(val)); err != nil {

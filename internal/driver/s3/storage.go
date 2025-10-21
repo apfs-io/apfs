@@ -37,6 +37,7 @@ const (
 var (
 	ErrUnsupportedContentType   = errors.New("content-type is not supported")
 	ErrCustomObjectIDIsNotValid = errors.New("invalid custom object ID or taken")
+	ErrObjectAlreadyExists      = errors.New("object already exists")
 )
 
 // Storage to manage S3 type
@@ -80,7 +81,8 @@ func NewStorage(ctx context.Context, options ...Options) (*Storage, error) {
 		realBuckets: map[string]bool{},
 	}
 	store.pathgen = optConfig._pathgen(func(path string) bool {
-		return store.isValidObjectPath(ctx, path)
+		valid, exists := store.isValidObjectPath(ctx, path)
+		return valid && !exists
 	})
 	if store.bucketName != "" {
 		if err := store.createBucketIfNotExists(ctx, store.bucketName); err != nil {
@@ -114,13 +116,25 @@ func (c *Storage) UpdateManifest(ctx context.Context, bucket string, manifest *m
 
 // Create new file object
 func (c *Storage) Create(ctx context.Context, bucket string, id npio.ObjectID, overwrite bool, params url.Values) (npio.Object, error) {
-	objectName, err := c.newObjectName(ctx, bucket, id)
+	var (
+		objectName, exists, err = c.newObjectName(ctx, bucket, id)
+		object                  npio.Object
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	// Init new object container
-	object := newObject(bucket, objectName)
+	if !exists {
+		object = newObject(bucket, objectName)
+	} else {
+		if !overwrite {
+			return nil, errors.Wrap(ErrObjectAlreadyExists, objectName)
+		}
+		if object, err = c.Open(ctx, npio.ObjectIDType(objectName)); err != nil {
+			return nil, err
+		}
+	}
 
 	// Load manifest information
 	if err = c.loadManifest(ctx, object, true); err != nil {
@@ -401,16 +415,19 @@ func (c *Storage) isBucketCreated(bucketName string) bool {
 }
 
 // newObjectName returns the object codename
-func (c *Storage) newObjectName(ctx context.Context, bucket string, id npio.ObjectID) (string, error) {
+func (c *Storage) newObjectName(ctx context.Context, bucket string, id npio.ObjectID) (string, bool, error) {
 	if id != nil {
 		if sumPath := subPathFromID(bucket, id); sumPath != "" {
-			if !c.isValidObjectPath(ctx, filepath.Join(bucket, sumPath)) {
-				return "", errors.Wrap(ErrCustomObjectIDIsNotValid, sumPath)
+			fullPath := filepath.Join(bucket, sumPath)
+			if valid, exists := c.isValidObjectPath(ctx, fullPath); !valid {
+				return "", false, errors.Wrap(ErrCustomObjectIDIsNotValid, sumPath)
+			} else {
+				return fullPath, exists, nil
 			}
-			return sumPath, nil
 		}
 	}
-	return c.pathgen.Generate(bucket)
+	fullPath, err := c.pathgen.Generate(bucket)
+	return fullPath, false, err
 }
 
 func (c *Storage) loadObjectManifest(ctx context.Context, object npio.Object) (err error) {
@@ -636,16 +653,16 @@ func (c *Storage) extractObjectMetaInfo(name string, reader io.Reader, manifest 
 	return data, meta, err
 }
 
-func (c *Storage) isValidObjectPath(ctx context.Context, fullpath string) bool {
+func (c *Storage) isValidObjectPath(ctx context.Context, fullpath string) (valid, exists bool) {
 	paths := strings.SplitN(fullpath, "/", 2)
 	if len(paths) != 2 {
-		return false
+		return false, false
 	}
 	objects, err := c.listOfObjects(ctx, paths[0], paths[1])
 	if isNotExist(err) {
-		return true
+		return true, false
 	}
-	return err == nil && len(objects) == 0
+	return err == nil, len(objects) != 0
 }
 
 func subPathFromID(bucket string, id npio.ObjectID) string {

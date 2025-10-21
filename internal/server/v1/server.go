@@ -188,7 +188,6 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 
 	// Try to open one of the object names
 	for _, name := range obj.Name {
-		fmt.Println(" ⇛ Try open object name", obj.Id, ">", name)
 		if fileTry[name] {
 			continue
 		}
@@ -262,15 +261,9 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 //   - {storage-domain}/{group}/{object-codename}/manifest.json - reference to `{storage-domain}/{group}/manifest.json`
 func (s *server) SetManifest(ctx context.Context, manifest *protocol.DataManifest) (_ *protocol.SimpleResponse, err error) {
 	ctxlogger.Get(ctx).Info("Set Manifest",
-		zap.String("manifest_group", manifest.GetGroup()))
-
-	defer func() {
-		if err != nil {
-			ctxlogger.Get(ctx).Error("Set Manifest",
-				zap.String("manifest_group", manifest.GetGroup()),
-				zap.Error(err))
-		}
-	}()
+		zap.String("manifest_group", manifest.GetGroup()),
+		zap.Any("manifest", manifest.Manifest),
+	)
 
 	// Convert manifest from proto to model
 	manifestObj := manifest.Manifest.ToModel()
@@ -278,8 +271,10 @@ func (s *server) SetManifest(ctx context.Context, manifest *protocol.DataManifes
 
 	// Save manifest into storage and update all objects (lazy by request) with the same group
 	err = s.store.SetManifest(ctx, manifest.GetGroup(), manifestObj)
-	fmt.Println(" ⇛ Manifest set for group", manifest.GetGroup(), err)
 	if err != nil {
+		ctxlogger.Get(ctx).Error("Set Manifest",
+			zap.String("manifest_group", manifest.GetGroup()),
+			zap.Error(err))
 		return &protocol.SimpleResponse{
 			Status:  protocol.ResponseStatusCode_FAILED,
 			Message: fmt.Sprintf("Manifest [%s] setup error: %s", manifest.GetGroup(), err.Error()),

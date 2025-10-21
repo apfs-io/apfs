@@ -133,7 +133,9 @@ PROCESSING_LOOP:
 					zap.String(`task_id`, task.ID),
 					zap.Int(`task_actions`, len(task.Actions)),
 					zap.String(`object_bucket`, cObject.Bucket()),
-					zap.String(`object_path`, cObject.Path()))
+					zap.String(`object_path`, cObject.Path()),
+					zap.Stack("stack"),
+					zap.String("reason", "no suitable converter"))
 				break // Skip the stage
 			}
 			// Execute the task
@@ -143,7 +145,8 @@ PROCESSING_LOOP:
 					zap.Int(`task_actions`, len(task.Actions)),
 					zap.String(`object_bucket`, cObject.Bucket()),
 					zap.String(`object_path`, cObject.Path()),
-					zap.Error(err))
+					zap.Error(err),
+					zap.Stack("stack"))
 				return false, err
 			}
 			// Stop processing if maxTasks limit is reached

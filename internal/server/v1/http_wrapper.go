@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -47,7 +46,6 @@ func (s *ServerHTTPWrapper) UploadHTTPHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	tags := r.URL.Query()["tags"]
-	fmt.Println("tags", tags, len(tags))
 	if err := r.ParseForm(); err != nil {
 		ctxlogger.Get(ctx).Error("parse request form", zap.Error(err))
 		errorResponse(w, "parse request error: "+err.Error())
