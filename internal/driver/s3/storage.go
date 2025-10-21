@@ -131,7 +131,7 @@ func (c *Storage) Create(ctx context.Context, bucket string, id npio.ObjectID, o
 		if !overwrite {
 			return nil, errors.Wrap(ErrObjectAlreadyExists, objectName)
 		}
-		if object, err = c.Open(ctx, npio.ObjectIDType(objectName)); err != nil {
+		if object, err = c.Open(ctx, newObjectID(bucket, objectName)); err != nil {
 			return nil, err
 		}
 	}
@@ -422,7 +422,7 @@ func (c *Storage) newObjectName(ctx context.Context, bucket string, id npio.Obje
 			if valid, exists := c.isValidObjectPath(ctx, fullPath); !valid {
 				return "", false, errors.Wrap(ErrCustomObjectIDIsNotValid, sumPath)
 			} else {
-				return fullPath, exists, nil
+				return sumPath, exists, nil
 			}
 		}
 	}

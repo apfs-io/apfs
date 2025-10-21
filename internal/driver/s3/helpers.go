@@ -71,9 +71,13 @@ func objectKey(object npio.Object, name string) string {
 // bucket name: images, videos, documents, etc.
 // object path: generated bucket full path without bucket => {{year}}/{{month}}/{{md5:1}}/{{md5:2}}/{{md5}}
 func newObject(bucket, pathName string) npio.Object {
-	return object.NewObject(npio.ObjectIDType(
-		strings.Trim(bucket, "/")+"/"+strings.Trim(pathName, "/"),
-	), bucket, pathName)
+	return object.NewObject(newObjectID(bucket, pathName), bucket, pathName)
+}
+
+func newObjectID(bucket, pathName string) npio.ObjectIDType {
+	return npio.ObjectIDType(
+		strings.Trim(bucket, "/") + "/" + strings.Trim(pathName, "/"),
+	)
 }
 
 func objectFromID(id npio.ObjectID) npio.Object {
