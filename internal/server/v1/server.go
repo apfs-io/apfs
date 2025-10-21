@@ -247,7 +247,7 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 				Content.Content = buf.buff[:n]
 			err = stream.Send(responseItem)
 		}
-		if err != nil && errors.Is(err, io.EOF) {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return err
 		}
 		if n < 1 || errors.Is(err, io.EOF) {
