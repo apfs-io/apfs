@@ -216,6 +216,7 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 		return err
 	}
 
+	// Send initial object info...
 	res = &protocol.ObjectResponse{
 		Object: &protocol.ObjectResponse_Response{
 			Response: &protocol.SimpleObjectResponse{
@@ -231,6 +232,7 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 		return err
 	}
 
+	// Content data item
 	responseItem := &protocol.ObjectResponse{
 		Object: &protocol.ObjectResponse_Content{
 			Content: &protocol.DataContent{},
@@ -245,10 +247,10 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 				Content.Content = buf.buff[:n]
 			err = stream.Send(responseItem)
 		}
-		if err != nil && err != io.EOF {
+		if err != nil && errors.Is(err, io.EOF) {
 			return err
 		}
-		if n < 1 || err == io.EOF {
+		if n < 1 || errors.Is(err, io.EOF) {
 			break
 		}
 	}
