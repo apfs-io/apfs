@@ -10,17 +10,11 @@ option java_package = "com.apfs.protocol.v1";
 import "google/api/annotations.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
 
+import "v1/common.proto";
 import "v1/object.proto";
 import "v1/manifest.proto";
 import "v1/workflow.proto";
 import "v1/state.proto";
-
-enum ResponseStatusCode {
-  UNKNOWN_INVALID = 0;
-  OK              = 1;
-  FAILED          = 2;
-  NOT_FOUND       = 3;
-}
 
 message ManifestGroup {
   string    group       = 1;
@@ -121,12 +115,6 @@ service ServiceAPI {
   rpc Get(ObjectID) returns (stream ObjectResponse) {
     option (google.api.http) = {
       get: "/v1/object/{id}"
-      // Example:
-      // curl -i "http://hostname:port/v1/object/images/object/path?[name=subobject.name]&[meta=true]"
-      //
-      // Content-Type: based on file mime type
-      // Content-Length: size of file in bytes
-      // X-Content-Meta: Meta.JSON.Base64 encoded if "meta" is true
     };
   };
 

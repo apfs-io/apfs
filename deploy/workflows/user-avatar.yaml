@@ -1,78 +1,61 @@
 # User Avatar Workflow
 #
-# Validates, resizes, and strips metadata from a user-uploaded avatar.
-# A small square thumbnail is also produced for notification emails.
+# Validates, resizes, and strips metadata from user-uploaded avatars.
+# Also produces a 40 px micro thumbnail for notification emails.
 #
-# Procedures used (deploy/procedures/):
-#   image-resize-w   – resize to max-width via ImageMagick
-#   image-strip-meta – strip EXIF data via ImageMagick mogrify
+# Procedures (deploy/procedures/):
+#   image-resize-w   — resize to max width via ImageMagick
+#   image-strip-meta — strip EXIF via ImageMagick mogrify
 #
-# runs-on tags:
-#   image-worker – any node that has ImageMagick installed.
+# Bucket/group: avatars
 
+version: "2"
 name: user-avatar
+description: Avatar and micro-thumbnail generation for user profiles.
 
-on:
+content_types:
+  - image/jpeg
+  - image/png
+  - image/webp
+
+keep_original: false
+
+validate:
+  max_size: 5MB
   content_types:
     - image/jpeg
     - image/png
     - image/webp
-  max_size: 5MB
-  keep_original: false
 
 jobs:
   avatar:
-    name: Avatar (256 px)
-    runs-on: image-worker
+    runs-on: image
     steps:
       - name: resize
         uses: procedure
         with:
           name: image-resize-w
-          args:
-            - "256"
-            - "{{inputFile}}"
-            - "{{outputFile}}"
-          input-file: "{{inputFile}}"
-          output-file: "{{outputFile}}"
+          width: "256"
           target: avatar.jpg
 
       - name: strip-exif
         uses: procedure
         with:
           name: image-strip-meta
-          args:
-            - "{{inputFile}}"
-            - "{{outputFile}}"
-          input-file: "{{inputFile}}"
-          output-file: "{{outputFile}}"
           target: avatar.jpg
 
   micro:
-    name: Micro avatar (40 px)
-    runs-on: image-worker
-    needs:
-      - avatar
+    runs-on: image
     steps:
       - name: resize
         uses: procedure
         with:
           name: image-resize-w
-          args:
-            - "40"
-            - "{{inputFile}}"
-            - "{{outputFile}}"
-          input-file: "{{inputFile}}"
-          output-file: "{{outputFile}}"
+          width: "40"
           target: micro.jpg
 
       - name: strip-exif
         uses: procedure
         with:
           name: image-strip-meta
-          args:
-            - "{{inputFile}}"
-            - "{{outputFile}}"
-          input-file: "{{inputFile}}"
-          output-file: "{{outputFile}}"
           target: micro.jpg

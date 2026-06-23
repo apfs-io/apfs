@@ -385,12 +385,12 @@ fmt.Fprintln(w, "avatar stored:", obj.ID)
 
 ## Key patterns
 
-| Pattern | How |
-|---------|-----|
-| Parallel processing | Omit `needs:` — jobs with no dependencies start immediately and run concurrently. |
-| Sequential stages | Use `needs: [previous-job]` to enforce ordering. |
-| Best-effort steps | Set `on-failure: continue` on non-critical jobs; the overall status becomes `partial`. |
-| Conditional logic | Use `if: "${{ jobs.probe.status }} == 'completed'"` to skip expensive jobs when a probe step fails. |
-| Discard original | Set `keep_original: false`; only derived files are retained. |
-| Retry transient errors | Set `on-failure: retry:3`; the worker re-attempts up to three times before failing. |
-| Worker affinity | Use `runs-on: gpu` to route expensive jobs to capable nodes without changing the workflow logic. |
+| Pattern                | How                                                                                                 |
+| ---------------------- | --------------------------------------------------------------------------------------------------- |
+| Parallel processing    | Omit `needs:` — jobs with no dependencies start immediately and run concurrently.                   |
+| Sequential stages      | Use `needs: [previous-job]` to enforce ordering.                                                    |
+| Best-effort steps      | Set `on-failure: continue` on non-critical jobs; the overall status becomes `partial`.              |
+| Conditional logic      | Use `if: "${{ jobs.probe.status }} == 'completed'"` to skip expensive jobs when a probe step fails. |
+| Discard original       | Set `keep_original: false`; only derived files are retained.                                        |
+| Retry transient errors | Set `on-failure: retry:3`; the worker re-attempts up to three times before failing.                 |
+| Worker affinity        | Use `runs-on: gpu` to route expensive jobs to capable nodes without changing the workflow logic.    |

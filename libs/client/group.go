@@ -100,27 +100,26 @@ func (g *Group) WatchProgress(ctx context.Context, id string, handler func(*mode
 	if handler == nil {
 		return nil
 	}
-	for {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		state, err := g.ProcessingState(ctx, id)
-		if err != nil {
-			return err
-		}
-		if state != nil {
-			handler(state)
-			if state.Status.IsTerminal() {
-				return nil
-			}
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-		return nil // single iteration in polling mode
+
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
+	state, err := g.ProcessingState(ctx, id)
+	if err != nil {
+		return err
+	}
+	if state != nil {
+		handler(state)
+		if state.Status.IsTerminal() {
+			return nil
+		}
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	return nil // single iteration in polling mode
 }
 
 // --- Convenience upload options ---

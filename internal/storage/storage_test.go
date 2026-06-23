@@ -15,23 +15,20 @@ import (
 	"github.com/apfs-io/apfs/internal/storage/processor"
 	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/libs/converters/image"
-	"github.com/apfs-io/apfs/libs/converters/proc"
 	"github.com/apfs-io/apfs/models"
 )
 
 var (
-	testStorePath    = "teststore"
-	proceduresDir, _ = filepath.Abs("../../deploy/procedures")
-	fsdriver         *fs.Storage
-	storage          *Storage
-	procc            *processor.Processor
+	testStorePath = "teststore"
+	fsdriver      *fs.Storage
+	storage       *Storage
+	procc         *processor.Processor
 )
 
 func init() {
 	_, filePath, _, _ := runtime.Caller(0)
 	__dir, _ := filepath.Abs(filepath.Dir(filePath))
 	testStorePath = filepath.Join(__dir, "teststore")
-	proceduresDir, _ = filepath.Abs(filepath.Join(__dir, "../../deploy/procedures"))
 
 	// Init file system driver for storage
 	fsdriver, _ = fs.NewStorage(testStorePath)
@@ -46,11 +43,10 @@ func init() {
 		WithProcessingStatus(processingState),
 	)
 
-	// Init object processor
-	procStore, _ := proc.NewStore(context.Background(), proceduresDir)
+	// Init object processor (image converter only; procedure/shell/exec steps
+	// run through the workflow StepRunner, not the converter pipeline).
 	procc, _ = processor.NewProcessor(
-		processor.WithConverters(image.NewDefaultConverter(),
-			proc.NewLegacyConverter(procStore)),
+		processor.WithConverters(image.NewDefaultConverter()),
 		processor.WithStorage(storage),
 		processor.WithDriver(fsdriver),
 		processor.WithProcessingStatus(processingState),

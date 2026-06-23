@@ -10,7 +10,9 @@ LABEL service.weight=1
 ENV LOG_LEVEL=info
 ENV STORAGE_METADB_CONNECT=sqlite3:///data/apfs.db?cache=shared
 ENV STORAGE_STATE_CONNECT=memory
-ENV STORAGE_AUTOMIGRATE=true
+ENV STORAGE_PROCEDURE_DIR=/procedures
+ENV STORAGE_CONVERTERS=image,procedure,shell,exec,docker
+ENV WORKER_TAGS=image,gpu,cpu,docker,video,any
 
 COPY .build/zoneinfo.zip /usr/local/go/lib/time/
 COPY .build/${TARGETPLATFORM}/apfs /

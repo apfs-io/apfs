@@ -18,7 +18,7 @@ var allDefaultConvs = []string{"image", "procedure"}
 // warning) when no procedure directory is configured.
 func ProcStore(ctx context.Context, conf *appcontext.StorageConfig, logger *zap.Logger) *proc.Store {
 	if conf.ProcedureDirectory == "" {
-		logger.Warn("procedure directory not defined, procedure/shell steps disabled")
+		logger.Warn("procedure directory not defined, procedure/shell/exec/docker steps disabled")
 		return nil
 	}
 	store, err := proc.NewStore(ctx, conf.ProcedureDirectory)
@@ -29,20 +29,22 @@ func ProcStore(ctx context.Context, conf *appcontext.StorageConfig, logger *zap.
 	return store
 }
 
-// Converters builds the list of legacy converters.Converter instances used by
-// the internal processor pipeline.
+// Converters builds the list of converters.Converter instances used by the
+// internal processor pipeline. Only converters with no StepRunner equivalent
+// (currently: image) are registered here. Procedure/shell/exec/docker steps
+// are handled exclusively by the workflow engine via StepRunners().
 func Converters(ctx context.Context, conf *appcontext.StorageConfig, logger *zap.Logger) []converters.Converter {
 	convs := []converters.Converter{}
 	if len(conf.Converters) == 0 {
 		conf.Converters = allDefaultConvs
 	}
-	store := ProcStore(ctx, conf, logger)
 	for _, convName := range conf.Converters {
 		switch convName {
 		case "image":
 			convs = append(convs, image.NewDefaultConverter())
-		case "procedure", "shell", "exec":
-			convs = append(convs, proc.NewLegacyConverter(store))
+		case "procedure", "shell", "exec", "docker":
+			// Handled by the workflow StepRunner (see StepRunners). No
+			// legacy converter bridge is needed.
 		default:
 			logger.Fatal("undefined converter", zap.String("name", convName))
 		}
@@ -50,9 +52,9 @@ func Converters(ctx context.Context, conf *appcontext.StorageConfig, logger *zap
 	return convs
 }
 
-// StepRunners builds a workflow.RunnerRegistry populated from the same
-// converter config as Converters(). Each enabled converter is wrapped as a
-// workflow.StepRunner so the v2 Executor can dispatch YAML workflow steps.
+// StepRunners builds a workflow.RunnerRegistry populated from the converter
+// config. This registry is used by the v2 workflow Executor to dispatch YAML
+// workflow steps.
 func StepRunners(ctx context.Context, conf *appcontext.StorageConfig, logger *zap.Logger) *workflow.RunnerRegistry {
 	reg := workflow.NewRunnerRegistry()
 	if len(conf.Converters) == 0 {
@@ -63,7 +65,7 @@ func StepRunners(ctx context.Context, conf *appcontext.StorageConfig, logger *za
 		switch convName {
 		case "image":
 			reg.Register(image.NewDefaultConverter().StepRunner())
-		case "procedure", "shell", "exec":
+		case "procedure", "shell", "exec", "docker":
 			reg.Register(proc.New(store))
 		default:
 			logger.Fatal("undefined converter", zap.String("name", convName))

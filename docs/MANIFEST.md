@@ -55,16 +55,16 @@ stages:
               width: 300
 ```
 
-* `version` – the version of manifest which is used for applying the rules. This is an internal version which is defined by the user
-* `content_types` – the list of accepted content types
-* `tags` – the list of user tags (marks)
-* `stages` – the list of stages which must be executed sequantly
-  * `name` – stage name
-  * `tasks` – the list of tasks which must be executed sequantly
-    * `id` – task ID
-    * `source` – input subobject (`@` - original file)
-    * `target` – subobject target name
-    * `type` – of target subobject
-    * `actions` – the list of processing actions
-      * `name` – action name, resetved with executed action
-      * `values` – action parameters
+- `version` – the version of manifest which is used for applying the rules. This is an internal version which is defined by the user
+- `content_types` – the list of accepted content types
+- `tags` – the list of user tags (marks)
+- `stages` – the list of stages which must be executed sequantly
+  - `name` – stage name
+  - `tasks` – the list of tasks which must be executed sequantly
+    - `id` – task ID
+    - `source` – input subobject (`@` - original file)
+    - `target` – subobject target name
+    - `type` – of target subobject
+    - `actions` – the list of processing actions
+      - `name` – action name, resetved with executed action
+      - `values` – action parameters

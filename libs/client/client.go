@@ -75,7 +75,7 @@ func (c *client) Head(ctx context.Context, id *ObjectID, opts ...RequestOption) 
 
 	objResp, err := c.sclient.Head(
 		prepareContext(ctx),
-		PrepareObjectID(id, requestOptions.group),
+		toProtoObjectID(id, requestOptions.group),
 		requestOptions.grpcOpts...,
 	)
 
@@ -92,7 +92,7 @@ func (c *client) Refresh(ctx context.Context, id *ObjectID, opts ...RequestOptio
 
 	objResp, err := c.sclient.Refresh(
 		prepareContext(ctx),
-		PrepareObjectID(id, requestOptions.group),
+		toProtoObjectID(id, requestOptions.group),
 		requestOptions.grpcOpts...,
 	)
 	if err != nil {
@@ -119,7 +119,7 @@ func (c *client) Get(ctx context.Context, id *ObjectID, opts ...RequestOption) (
 
 	if cli, err = c.sclient.Get(
 		prepareContext(ctx),
-		PrepareObjectID(id, requestOptions.group),
+		toProtoObjectID(id, requestOptions.group),
 		requestOptions.grpcOpts...,
 	); err != nil {
 		return nil, nil, err
@@ -221,8 +221,8 @@ func (c *client) Delete(ctx context.Context, id any, opts ...RequestOption) erro
 			}
 			idNames.Names = append(idNames.Names, v.Name...)
 		}
-	case *Object:
-		idNames = &ObjectIDNames{Id: v.Id}
+	case *models.Object:
+		idNames = &ObjectIDNames{Id: v.ID}
 	default:
 		return ErrInvalidParams
 	}
@@ -237,7 +237,7 @@ func (c *client) Delete(ctx context.Context, id any, opts ...RequestOption) erro
 	// Perform delete request
 	resp, err := c.sclient.Delete(
 		prepareContext(ctx),
-		PrepareObjectIDNames(idNames, requestOptions.group),
+		toProtoObjectIDNames(idNames, requestOptions.group),
 		requestOptions.grpcOpts...,
 	)
 	if err != nil {

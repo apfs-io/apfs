@@ -9,9 +9,9 @@ The schema is inspired by GitHub Actions: jobs form a DAG via `needs:`, support 
 ## Top-level keys
 
 ```yaml
-version: "2"           # required; identifies the v2 schema
+version: "2" # required; identifies the v2 schema
 name: "Image pipeline" # optional human-readable label
-description: |         # optional multi-line description
+description: | # optional multi-line description
   Resize uploaded images to three sizes and generate a blurred preview.
 
 # Only objects whose MIME type matches one of these patterns are accepted.
@@ -67,11 +67,11 @@ validate:
 
 ### `checks` entries
 
-| Field  | Type   | Required | Description |
-|--------|--------|----------|-------------|
-| `name` | string | no       | Human-readable label shown in error messages. |
+| Field  | Type   | Required | Description                                                  |
+| ------ | ------ | -------- | ------------------------------------------------------------ |
+| `name` | string | no       | Human-readable label shown in error messages.                |
 | `uses` | string | yes      | Converter action identifier (e.g. `image/check-dimensions`). |
-| `with` | map    | no       | Key-value parameters forwarded to the converter. |
+| `with` | map    | no       | Key-value parameters forwarded to the converter.             |
 
 ---
 
@@ -81,12 +81,12 @@ Each key in `jobs` is a job ID. Jobs form a directed acyclic graph (DAG): a job 
 
 ```yaml
 jobs:
-  thumbnail:              # job ID
-    runs-on: cpu          # worker affinity (optional)
-    needs: []             # upstream job IDs (optional)
-    timeout-minutes: 5    # wall-clock timeout; 0 = no timeout (optional)
-    on-failure: fail      # failure policy (optional; default: fail)
-    if: "true"            # run condition (optional; default: always run)
+  thumbnail: # job ID
+    runs-on: cpu # worker affinity (optional)
+    needs: [] # upstream job IDs (optional)
+    timeout-minutes: 5 # wall-clock timeout; 0 = no timeout (optional)
+    on-failure: fail # failure policy (optional; default: fail)
+    if: "true" # run condition (optional; default: always run)
     steps:
       - name: Resize to 200px
         uses: image/resize
@@ -97,22 +97,22 @@ jobs:
 
 ### Job fields
 
-| Field              | Type          | Default | Description |
-|--------------------|---------------|---------|-------------|
-| `runs-on`          | string        | `any`   | Worker-affinity label. Accepted values: `any`, `small`, `large`, `gpu`, `label:<custom>`. |
-| `needs`            | list[string]  | `[]`    | Job IDs that must complete before this job starts. |
-| `timeout-minutes`  | int           | `0`     | Maximum wall-clock seconds for the job; 0 means no limit. |
-| `on-failure`       | string        | `fail`  | Failure policy: `fail`, `continue`, or `retry:N`. |
-| `if`               | string        | —       | Expression evaluated before the job runs; job is skipped when false. |
-| `steps`            | list[Step]    | —       | Ordered actions to execute inside this job. |
+| Field             | Type         | Default | Description                                                                               |
+| ----------------- | ------------ | ------- | ----------------------------------------------------------------------------------------- |
+| `runs-on`         | string       | `any`   | Worker-affinity label. Accepted values: `any`, `small`, `large`, `gpu`, `label:<custom>`. |
+| `needs`           | list[string] | `[]`    | Job IDs that must complete before this job starts.                                        |
+| `timeout-minutes` | int          | `0`     | Maximum wall-clock seconds for the job; 0 means no limit.                                 |
+| `on-failure`      | string       | `fail`  | Failure policy: `fail`, `continue`, or `retry:N`.                                         |
+| `if`              | string       | —       | Expression evaluated before the job runs; job is skipped when false.                      |
+| `steps`           | list[Step]   | —       | Ordered actions to execute inside this job.                                               |
 
 ### Failure policies
 
-| Value        | Behaviour |
-|--------------|-----------|
-| `fail`       | (default) The pipeline is aborted. Downstream jobs are automatically skipped. |
-| `continue`   | The job is marked `failed` but the pipeline continues. The overall status becomes `partial`. |
-| `retry:N`    | Retry up to N times before treating the job as failed. Uses `fail` semantics after exhausting retries. |
+| Value      | Behaviour                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------ |
+| `fail`     | (default) The pipeline is aborted. Downstream jobs are automatically skipped.                          |
+| `continue` | The job is marked `failed` but the pipeline continues. The overall status becomes `partial`.           |
+| `retry:N`  | Retry up to N times before treating the job as failed. Uses `fail` semantics after exhausting retries. |
 
 ---
 
@@ -122,17 +122,17 @@ Each step is an action executed in sequence inside its job.
 
 ```yaml
 steps:
-  - name: Convert to WebP      # optional label
-    uses: image/convert        # required action identifier
-    with:                      # optional key-value parameters
+  - name: Convert to WebP # optional label
+    uses: image/convert # required action identifier
+    with: # optional key-value parameters
       target: preview.webp
       quality: 85
 ```
 
-| Field  | Type   | Required | Description |
-|--------|--------|----------|-------------|
-| `name` | string | no       | Descriptive label for logs and state. |
-| `uses` | string | yes      | Action identifier dispatched to a registered `StepRunner`. |
+| Field  | Type   | Required | Description                                                                       |
+| ------ | ------ | -------- | --------------------------------------------------------------------------------- |
+| `name` | string | no       | Descriptive label for logs and state.                                             |
+| `uses` | string | yes      | Action identifier dispatched to a registered `StepRunner`.                        |
 | `with` | map    | no       | Parameters forwarded to the runner. `target` is the conventional output filename. |
 
 ---
@@ -158,11 +158,11 @@ if: "${{ jobs.probe.status }} != 'failed'"
 
 ### Expression syntax
 
-| Token | Examples |
-|-------|---------|
-| Reference | `${{ jobID.outputs.key }}`, `${{ jobs.jobID.status }}` |
-| Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=` |
-| Literal | `'completed'`, `'failed'`, `42`, `true`, `false` |
+| Token      | Examples                                               |
+| ---------- | ------------------------------------------------------ |
+| Reference  | `${{ jobID.outputs.key }}`, `${{ jobs.jobID.status }}` |
+| Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=`                       |
+| Literal    | `'completed'`, `'failed'`, `42`, `true`, `false`       |
 
 ---
 
@@ -170,13 +170,13 @@ if: "${{ jobs.probe.status }} != 'failed'"
 
 The `runs-on` value is matched against the worker labels at dispatch time. A job waits until a worker with a matching label picks it up.
 
-| Value         | Meaning |
-|---------------|---------|
-| `any`         | No preference; any available worker. |
-| `small`       | Lightweight worker (metadata operations, CRC). |
-| `large`       | High-memory worker (image/video processing). |
+| Value         | Meaning                                          |
+| ------------- | ------------------------------------------------ |
+| `any`         | No preference; any available worker.             |
+| `small`       | Lightweight worker (metadata operations, CRC).   |
+| `large`       | High-memory worker (image/video processing).     |
 | `gpu`         | GPU-capable worker (ML inference, video encode). |
-| `label:<tag>` | Custom label; e.g. `label:ffmpeg-6`. |
+| `label:<tag>` | Custom label; e.g. `label:ffmpeg-6`.             |
 
 ---
 
@@ -221,12 +221,12 @@ After upload, every object has a `ProcessingState` persisted in `state.json` ins
 
 ### Top-level status values
 
-| Status      | Meaning |
-|-------------|---------|
-| `pending`   | No jobs have started yet. |
-| `running`   | At least one job is currently executing. |
-| `completed` | All jobs finished without failures. |
-| `partial`   | All jobs finished; at least one failed with `on-failure: continue`. |
+| Status      | Meaning                                                                       |
+| ----------- | ----------------------------------------------------------------------------- |
+| `pending`   | No jobs have started yet.                                                     |
+| `running`   | At least one job is currently executing.                                      |
+| `completed` | All jobs finished without failures.                                           |
+| `partial`   | All jobs finished; at least one failed with `on-failure: continue`.           |
 | `failed`    | At least one job failed with `on-failure: fail` and the pipeline was aborted. |
 
 ---

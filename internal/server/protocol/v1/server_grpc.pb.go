@@ -19,13 +19,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ServiceAPI_Head_FullMethodName        = "/v1.ServiceAPI/Head"
-	ServiceAPI_Get_FullMethodName         = "/v1.ServiceAPI/Get"
-	ServiceAPI_Refresh_FullMethodName     = "/v1.ServiceAPI/Refresh"
-	ServiceAPI_SetManifest_FullMethodName = "/v1.ServiceAPI/SetManifest"
-	ServiceAPI_GetManifest_FullMethodName = "/v1.ServiceAPI/GetManifest"
-	ServiceAPI_Upload_FullMethodName      = "/v1.ServiceAPI/Upload"
-	ServiceAPI_Delete_FullMethodName      = "/v1.ServiceAPI/Delete"
+	ServiceAPI_Head_FullMethodName                 = "/v1.ServiceAPI/Head"
+	ServiceAPI_Get_FullMethodName                  = "/v1.ServiceAPI/Get"
+	ServiceAPI_Refresh_FullMethodName              = "/v1.ServiceAPI/Refresh"
+	ServiceAPI_SetManifest_FullMethodName          = "/v1.ServiceAPI/SetManifest"
+	ServiceAPI_GetManifest_FullMethodName          = "/v1.ServiceAPI/GetManifest"
+	ServiceAPI_Upload_FullMethodName               = "/v1.ServiceAPI/Upload"
+	ServiceAPI_Delete_FullMethodName               = "/v1.ServiceAPI/Delete"
+	ServiceAPI_SetWorkflow_FullMethodName          = "/v1.ServiceAPI/SetWorkflow"
+	ServiceAPI_GetWorkflow_FullMethodName          = "/v1.ServiceAPI/GetWorkflow"
+	ServiceAPI_GetProcessingState_FullMethodName   = "/v1.ServiceAPI/GetProcessingState"
+	ServiceAPI_WatchProcessingState_FullMethodName = "/v1.ServiceAPI/WatchProcessingState"
 )
 
 // ServiceAPIClient is the client API for ServiceAPI service.
@@ -48,6 +52,15 @@ type ServiceAPIClient interface {
 	Upload(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[Data, SimpleObjectResponse], error)
 	// Delete file object or subitems
 	Delete(ctx context.Context, in *ObjectIDNames, opts ...grpc.CallOption) (*SimpleResponse, error)
+	// SetWorkflow stores a v2 workflow manifest for a group/bucket.
+	SetWorkflow(ctx context.Context, in *DataWorkflow, opts ...grpc.CallOption) (*SimpleResponse, error)
+	// GetWorkflow returns the v2 workflow manifest for a group/bucket.
+	GetWorkflow(ctx context.Context, in *ManifestGroup, opts ...grpc.CallOption) (*WorkflowResponse, error)
+	// GetProcessingState returns the current processing state for an object.
+	GetProcessingState(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (*ProcessingStateResponse, error)
+	// WatchProcessingState streams processing state updates for an object.
+	// The stream ends when the object reaches a terminal state.
+	WatchProcessingState(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ProcessingState], error)
 }
 
 type serviceAPIClient struct {
@@ -140,6 +153,55 @@ func (c *serviceAPIClient) Delete(ctx context.Context, in *ObjectIDNames, opts .
 	return out, nil
 }
 
+func (c *serviceAPIClient) SetWorkflow(ctx context.Context, in *DataWorkflow, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, ServiceAPI_SetWorkflow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceAPIClient) GetWorkflow(ctx context.Context, in *ManifestGroup, opts ...grpc.CallOption) (*WorkflowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkflowResponse)
+	err := c.cc.Invoke(ctx, ServiceAPI_GetWorkflow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceAPIClient) GetProcessingState(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (*ProcessingStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProcessingStateResponse)
+	err := c.cc.Invoke(ctx, ServiceAPI_GetProcessingState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceAPIClient) WatchProcessingState(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ProcessingState], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ServiceAPI_ServiceDesc.Streams[2], ServiceAPI_WatchProcessingState_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ObjectID, ProcessingState]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ServiceAPI_WatchProcessingStateClient = grpc.ServerStreamingClient[ProcessingState]
+
 // ServiceAPIServer is the server API for ServiceAPI service.
 // All implementations must embed UnimplementedServiceAPIServer
 // for forward compatibility.
@@ -160,6 +222,15 @@ type ServiceAPIServer interface {
 	Upload(grpc.ClientStreamingServer[Data, SimpleObjectResponse]) error
 	// Delete file object or subitems
 	Delete(context.Context, *ObjectIDNames) (*SimpleResponse, error)
+	// SetWorkflow stores a v2 workflow manifest for a group/bucket.
+	SetWorkflow(context.Context, *DataWorkflow) (*SimpleResponse, error)
+	// GetWorkflow returns the v2 workflow manifest for a group/bucket.
+	GetWorkflow(context.Context, *ManifestGroup) (*WorkflowResponse, error)
+	// GetProcessingState returns the current processing state for an object.
+	GetProcessingState(context.Context, *ObjectID) (*ProcessingStateResponse, error)
+	// WatchProcessingState streams processing state updates for an object.
+	// The stream ends when the object reaches a terminal state.
+	WatchProcessingState(*ObjectID, grpc.ServerStreamingServer[ProcessingState]) error
 	mustEmbedUnimplementedServiceAPIServer()
 }
 
@@ -190,6 +261,18 @@ func (UnimplementedServiceAPIServer) Upload(grpc.ClientStreamingServer[Data, Sim
 }
 func (UnimplementedServiceAPIServer) Delete(context.Context, *ObjectIDNames) (*SimpleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
+}
+func (UnimplementedServiceAPIServer) SetWorkflow(context.Context, *DataWorkflow) (*SimpleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetWorkflow not implemented")
+}
+func (UnimplementedServiceAPIServer) GetWorkflow(context.Context, *ManifestGroup) (*WorkflowResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWorkflow not implemented")
+}
+func (UnimplementedServiceAPIServer) GetProcessingState(context.Context, *ObjectID) (*ProcessingStateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetProcessingState not implemented")
+}
+func (UnimplementedServiceAPIServer) WatchProcessingState(*ObjectID, grpc.ServerStreamingServer[ProcessingState]) error {
+	return status.Errorf(codes.Unimplemented, "method WatchProcessingState not implemented")
 }
 func (UnimplementedServiceAPIServer) mustEmbedUnimplementedServiceAPIServer() {}
 func (UnimplementedServiceAPIServer) testEmbeddedByValue()                    {}
@@ -320,6 +403,71 @@ func _ServiceAPI_Delete_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ServiceAPI_SetWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DataWorkflow)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceAPIServer).SetWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServiceAPI_SetWorkflow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceAPIServer).SetWorkflow(ctx, req.(*DataWorkflow))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ServiceAPI_GetWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ManifestGroup)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceAPIServer).GetWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServiceAPI_GetWorkflow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceAPIServer).GetWorkflow(ctx, req.(*ManifestGroup))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ServiceAPI_GetProcessingState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ObjectID)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceAPIServer).GetProcessingState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServiceAPI_GetProcessingState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceAPIServer).GetProcessingState(ctx, req.(*ObjectID))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ServiceAPI_WatchProcessingState_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ObjectID)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ServiceAPIServer).WatchProcessingState(m, &grpc.GenericServerStream[ObjectID, ProcessingState]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ServiceAPI_WatchProcessingStateServer = grpc.ServerStreamingServer[ProcessingState]
+
 // ServiceAPI_ServiceDesc is the grpc.ServiceDesc for ServiceAPI service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -347,6 +495,18 @@ var ServiceAPI_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "Delete",
 			Handler:    _ServiceAPI_Delete_Handler,
 		},
+		{
+			MethodName: "SetWorkflow",
+			Handler:    _ServiceAPI_SetWorkflow_Handler,
+		},
+		{
+			MethodName: "GetWorkflow",
+			Handler:    _ServiceAPI_GetWorkflow_Handler,
+		},
+		{
+			MethodName: "GetProcessingState",
+			Handler:    _ServiceAPI_GetProcessingState_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -358,6 +518,11 @@ var ServiceAPI_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "Upload",
 			Handler:       _ServiceAPI_Upload_Handler,
 			ClientStreams: true,
+		},
+		{
+			StreamName:    "WatchProcessingState",
+			Handler:       _ServiceAPI_WatchProcessingState_Handler,
+			ServerStreams: true,
 		},
 	},
 	Metadata: "v1/server.proto",

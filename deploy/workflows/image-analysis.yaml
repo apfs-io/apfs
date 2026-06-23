@@ -1,40 +1,44 @@
 # Image Analysis Workflow
 #
-# Computes an image embedding vector and detects faces.
-# Both jobs use named procedures from deploy/procedures/.
+# Computes an embedding vector and detects faces in uploaded images.
+# Requires Python deps from deploy/procedures/requirements.txt on gpu/cpu workers.
 #
-# Alternative: the same jobs can be run inside Docker containers when the
-# Python environment is not installed on the worker node — see the
-# commented-out docker: blocks below.
+# Bucket/group: analysis
 
+version: "2"
 name: image-analysis
+description: Image embedding vector and face detection.
 
-on:
+content_types:
+  - image/jpeg
+  - image/png
+  - image/webp
+
+keep_original: true
+
+validate:
   content_types:
     - image/jpeg
     - image/png
     - image/webp
-  keep_original: true
 
 jobs:
   vectorize:
-    name: Image → embedding vector (ResNet-18)
-    runs-on: gpu-worker
+    runs-on: gpu
     on-failure: continue
     steps:
-      # ── Option A: run the local .eproc procedure ─────────────────────────
       - name: img2vec
         uses: procedure
         with:
           name: image2vec
-          target-meta: vector   # stores JSON float array in meta.attributes.vector
+          target-meta: vector
 
-      # ── Option B (commented out): run inside Docker ───────────────────────
+      # Alternative: run inside Docker when Python/torch is not on the host.
       # - name: img2vec-docker
       #   uses: docker
       #   docker:
       #     image: pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
-      #     retain_container: true   # keep alive for stream mode
+      #     retain_container: true
       #     remove_after_done: false
       #   with:
       #     target-meta: vector
@@ -42,8 +46,7 @@ jobs:
       #     python3 /app/image2vec.py "{{inputFile}}"
 
   faces:
-    name: Face detection
-    runs-on: cpu-worker
+    runs-on: cpu
     on-failure: continue
     steps:
       - name: detect
@@ -51,17 +54,14 @@ jobs:
         with:
           name: facemeta
           cascPath: haarcascade_frontalface_default.xml
-          target-meta: faces    # stores JSON object in meta.attributes.faces
+          target-meta: faces
 
-  # ── Style: inline shell with jq post-processing ──────────────────────────
   dimensions:
-    name: Extract image dimensions
-    runs-on: image-worker
+    runs-on: image
     steps:
       - name: probe
         uses: shell
         with:
           target-meta: dimensions
-          tojson: "false"
         run: |
           identify -format '{"w":%w,"h":%h}' "{{inputFile}}"

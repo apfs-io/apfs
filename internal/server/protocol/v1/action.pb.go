@@ -9,7 +9,6 @@ package v1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	anypb "google.golang.org/protobuf/types/known/anypb"
 	reflect "reflect"
 	sync "sync"
 )
@@ -21,75 +20,24 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type Param struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Name  string     `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Value *anypb.Any `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
-}
-
-func (x *Param) Reset() {
-	*x = Param{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_action_proto_msgTypes[0]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *Param) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Param) ProtoMessage() {}
-
-func (x *Param) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_action_proto_msgTypes[0]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Param.ProtoReflect.Descriptor instead.
-func (*Param) Descriptor() ([]byte, []int) {
-	return file_v1_action_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *Param) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *Param) GetValue() *anypb.Any {
-	if x != nil {
-		return x.Value
-	}
-	return nil
-}
-
-// Action which must be applied to source
+// Action which must be applied to source.
+// Parameter values are carried as a JSON-encoded string (values_json) so that
+// the REST/JSON representation stays clean and free of "@type" annotations.
 type Action struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name   string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Values []*Param `protobuf:"bytes,2,rep,name=values,proto3" json:"values,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// values_json holds a JSON-encoded map[string]any of the action parameters.
+	// Example: {"name":"image-resize-w","width":"1200","target":"large.jpg"}
+	ValuesJson string `protobuf:"bytes,2,opt,name=values_json,json=valuesJson,proto3" json:"values_json,omitempty"`
 }
 
 func (x *Action) Reset() {
 	*x = Action{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_action_proto_msgTypes[1]
+		mi := &file_v1_action_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -102,7 +50,7 @@ func (x *Action) String() string {
 func (*Action) ProtoMessage() {}
 
 func (x *Action) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_action_proto_msgTypes[1]
+	mi := &file_v1_action_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -115,7 +63,7 @@ func (x *Action) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Action.ProtoReflect.Descriptor instead.
 func (*Action) Descriptor() ([]byte, []int) {
-	return file_v1_action_proto_rawDescGZIP(), []int{1}
+	return file_v1_action_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Action) GetName() string {
@@ -125,31 +73,25 @@ func (x *Action) GetName() string {
 	return ""
 }
 
-func (x *Action) GetValues() []*Param {
+func (x *Action) GetValuesJson() string {
 	if x != nil {
-		return x.Values
+		return x.ValuesJson
 	}
-	return nil
+	return ""
 }
 
 var File_v1_action_proto protoreflect.FileDescriptor
 
 var file_v1_action_proto_rawDesc = []byte{
 	0x0a, 0x0f, 0x76, 0x31, 0x2f, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x12, 0x02, 0x76, 0x31, 0x1a, 0x19, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x61, 0x6e, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x22, 0x47, 0x0a, 0x05, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d,
-	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x2a, 0x0a,
-	0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x67,
-	0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x41,
-	0x6e, 0x79, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x22, 0x3f, 0x0a, 0x06, 0x41, 0x63, 0x74,
-	0x69, 0x6f, 0x6e, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
-	0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x21, 0x0a, 0x06, 0x76, 0x61, 0x6c, 0x75, 0x65,
-	0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x09, 0x2e, 0x76, 0x31, 0x2e, 0x50, 0x61, 0x72,
-	0x61, 0x6d, 0x52, 0x06, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x73, 0x42, 0x26, 0x0a, 0x14, 0x63, 0x6f,
-	0x6d, 0x2e, 0x61, 0x70, 0x66, 0x73, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e,
-	0x76, 0x31, 0x42, 0x06, 0x41, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x50, 0x01, 0x5a, 0x04, 0x2e, 0x2f,
-	0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6f, 0x12, 0x02, 0x76, 0x31, 0x22, 0x3d, 0x0a, 0x06, 0x41, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12,
+	0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e,
+	0x61, 0x6d, 0x65, 0x12, 0x1f, 0x0a, 0x0b, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x73, 0x5f, 0x6a, 0x73,
+	0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x73,
+	0x4a, 0x73, 0x6f, 0x6e, 0x42, 0x26, 0x0a, 0x14, 0x63, 0x6f, 0x6d, 0x2e, 0x61, 0x70, 0x66, 0x73,
+	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x76, 0x31, 0x42, 0x06, 0x41, 0x63,
+	0x74, 0x69, 0x6f, 0x6e, 0x50, 0x01, 0x5a, 0x04, 0x2e, 0x2f, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -164,20 +106,16 @@ func file_v1_action_proto_rawDescGZIP() []byte {
 	return file_v1_action_proto_rawDescData
 }
 
-var file_v1_action_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_v1_action_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_v1_action_proto_goTypes = []interface{}{
-	(*Param)(nil),     // 0: v1.Param
-	(*Action)(nil),    // 1: v1.Action
-	(*anypb.Any)(nil), // 2: google.protobuf.Any
+	(*Action)(nil), // 0: v1.Action
 }
 var file_v1_action_proto_depIdxs = []int32{
-	2, // 0: v1.Param.value:type_name -> google.protobuf.Any
-	0, // 1: v1.Action.values:type_name -> v1.Param
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	0, // [0:0] is the sub-list for method output_type
+	0, // [0:0] is the sub-list for method input_type
+	0, // [0:0] is the sub-list for extension type_name
+	0, // [0:0] is the sub-list for extension extendee
+	0, // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_v1_action_proto_init() }
@@ -187,18 +125,6 @@ func file_v1_action_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_v1_action_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Param); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_v1_action_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Action); i {
 			case 0:
 				return &v.state
@@ -217,7 +143,7 @@ func file_v1_action_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_v1_action_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

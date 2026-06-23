@@ -6,17 +6,16 @@
 package apfs
 
 import (
-	protocol "github.com/apfs-io/apfs/internal/server/protocol/v1"
 	"github.com/apfs-io/apfs/libs/client"
 	"github.com/apfs-io/apfs/models"
 )
 
-// List of alias types...
+// List of alias types.
+// All types here are plain Go types — no protobuf imports at this level.
 type (
-	Object            = protocol.Object
-	ObjectID          = protocol.ObjectID
-	ObjectIDNames     = protocol.ObjectIDNames
-	SimpleResponse    = protocol.SimpleResponse
+	ObjectID          = client.ObjectID
+	ObjectIDNames     = client.ObjectIDNames
+	SimpleResponse    = client.SimpleResponse
 	ObjectType        = models.ObjectType
 	Workflow          = models.Workflow
 	WorkflowJob       = models.WorkflowJob
@@ -29,22 +28,22 @@ type (
 	Client            = client.Client
 )
 
-// List of constants...
+// List of constants.
 const (
 	OriginalFilename = models.OriginalFilename
 )
 
-// NewObjectID object
+// NewObjectID constructs an ObjectID from a plain ID string.
 func NewObjectID(id string) *ObjectID {
-	return protocol.NewObjectID(id)
+	return &ObjectID{Id: id}
 }
 
-// NewObjectGroupID object with group
+// NewObjectGroupID constructs an ObjectID scoped to the given group.
 func NewObjectGroupID(group, id string) *ObjectID {
-	return protocol.NewObjectGroupID(group, id)
+	return &ObjectID{Id: group + "/" + id}
 }
 
-// ID returns a new ObjectID
+// ID is a shorthand for NewObjectID.
 func ID(id string) *ObjectID {
-	return protocol.NewObjectID(id)
+	return &ObjectID{Id: id}
 }

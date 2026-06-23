@@ -1,27 +1,33 @@
 # Image Gallery Workflow
 #
 # Demonstrates three execution styles:
-#   1. uses: procedure  — calls a named .eproc procedure from deploy/procedures/
-#   2. uses: shell      — runs an inline bash script via run: block
-#   3. uses: docker     — runs a command in a Docker container
+#   1. uses: procedure  — named .eproc procedure from deploy/procedures/
+#   2. uses: shell      — inline bash script via run:
+#   3. uses: docker     — command inside a Docker container
 #
-# Produces three size variants of an uploaded image and strips EXIF metadata.
+# Bucket/group: images
 
+version: "2"
 name: image-gallery
+description: Resize uploaded images to three sizes and strip EXIF metadata.
 
-on:
+content_types:
+  - image/jpeg
+  - image/png
+  - image/webp
+
+keep_original: false
+
+validate:
+  max_size: 20MB
   content_types:
     - image/jpeg
     - image/png
     - image/webp
-  max_size: 20MB
-  keep_original: false
 
 jobs:
-  # ── Style 1: Named procedure from the store ─────────────────────────────────
   large:
-    name: Resize large (1200 px) via procedure
-    runs-on: image-worker
+    runs-on: image
     steps:
       - name: Resize
         uses: procedure
@@ -36,10 +42,8 @@ jobs:
           name: image-strip-meta
           target: large.jpg
 
-  # ── Style 2: Inline shell script via run: block ──────────────────────────────
   medium:
-    name: Resize medium (600 px) via inline shell
-    runs-on: image-worker
+    runs-on: image
     steps:
       - name: Resize and strip
         uses: shell
@@ -54,10 +58,8 @@ jobs:
             cp "{{inputFile}}" "{{outputFile}}"
           fi
 
-  # ── Style 3: Docker container ────────────────────────────────────────────────
   thumb-docker:
-    name: Resize thumbnail (120 px) via Docker + ImageMagick
-    runs-on: docker-worker
+    runs-on: docker
     steps:
       - name: Resize thumb
         uses: docker

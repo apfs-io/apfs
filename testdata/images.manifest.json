@@ -1,140 +1,52 @@
 {
-  "manifest": {
-    "version": "1",
-    "description": "Test image manifest",
-    "contentTypes": ["image/*"],
-    "stages": [
-      {
-        "tasks": [
-          {
-            "id": "preview",
-            "description": "Preview image",
-            "type": "image",
-            "required": false,
-            "target": "preview",
-            "actions": [
-              {
-                "name": "procedure",
-                "values": [
-                  {
-                    "name": "name",
-                    "value": {
-                      "@type": "type.googleapis.com/google.protobuf.StringValue",
-                      "value": "image-resize-w"
-                    }
-                  },
-                  {
-                    "name": "tojson",
-                    "value": {
-                      "@type": "type.googleapis.com/google.protobuf.BoolValue",
-                      "value": true
-                    }
-                  },
-                  {
-                    "name": "args",
-                    "value": {
-                      "@type": "type.googleapis.com/google.protobuf.ListValue",
-                      "value": [
-                        200,
-                        "{{inputFile}}",
-                        "{{outputFile}}"
-                      ]
-                    }
-                  },
-                  {
-                    "name": "input-file",
-                    "value": {
-                      "@type": "type.googleapis.com/google.protobuf.StringValue",
-                      "value": "{{inputFile}}"
-                    }
-                  },
-                  {
-                    "name": "output-file",
-                    "value": {
-                      "@type": "type.googleapis.com/google.protobuf.StringValue",
-                      "value": ""
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "id": "base64",
-            "description": "Base64 preview",
-            "type": "image",
-            "required": true,
-            "actions": [
-              {
-                "name": "image.extract-colors",
-                "values": [{
-                  "name": "value",
-                  "value": {
-                    "@type": "type.googleapis.com/google.protobuf.Int64Value",
-                    "value": 7
-                  }
-                }]
-              },
-              {
-                "name": "image.fit",
-                "values": [
-                  {
-                    "name": "width",
-                    "value": {
-                      "@type": "type.googleapis.com/google.protobuf.Int64Value",
-                      "value": 50
-                    }
-                  },
-                  {
-                    "name": "height",
-                    "value": {
-                      "@type": "type.googleapis.com/google.protobuf.Int64Value",
-                      "value": 50
-                    }
-                  },
-                  {
-                    "name": "filter",
-                    "value": {
-                      "@type": "type.googleapis.com/google.protobuf.StringValue",
-                      "value": "lanczos"
-                    }
-                  }
-                ]
-              },
-              {
-                "name": "image.blur",
-                "values":[{
-                  "name": "value",
-                  "value": {
-                    "@type": "type.googleapis.com/google.protobuf.Int64Value",
-                    "value": 3
-                  }
-                }]
-              },
-              {
-                "name": "image.base64",
-                "values": [{
-                  "name": "target-meta",
-                  "value": {
-                    "@type": "type.googleapis.com/google.protobuf.StringValue",
-                    "value": "b64preview"
-                  }
-                }]
-              },
-              {
-                "name": "image.save",
-                "values":[{
-                  "name": "save",
-                  "value": {
-                    "@type": "type.googleapis.com/google.protobuf.BoolValue",
-                    "value": false
-                  }
-                }]
-              }
-            ]
+  "version": "2",
+  "description": "Image processing workflow — preview, base64 thumbnail, original retention",
+  "content_types": ["image/*"],
+  "on": {
+    "upload": {}
+  },
+  "jobs": {
+    "preview": {
+      "runs_on": ["image-worker"],
+      "steps": [
+        {
+          "name": "Resize to preview width",
+          "uses": "procedure",
+          "with": {
+            "name": "image-resize-w",
+            "width": 200,
+            "target": "preview.jpg"
           }
-        ]
-      }
-    ]
+        }
+      ]
+    },
+    "base64_thumb": {
+      "runs_on": ["image-worker"],
+      "steps": [
+        {
+          "name": "Extract dominant colors",
+          "uses": "image",
+          "with": {
+            "action": "extract-colors",
+            "count": 7,
+            "target": "base64thumb"
+          }
+        }
+      ]
+    },
+    "strip_meta": {
+      "needs": ["preview"],
+      "runs_on": ["image-worker"],
+      "steps": [
+        {
+          "name": "Strip EXIF metadata",
+          "uses": "procedure",
+          "with": {
+            "name": "image-strip-meta",
+            "target": "preview.jpg"
+          }
+        }
+      ]
+    }
   }
 }

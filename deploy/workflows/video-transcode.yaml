@@ -1,28 +1,36 @@
 # Video Transcoding Workflow
 #
-# Demonstrates Docker steps for heavy workloads.
-# FFmpeg runs in a container so no system-level installation is required on
-# the worker node — only a Docker daemon.
+# Demonstrates Docker steps for heavy FFmpeg workloads.
+# Requires a worker with the "video" tag and access to a Docker daemon.
 #
 # Produces:
-#   - main.mp4   — H.264 @ 1080 p
-#   - small.mp4  — H.264 @ 480 p
-#   - thumb.jpg  — first-frame thumbnail
+#   main.mp4  — H.264 @ 1080p
+#   small.mp4 — H.264 @ 480p
+#   thumb.jpg — first-frame thumbnail
+#
+# Bucket/group: videos
 
+version: "2"
 name: video-transcode
+description: Transcode uploaded video to HD/SD MP4 and extract a thumbnail.
 
-on:
+content_types:
+  - video/mp4
+  - video/quicktime
+  - video/x-msvideo
+
+keep_original: false
+
+validate:
+  max_size: 2GB
   content_types:
     - video/mp4
     - video/quicktime
     - video/x-msvideo
-  max_size: 2GB
-  keep_original: false
 
 jobs:
   hd:
-    name: Transcode 1080 p
-    runs-on: video-worker
+    runs-on: video
     steps:
       - name: ffmpeg-hd
         uses: docker
@@ -40,9 +48,7 @@ jobs:
             -y "{{outputFile}}"
 
   sd:
-    name: Transcode 480 p
-    runs-on: video-worker
-    needs: [hd]
+    runs-on: video
     steps:
       - name: ffmpeg-sd
         uses: docker
@@ -60,8 +66,7 @@ jobs:
             -y "{{outputFile}}"
 
   thumbnail:
-    name: Extract first-frame thumbnail
-    runs-on: video-worker
+    runs-on: video
     steps:
       - name: ffmpeg-thumb
         uses: docker
