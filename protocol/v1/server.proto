@@ -12,6 +12,8 @@ import "protoc-gen-openapiv2/options/annotations.proto";
 
 import "v1/object.proto";
 import "v1/manifest.proto";
+import "v1/workflow.proto";
+import "v1/state.proto";
 
 enum ResponseStatusCode {
   UNKNOWN_INVALID = 0;
@@ -163,6 +165,36 @@ service ServiceAPI {
   rpc Delete(ObjectIDNames) returns (SimpleResponse) {
     option (google.api.http) = {
       delete: "/v1/object/{id=**}"
+    };
+  };
+
+  // SetWorkflow stores a v2 workflow manifest for a group/bucket.
+  rpc SetWorkflow(DataWorkflow) returns (SimpleResponse) {
+    option (google.api.http) = {
+      put: "/v1/workflow/{group}"
+      body: "*"
+    };
+  };
+
+  // GetWorkflow returns the v2 workflow manifest for a group/bucket.
+  rpc GetWorkflow(ManifestGroup) returns (WorkflowResponse) {
+    option (google.api.http) = {
+      get: "/v1/workflow/{group}"
+    };
+  };
+
+  // GetProcessingState returns the current processing state for an object.
+  rpc GetProcessingState(ObjectID) returns (ProcessingStateResponse) {
+    option (google.api.http) = {
+      get: "/v1/state/{id=**}"
+    };
+  };
+
+  // WatchProcessingState streams processing state updates for an object.
+  // The stream ends when the object reaches a terminal state.
+  rpc WatchProcessingState(ObjectID) returns (stream ProcessingState) {
+    option (google.api.http) = {
+      get: "/v1/state/watch/{id=**}"
     };
   };
 }

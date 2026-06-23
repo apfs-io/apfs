@@ -1,0 +1,71 @@
+# Image Gallery Workflow
+#
+# Demonstrates three execution styles:
+#   1. uses: procedure  — calls a named .eproc procedure from deploy/procedures/
+#   2. uses: shell      — runs an inline bash script via run: block
+#   3. uses: docker     — runs a command in a Docker container
+#
+# Produces three size variants of an uploaded image and strips EXIF metadata.
+
+name: image-gallery
+
+on:
+  content_types:
+    - image/jpeg
+    - image/png
+    - image/webp
+  max_size: 20MB
+  keep_original: false
+
+jobs:
+  # ── Style 1: Named procedure from the store ─────────────────────────────────
+  large:
+    name: Resize large (1200 px) via procedure
+    runs-on: image-worker
+    steps:
+      - name: Resize
+        uses: procedure
+        with:
+          name: image-resize-w
+          width: "1200"
+          target: large.jpg
+
+      - name: Strip EXIF
+        uses: procedure
+        with:
+          name: image-strip-meta
+          target: large.jpg
+
+  # ── Style 2: Inline shell script via run: block ──────────────────────────────
+  medium:
+    name: Resize medium (600 px) via inline shell
+    runs-on: image-worker
+    steps:
+      - name: Resize and strip
+        uses: shell
+        with:
+          target: medium.jpg
+        run: |
+          W=$(identify -format "%w" "{{inputFile}}")
+          if [ "$W" -gt 600 ]; then
+            convert "{{inputFile}}" -resize "600x>" -interlace Plane -auto-orient \
+              -strip "{{outputFile}}"
+          else
+            cp "{{inputFile}}" "{{outputFile}}"
+          fi
+
+  # ── Style 3: Docker container ────────────────────────────────────────────────
+  thumb-docker:
+    name: Resize thumbnail (120 px) via Docker + ImageMagick
+    runs-on: docker-worker
+    steps:
+      - name: Resize thumb
+        uses: docker
+        docker:
+          image: dpokidov/imagemagick:latest
+          remove_after_done: true
+        with:
+          target: thumb.jpg
+        run: |
+          convert "{{inputFile}}" -resize "120x>" -interlace Plane \
+            -strip -auto-orient "{{outputFile}}"

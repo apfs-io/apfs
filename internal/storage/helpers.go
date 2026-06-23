@@ -3,14 +3,14 @@ package storage
 import (
 	"strings"
 
-	npio "github.com/apfs-io/apfs/internal/io"
+	storio "github.com/apfs-io/apfs/internal/storio"
 )
 
 func objcID(obj any) string {
 	switch v := obj.(type) {
 	case string:
 		return v
-	case npio.Object:
+	case storio.Object:
 		return v.ID().String()
 	}
 	return ""

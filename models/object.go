@@ -33,7 +33,7 @@ type Object struct {
 	Type        ObjectType                      `json:"type"`
 	Tags        gosql.NullableJSONArray[string] `json:"tags,omitempty"`
 	Meta        gosql.NullableJSON[Meta]        `json:"meta,omitempty"`
-	Manifest    gosql.NullableJSON[Manifest]    `json:"manifest,omitempty"`
+	Workflow    gosql.NullableJSON[Workflow]    `json:"workflow,omitempty"`
 	Size        uint64                          `json:"size"` // Size in bytes
 
 	CreatedAt time.Time `json:"created_at"`
@@ -53,23 +53,23 @@ func (o *Object) TableName() string {
 	return "object"
 }
 
-// IncompleteTasks returns the list of incompleted tasks
-func (o *Object) IncompleteTasks() (resp []*ManifestTask) {
+// IncompleteJobs returns the list of workflow jobs whose output targets
+// are not yet present in the object's meta items.
+func (o *Object) IncompleteJobs() (resp []string) {
 	meta := o.Meta.Data
-	items := append(meta.Items[:], &meta.Main)
-	manifest := o.Manifest.Data
-	for _, stage := range manifest.Stages {
-		for _, task := range stage.Tasks {
-			targetName := task.Target
-			found := false
-			for _, item := range items {
-				if item.Name == targetName {
-					found = true
-					break
-				}
+	wf := o.Workflow.Data
+	for jobID, job := range wf.Jobs {
+		if job == nil {
+			continue
+		}
+		for _, step := range job.Steps {
+			target, _ := step.With["target"].(string)
+			if target == "" {
+				continue
 			}
-			if !found {
-				resp = append(resp, task)
+			if meta.ItemByName(target) == nil {
+				resp = append(resp, jobID)
+				break
 			}
 		}
 	}

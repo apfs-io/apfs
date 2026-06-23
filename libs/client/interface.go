@@ -37,11 +37,11 @@ type ObjectManagerClient interface {
 
 // MetadataManagerClient interface represents interaction with metadata storage
 type MetadataManagerClient interface {
-	// SetManifest of the group
-	SetManifest(ctx context.Context, manifest *models.Manifest, opts ...RequestOption) error
+	// SetWorkflow stores the workflow manifest for the group.
+	SetWorkflow(ctx context.Context, w *models.Workflow, opts ...RequestOption) error
 
-	// GetManifest of the group
-	GetManifest(ctx context.Context, opts ...RequestOption) (*models.Manifest, error)
+	// GetWorkflow reads the workflow manifest for the group.
+	GetWorkflow(ctx context.Context, opts ...RequestOption) (*models.Workflow, error)
 }
 
 // Client interface accessor to the Disk API
@@ -49,5 +49,8 @@ type Client interface {
 	io.Closer
 	ObjectManagerClient
 	MetadataManagerClient
+	// WithGroup returns a client scoped to the given group.
 	WithGroup(name string) Client
+	// Group returns a fluent Group client scoped to the given bucket.
+	Group(name string) *Group
 }

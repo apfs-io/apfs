@@ -18,6 +18,10 @@ type (
 	ObjectIDNames     = protocol.ObjectIDNames
 	SimpleResponse    = protocol.SimpleResponse
 	ObjectType        = models.ObjectType
+	Workflow          = models.Workflow
+	WorkflowJob       = models.WorkflowJob
+	WorkflowStep      = models.WorkflowStep
+	WorkflowValidate  = models.WorkflowValidate
 	Manifest          = models.Manifest
 	ManifestTaskStage = models.ManifestTaskStage
 	ManifestTask      = models.ManifestTask

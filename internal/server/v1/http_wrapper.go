@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/demdxx/gocast/v2"
 	"github.com/go-chi/chi/v5"
@@ -18,6 +20,19 @@ import (
 	protocol "github.com/apfs-io/apfs/internal/server/protocol/v1"
 	"github.com/apfs-io/apfs/libs/storerrors"
 )
+
+// makeTimer returns a channel that fires after seconds, or closes when ctx is done.
+func makeTimer(ctx context.Context, seconds int) <-chan struct{} {
+	ch := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Duration(seconds) * time.Second):
+		}
+		close(ch)
+	}()
+	return ch
+}
 
 // ServerHTTPWrapper object
 type ServerHTTPWrapper struct {
@@ -122,11 +137,8 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Get transformation manifest of the object
-	objectManifest := s.store.ObjectManifest(ctx, sObject)
-
 	// If object is not completed or have extra objects then initiate new update task
-	if !sObject.Meta().IsConsistent(objectManifest) && s.updateState.TryBeginUpdate(id) {
+	if !sObject.Meta().IsConsistent(s.store.ObjectWorkflow(ctx, sObject)) && s.updateState.TryBeginUpdate(id) {
 		s.updateObjectState(ctx, sObject.ID().String())
 	}
 
@@ -147,7 +159,7 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 		name = sObject.PrepareName(name)
 	}
 	contentType := mime.TypeByExtension(filepath.Ext(name))
-	sObjectMeta := sObject.MustMeta()
+	sObjectMeta := sObject.MetaOrNew()
 	w.Header().Add("Content-Type", contentType)
 	w.Header().Add(
 		gocast.IfThen(headOnly, "X-Content-Size", "Content-Length"),
@@ -155,8 +167,8 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 	if !headOnly && gocast.Bool(query.Get("meta")) {
 		w.Header().Add("X-Content-Meta", encodeJSONBase64(sObjectMeta))
 	}
-	if len(sObject.MustMeta().Tags) > 0 {
-		w.Header().Add("X-Content-Tags", strings.Join(sObject.MustMeta().Tags, ","))
+	if len(sObject.MetaOrNew().Tags) > 0 {
+		w.Header().Add("X-Content-Tags", strings.Join(sObject.MetaOrNew().Tags, ","))
 	}
 	w.WriteHeader(http.StatusOK)
 
@@ -169,6 +181,80 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 		}
 	} else {
 		_ = json.NewEncoder(w).Encode(sObjectMeta)
+	}
+}
+
+// GetProcessingStateHTTPHandler returns the processing state for an object.
+func (s *ServerHTTPWrapper) GetProcessingStateHTTPHandler(w http.ResponseWriter, r *http.Request) {
+	var (
+		ctx = r.Context()
+		id  = chi.URLParam(r, "*")
+	)
+	if id == "" {
+		id = r.URL.Query().Get("id")
+	}
+
+	state, err := s.store.GetProcessingState(ctx, id)
+	if err != nil {
+		errorResponse(w, err.Error())
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(protocol.ProcessingStateToProto(state))
+}
+
+// WatchProcessingStateHTTPHandler streams processing state updates via SSE.
+func (s *ServerHTTPWrapper) WatchProcessingStateHTTPHandler(w http.ResponseWriter, r *http.Request) {
+	var (
+		ctx = r.Context()
+		id  = chi.URLParam(r, "*")
+	)
+	if id == "" {
+		id = r.URL.Query().Get("id")
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		errorResponse(w, "streaming not supported")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		state, err := s.store.GetProcessingState(ctx, id)
+		if err != nil {
+			return
+		}
+
+		data, _ := json.Marshal(protocol.ProcessingStateToProto(state))
+		_, _ = w.Write([]byte("data: "))
+		_, _ = w.Write(data)
+		_, _ = w.Write([]byte("\n\n"))
+		flusher.Flush()
+
+		if state != nil && state.Status.IsTerminal() {
+			return
+		}
+
+		// Poll interval — in production this would use a pub/sub subscription.
+		timer := makeTimer(r.Context(), 2)
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer:
+		}
 	}
 }
 

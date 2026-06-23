@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package v1;
+
+option go_package = "./v1";
+option java_multiple_files = true;
+option java_outer_classname = "State";
+option java_package = "com.apfs.protocol.v1";
+
+// StepStatus enum
+enum StepStatus {
+  STEP_PENDING   = 0;
+  STEP_RUNNING   = 1;
+  STEP_COMPLETED = 2;
+  STEP_FAILED    = 3;
+  STEP_SKIPPED   = 4;
+}
+
+// JobStatus enum
+enum JobStatus {
+  JOB_PENDING   = 0;
+  JOB_RUNNING   = 1;
+  JOB_COMPLETED = 2;
+  JOB_FAILED    = 3;
+  JOB_SKIPPED   = 4;
+}
+
+// ProcessingStatus enum
+enum ProcessingStatus {
+  PROCESSING_PENDING   = 0;
+  PROCESSING_RUNNING   = 1;
+  PROCESSING_COMPLETED = 2;
+  PROCESSING_PARTIAL   = 3;
+  PROCESSING_FAILED    = 4;
+}
+
+// StepState is the runtime state of one step within a job.
+message StepState {
+  string      name        = 1;
+  StepStatus  status      = 2;
+  int64       duration_ms = 3;
+  string      error       = 4;
+}
+
+// JobState is the runtime state of one job in the processing DAG.
+message JobState {
+  string              id          = 1;
+  JobStatus           status      = 2;
+  string              worker      = 3;
+  int32               attempts    = 4;
+  string              outputs_json= 5;  // JSON-encoded map[string]any
+  repeated StepState  steps       = 6;
+  string              error       = 7;
+  int64               started_at  = 8;  // Unix timestamp ms
+  int64               finished_at = 9;
+  float               progress    = 10;
+}
+
+// ProcessingState tracks the full execution state of a processing pipeline
+// for a single object.
+message ProcessingState {
+  string                object_id         = 1;
+  ProcessingStatus      status            = 2;
+  float                 progress          = 3;
+  string                manifest_version  = 4;
+  repeated JobState     jobs              = 5;
+  int64                 started_at        = 6;
+  int64                 updated_at        = 7;
+  int64                 finished_at       = 8;
+}
+
+// ProcessingStateResponse wraps ProcessingState in a standard response.
+message ProcessingStateResponse {
+  ResponseStatusCode  status    = 1;
+  string              message   = 2;
+  ProcessingState     state     = 3;
+}

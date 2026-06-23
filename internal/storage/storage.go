@@ -17,18 +17,19 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/apfs-io/apfs/internal/context/ctxlogger"
-	npio "github.com/apfs-io/apfs/internal/io"
 	"github.com/apfs-io/apfs/internal/object"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor"
 	"github.com/apfs-io/apfs/internal/storage/processor"
+	storio "github.com/apfs-io/apfs/internal/storio"
+	"github.com/apfs-io/apfs/internal/validation"
 	"github.com/apfs-io/apfs/models"
 )
 
 // Error list...
 var (
 	ErrStorageInvalidParameterType = errors.New("[storage] invalid parameter type")
-	ErrStorageNoConverters         = errors.New("[storage] no eny converter registered")
-	ErrStorageCollectionIsRequred  = errors.New("[storage] collection accessor is required")
+	ErrStorageNoConverters         = errors.New("[storage] no any converter registered")
+	ErrStorageCollectionIsRequired = errors.New("[storage] collection accessor is required")
 	ErrStorageObjectInProcessing   = errors.New("[storage] object in processing")
 	ErrStorageInvalidGroupName     = errors.New("[storage] invalid group name")
 	ErrStorageInvalidAction        = errors.New("[storage] invalid action")
@@ -48,10 +49,14 @@ type Storage struct {
 	db DB
 
 	// collection of file objects
-	driver npio.StorageAccessor
+	driver storio.StorageAccessor
 
 	// Key-value accessor for processing statuses
 	processingStatus kvaccessor.KVAccessor
+
+	// Validator runs synchronous checks during Upload.
+	// When nil, validation is skipped.
+	Validator validation.Validator
 }
 
 // NewStorage object who controles file storage
@@ -70,18 +75,52 @@ func NewStorage(options ...Option) *Storage {
 	}
 }
 
-// SetManifest for a group
-func (s *Storage) SetManifest(ctx context.Context, group string, manifest *models.Manifest) error {
-	return s.driver.UpdateManifest(ctx, group, manifest)
+// SetWorkflow stores the bucket-level workflow manifest.
+func (s *Storage) SetWorkflow(ctx context.Context, group string, w *models.Workflow) error {
+	if w == nil {
+		return nil
+	}
+	return s.driver.UpdateWorkflow(ctx, group, w)
 }
 
-// GetManifest for a group
-func (s *Storage) GetManifest(ctx context.Context, group string) (*models.Manifest, error) {
-	return s.driver.ReadManifest(ctx, group)
+// GetWorkflow reads the bucket-level workflow manifest.
+func (s *Storage) GetWorkflow(ctx context.Context, group string) (*models.Workflow, error) {
+	return s.driver.ReadWorkflow(ctx, group)
+}
+
+// GetProcessingState returns the current ProcessingState for an object.
+func (s *Storage) GetProcessingState(ctx context.Context, objectID string) (*models.ProcessingState, error) {
+	return s.driver.ReadState(ctx, storio.ObjectIDType(objectID))
+}
+
+// SetProcessingState persists a ProcessingState for an object.
+func (s *Storage) SetProcessingState(ctx context.Context, objectID string, state *models.ProcessingState) error {
+	return s.driver.WriteState(ctx, storio.ObjectIDType(objectID), state)
+}
+
+// ReadMeta reads the Meta for an object (used by the workflow executor).
+func (s *Storage) ReadMeta(ctx context.Context, id storio.ObjectID) (*models.Meta, error) {
+	obj, err := s.driver.Open(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return obj.Meta(), nil
+}
+
+// WriteMeta persists updated Meta for an object (used by the workflow executor).
+func (s *Storage) WriteMeta(ctx context.Context, id storio.ObjectID, meta *models.Meta) error {
+	obj, err := s.driver.Open(ctx, id)
+	if err != nil {
+		return err
+	}
+	if obj.Meta() != nil {
+		*obj.MetaOrNew() = *meta
+	}
+	return s.UpdateObjectInfo(ctx, obj)
 }
 
 // UploadFile into storage
-func (s *Storage) UploadFile(ctx context.Context, group string, sourceFilePath string, options ...UploadOption) (npio.Object, error) {
+func (s *Storage) UploadFile(ctx context.Context, group string, sourceFilePath string, options ...UploadOption) (storio.Object, error) {
 	file, err := os.Open(sourceFilePath)
 	if err != nil {
 		return nil, err
@@ -91,7 +130,7 @@ func (s *Storage) UploadFile(ctx context.Context, group string, sourceFilePath s
 }
 
 // Upload data into storage
-func (s *Storage) Upload(ctx context.Context, group string, data io.Reader, options ...UploadOption) (obj npio.Object, err error) {
+func (s *Storage) Upload(ctx context.Context, group string, data io.Reader, options ...UploadOption) (obj storio.Object, err error) {
 	if group == "" {
 		return nil, ErrStorageInvalidGroupName
 	}
@@ -99,6 +138,20 @@ func (s *Storage) Upload(ctx context.Context, group string, data io.Reader, opti
 	var option uploadOption
 	for _, opt := range options {
 		opt(&option)
+	}
+
+	// Run synchronous pre-upload validation when a Validator is configured.
+	if s.Validator != nil {
+		req := &validation.ValidationRequest{
+			Reader:      data,
+			Size:        option.contentLength,
+			ContentType: option.contentType,
+		}
+		if err := s.Validator.Validate(ctx, req); err != nil {
+			return nil, err
+		}
+		// req.Reader may have been wrapped to restore sniffed bytes
+		data = req.Reader
 	}
 
 	// Create new object container
@@ -127,8 +180,8 @@ func (s *Storage) Upload(ctx context.Context, group string, data io.Reader, opti
 }
 
 // Object returns object from storage
-func (s *Storage) Object(ctx context.Context, obj any) (npio.Object, error) {
-	var nObject npio.Object
+func (s *Storage) Object(ctx context.Context, obj any) (storio.Object, error) {
+	var nObject storio.Object
 	switch val := obj.(type) {
 	case string:
 		if val == "" {
@@ -144,7 +197,7 @@ func (s *Storage) Object(ctx context.Context, obj any) (npio.Object, error) {
 				zap.String("object_id", val))
 
 			// Try to load object from storage
-			if nObject, err = s.driver.Open(ctx, npio.ObjectIDType(val)); err != nil {
+			if nObject, err = s.driver.Open(ctx, storio.ObjectIDType(val)); err != nil {
 				return nil, err
 			}
 
@@ -159,7 +212,7 @@ func (s *Storage) Object(ctx context.Context, obj any) (npio.Object, error) {
 			// If object is in cache then create object from cache
 			nObject = object.FromModel(objectRecord)
 		}
-	case npio.Object:
+	case storio.Object:
 		// If object is passed as object then just use it
 		nObject = val
 	default:
@@ -173,7 +226,7 @@ func (s *Storage) Object(ctx context.Context, obj any) (npio.Object, error) {
 }
 
 // OpenObject to read data
-func (s *Storage) OpenObject(ctx context.Context, obj any, name string) (npio.Object, io.ReadCloser, error) {
+func (s *Storage) OpenObject(ctx context.Context, obj any, name string) (storio.Object, io.ReadCloser, error) {
 	nObject, err := s.Object(ctx, obj)
 	if err != nil {
 		return nil, nil, err
@@ -188,7 +241,7 @@ func (s *Storage) OpenObject(ctx context.Context, obj any, name string) (npio.Ob
 
 // Delete object completeley
 func (s *Storage) Delete(ctx context.Context, obj any, names ...string) (err error) {
-	var nObject npio.Object
+	var nObject storio.Object
 	if nObject, err = s.Object(ctx, obj); err != nil {
 		if os.IsNotExist(err) {
 			return s.db.Delete(objcID(obj))
@@ -202,7 +255,7 @@ func (s *Storage) Delete(ctx context.Context, obj any, names ...string) (err err
 }
 
 // Update information about object in database
-func (s *Storage) UpdateObjectInfo(ctx context.Context, obj npio.Object) error {
+func (s *Storage) UpdateObjectInfo(ctx context.Context, obj storio.Object) error {
 	mObj, err := object.ToModel(obj)
 	if err != nil {
 		return err
@@ -222,18 +275,19 @@ func (s *Storage) ClearObject(ctx context.Context, obj any) error {
 	return s.driver.Clean(ctx, collectionObject)
 }
 
-// ObjectManifest returns global manifest if no present in the object
-func (s *Storage) ObjectManifest(ctx context.Context, obj npio.Object) *models.Manifest {
-	if obj.Manifest().IsEmpty() {
-		if manifestGlobal, _ := s.GetManifest(ctx, obj.Bucket()); manifestGlobal != nil {
-			*obj.MustManifest() = *manifestGlobal
-			return manifestGlobal
+// ObjectWorkflow returns the workflow for an object.
+// If the object has no workflow loaded, it fetches the bucket-level workflow.
+func (s *Storage) ObjectWorkflow(ctx context.Context, obj storio.Object) *models.Workflow {
+	if obj.Workflow().IsEmpty() {
+		if wf, _ := s.GetWorkflow(ctx, obj.Bucket()); wf != nil && !wf.IsEmpty() {
+			*obj.WorkflowOrNew() = *wf
+			return wf
 		}
 	}
-	return obj.Manifest()
+	return obj.Workflow()
 }
 
-func (s *Storage) getProcessingStatus(ctx context.Context, cObject npio.Object) models.ObjectStatus {
+func (s *Storage) getProcessingStatus(ctx context.Context, cObject storio.Object) models.ObjectStatus {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	return processor.GetProcessingStatus(ctx, s.processingStatus, s, cObject)

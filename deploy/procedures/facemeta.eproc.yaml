@@ -1,0 +1,34 @@
+# facemeta — detect faces in an image using OpenCV Haar cascades.
+#
+# Pairs with: deploy/procedures/facemeta.py
+# Requires:   opencv-python, opencv-contrib-python (see requirements.txt)
+#
+# Usage in a workflow step:
+#
+#   steps:
+#     - name: Face detection
+#       uses: procedure
+#       with:
+#         name: facemeta
+#         cascPath: haarcascade_frontalface_default.xml
+#         target-meta: faces    # stores detection result in meta.attributes.faces
+#
+# Output JSON shape:
+#   { "h": 480, "w": 640, "channels": 3, "boxes": [{"x":…,"y":…,"w":…,"h":…}] }
+#
+# Set on-failure: continue on the parent job — images without faces are valid.
+
+driver: exec
+
+args:
+  - "{{inputFile}}"
+  - "{{cascPath}}"
+
+params:
+  - name: inputFile
+    type: file
+  - name: cascPath
+    type: string
+
+output:
+  type: json

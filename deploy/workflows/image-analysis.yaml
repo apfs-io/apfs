@@ -1,0 +1,67 @@
+# Image Analysis Workflow
+#
+# Computes an image embedding vector and detects faces.
+# Both jobs use named procedures from deploy/procedures/.
+#
+# Alternative: the same jobs can be run inside Docker containers when the
+# Python environment is not installed on the worker node — see the
+# commented-out docker: blocks below.
+
+name: image-analysis
+
+on:
+  content_types:
+    - image/jpeg
+    - image/png
+    - image/webp
+  keep_original: true
+
+jobs:
+  vectorize:
+    name: Image → embedding vector (ResNet-18)
+    runs-on: gpu-worker
+    on-failure: continue
+    steps:
+      # ── Option A: run the local .eproc procedure ─────────────────────────
+      - name: img2vec
+        uses: procedure
+        with:
+          name: image2vec
+          target-meta: vector   # stores JSON float array in meta.attributes.vector
+
+      # ── Option B (commented out): run inside Docker ───────────────────────
+      # - name: img2vec-docker
+      #   uses: docker
+      #   docker:
+      #     image: pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
+      #     retain_container: true   # keep alive for stream mode
+      #     remove_after_done: false
+      #   with:
+      #     target-meta: vector
+      #   run: |
+      #     python3 /app/image2vec.py "{{inputFile}}"
+
+  faces:
+    name: Face detection
+    runs-on: cpu-worker
+    on-failure: continue
+    steps:
+      - name: detect
+        uses: procedure
+        with:
+          name: facemeta
+          cascPath: haarcascade_frontalface_default.xml
+          target-meta: faces    # stores JSON object in meta.attributes.faces
+
+  # ── Style: inline shell with jq post-processing ──────────────────────────
+  dimensions:
+    name: Extract image dimensions
+    runs-on: image-worker
+    steps:
+      - name: probe
+        uses: shell
+        with:
+          target-meta: dimensions
+          tojson: "false"
+        run: |
+          identify -format '{"w":%w,"h":%h}' "{{inputFile}}"

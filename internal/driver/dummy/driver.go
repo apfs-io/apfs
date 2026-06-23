@@ -1,3 +1,5 @@
+// Package dummy provides a no-op StorageAccessor implementation useful for
+// testing and as a placeholder for new driver development.
 package dummy
 
 import (
@@ -5,71 +7,101 @@ import (
 	"io"
 	"net/url"
 
-	npio "github.com/apfs-io/apfs/internal/io"
+	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/models"
 )
 
-// Driver with fummy declaration
-type Driver struct {
-}
+// Storage is a no-op StorageAccessor that silently discards all operations.
+type Storage struct{}
 
-// Create new object object
-// If manifest is Nil, than will be used dfault manifest
-func (d *Driver) Create(ctx context.Context, bucket string, id npio.ObjectID, overwrite bool, params url.Values) (npio.Object, error) {
+// Create implements ObjectAccessor.
+func (d *Storage) Create(ctx context.Context, bucket string, id storio.ObjectID, overwrite bool, params url.Values) (storio.Object, error) {
 	return nil, nil
 }
 
-// UpdatePatams in the object. If name is present then update only params linked with the subobject
-func (d *Driver) UpdatePatams(ctx context.Context, id npio.ObjectID, params url.Values) error {
+// UpdateParams implements ObjectAccessor.
+func (d *Storage) UpdateParams(ctx context.Context, id storio.ObjectID, params url.Values) error {
 	return nil
 }
 
-// Open existing object
-// path example: images/a/b/c/d
-func (d *Driver) Open(ctx context.Context, id npio.ObjectID) (npio.Object, error) {
+// Open implements ObjectAccessor.
+func (d *Storage) Open(ctx context.Context, id storio.ObjectID) (storio.Object, error) {
 	return nil, nil
 }
 
-// Read returns reader of the specific internal object
-func (d *Driver) Read(ctx context.Context, id npio.ObjectID, name string) (io.ReadCloser, error) {
+// Read implements ObjectAccessor.
+func (d *Storage) Read(ctx context.Context, id storio.ObjectID, name string) (io.ReadCloser, error) {
 	return nil, nil
 }
 
-// Update data in the storage
-func (d *Driver) Update(ctx context.Context, id npio.ObjectID, name string, data io.Reader, meta *models.ItemMeta) error {
+// Update implements ObjectAccessor.
+func (d *Storage) Update(ctx context.Context, id storio.ObjectID, name string, data io.Reader, meta *models.ItemMeta) error {
 	return nil
 }
 
-// Update data in the storage
-func (d *Driver) UpdateMeta(ctx context.Context, id npio.ObjectID, name string, meta *models.ItemMeta) error {
+// UpdateMeta implements ObjectAccessor.
+func (d *Storage) UpdateMeta(ctx context.Context, id storio.ObjectID, name string, meta *models.ItemMeta) error {
 	return nil
 }
 
-// Clean removes all internal data from object except original
-func (d *Driver) Clean(ctx context.Context, id npio.ObjectID) error {
+// Clean implements ObjectAccessor.
+func (d *Storage) Clean(ctx context.Context, id storio.ObjectID) error {
 	return nil
 }
 
-// Remove object with ID
-func (d *Driver) Remove(ctx context.Context, id npio.ObjectID, names ...string) error {
+// Remove implements ObjectAccessor.
+func (d *Storage) Remove(ctx context.Context, id storio.ObjectID, names ...string) error {
 	return nil
 }
 
-// Scan storage by pattern
-//
-//	pattern: search type equals to glob https://golang.org/pkg/path/filepath/#Glob
-func (d *Driver) Scan(ctx context.Context, pattern string, walkf npio.WalkStorageFnk) error {
+// WriteFile implements ObjectFileAccessor.
+func (d *Storage) WriteFile(ctx context.Context, id storio.ObjectID, path string, data io.Reader, meta *models.ItemMeta) error {
 	return nil
 }
 
-// ReadManifest information method
-func (d *Driver) ReadManifest(ctx context.Context, bucket string) (*models.Manifest, error) {
+// ReadFile implements ObjectFileAccessor.
+func (d *Storage) ReadFile(ctx context.Context, id storio.ObjectID, path string) (io.ReadCloser, error) {
 	return nil, nil
 }
 
-// UpdateManifest information method
-func (d *Driver) UpdateManifest(ctx context.Context, bucket string, manifest *models.Manifest) error {
+// ListFiles implements ObjectFileAccessor.
+func (d *Storage) ListFiles(ctx context.Context, id storio.ObjectID, pattern string) ([]*storio.FileInfo, error) {
+	return nil, nil
+}
+
+// DeleteFiles implements ObjectFileAccessor.
+func (d *Storage) DeleteFiles(ctx context.Context, id storio.ObjectID, paths ...string) error {
 	return nil
 }
 
-var _ npio.StorageAccessor = (*Driver)(nil)
+// MoveFile implements ObjectFileAccessor.
+func (d *Storage) MoveFile(ctx context.Context, id storio.ObjectID, srcPath, dstPath string) error {
+	return nil
+}
+
+// Scan implements ObjectScanner.
+func (d *Storage) Scan(ctx context.Context, pattern string, walkf storio.WalkStorageFunc) error {
+	return nil
+}
+
+// ReadWorkflow implements WorkflowAccessor.
+func (d *Storage) ReadWorkflow(ctx context.Context, bucket string) (*models.Workflow, error) {
+	return nil, nil
+}
+
+// UpdateWorkflow implements WorkflowAccessor.
+func (d *Storage) UpdateWorkflow(ctx context.Context, bucket string, workflow *models.Workflow) error {
+	return nil
+}
+
+// ReadState implements ObjectStateAccessor.
+func (d *Storage) ReadState(ctx context.Context, id storio.ObjectID) (*models.ProcessingState, error) {
+	return nil, nil
+}
+
+// WriteState implements ObjectStateAccessor.
+func (d *Storage) WriteState(ctx context.Context, id storio.ObjectID, state *models.ProcessingState) error {
+	return nil
+}
+
+var _ storio.StorageAccessor = (*Storage)(nil)

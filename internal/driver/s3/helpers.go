@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	npio "github.com/apfs-io/apfs/internal/io"
 	"github.com/apfs-io/apfs/internal/object"
+	storio "github.com/apfs-io/apfs/internal/storio"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
@@ -63,24 +63,24 @@ func _errorCode(err error) string {
 	return ""
 }
 
-func objectKey(object npio.Object, name string) string {
+func objectKey(object storio.Object, name string) string {
 	return filepath.Join(object.Path(), object.PrepareName(name))
 }
 
 // NewObject creates basic object from Bucket name + Object Path
 // bucket name: images, videos, documents, etc.
 // object path: generated bucket full path without bucket => {{year}}/{{month}}/{{md5:1}}/{{md5:2}}/{{md5}}
-func newObject(bucket, pathName string) npio.Object {
+func newObject(bucket, pathName string) storio.Object {
 	return object.NewObject(newObjectID(bucket, pathName), bucket, pathName)
 }
 
-func newObjectID(bucket, pathName string) npio.ObjectIDType {
-	return npio.ObjectIDType(
+func newObjectID(bucket, pathName string) storio.ObjectIDType {
+	return storio.ObjectIDType(
 		strings.Trim(bucket, "/") + "/" + strings.Trim(pathName, "/"),
 	)
 }
 
-func objectFromID(id npio.ObjectID) npio.Object {
+func objectFromID(id storio.ObjectID) storio.Object {
 	filepath := string(id.ID())
 	splits := strings.SplitN(filepath, "/", 2)
 	if len(splits) != 2 {

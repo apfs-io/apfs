@@ -15,11 +15,11 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/apfs-io/apfs/internal/context/ctxlogger"
-	npio "github.com/apfs-io/apfs/internal/io"
 	protocol "github.com/apfs-io/apfs/internal/server/protocol/v1"
 	"github.com/apfs-io/apfs/internal/storage"
 	"github.com/apfs-io/apfs/internal/storage/database"
 	"github.com/apfs-io/apfs/internal/storage/processor"
+	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/libs/storerrors"
 	"github.com/apfs-io/apfs/models"
 )
@@ -33,7 +33,7 @@ type ServiceServer interface {
 	protocol.ServiceAPIServer
 
 	UploadObject(ctx context.Context, group, customID string,
-		overwrite bool, tags []string, obj io.Reader) (npio.Object, error)
+		overwrite bool, tags []string, obj io.Reader) (storio.Object, error)
 }
 
 type server struct {
@@ -112,11 +112,8 @@ func (s *server) Head(ctx context.Context, obj *protocol.ObjectID) (*protocol.Si
 		}, nil
 	}
 
-	// Get transformation manifest of the object
-	objectManifest := s.store.ObjectManifest(ctx, sObject)
-
 	// If object is not completed or have extra objects then initiate new update task
-	if !sObject.Meta().IsConsistent(objectManifest) && s.updateState.TryBeginUpdate(obj.GetId()) {
+	if !sObject.Meta().IsConsistent(s.store.ObjectWorkflow(ctx, sObject)) && s.updateState.TryBeginUpdate(obj.GetId()) {
 		s.updateObjectState(ctx, sObject.ID().String())
 	}
 
@@ -172,11 +169,8 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 		return err
 	}
 
-	// Get transformation manifest of the object
-	objectManifest := s.store.ObjectManifest(ctx, sObject)
-
 	// If object is not completed or have extra objects then initiate new update task
-	if !sObject.Meta().IsConsistent(objectManifest) && s.updateState.TryBeginUpdate(obj.GetId()) {
+	if !sObject.Meta().IsConsistent(s.store.ObjectWorkflow(ctx, sObject)) && s.updateState.TryBeginUpdate(obj.GetId()) {
 		s.updateObjectState(ctx, sObject.ID().String())
 	}
 
@@ -267,12 +261,9 @@ func (s *server) SetManifest(ctx context.Context, manifest *protocol.DataManifes
 		zap.Any("manifest", manifest.Manifest),
 	)
 
-	// Convert manifest from proto to model
-	manifestObj := manifest.Manifest.ToModel()
-	manifestObj.PrepareInfo()
-
-	// Save manifest into storage and update all objects (lazy by request) with the same group
-	err = s.store.SetManifest(ctx, manifest.GetGroup(), manifestObj)
+	// Convert manifest from proto to workflow model and save
+	wf := models.FromLegacyManifest(manifest.Manifest.ToModel())
+	err = s.store.SetWorkflow(ctx, manifest.GetGroup(), wf)
 	if err != nil {
 		ctxlogger.Get(ctx).Error("Set Manifest",
 			zap.String("manifest_group", manifest.GetGroup()),
@@ -302,7 +293,7 @@ func (s *server) GetManifest(ctx context.Context, group *protocol.ManifestGroup)
 		}
 	}()
 
-	manifest, err := s.store.GetManifest(ctx, group.GetGroup())
+	wf, err := s.store.GetWorkflow(ctx, group.GetGroup())
 	if err != nil {
 		status := protocol.ResponseStatusCode_FAILED
 		if storerrors.IsNotFound(err) {
@@ -314,7 +305,7 @@ func (s *server) GetManifest(ctx context.Context, group *protocol.ManifestGroup)
 		}, err
 	}
 
-	manifestProto, err := protocol.ManifestFromModel(manifest)
+	manifestProto, err := protocol.ManifestFromModel(wf.ToManifest())
 	if err != nil {
 		return &protocol.ManifestResponse{
 			Status:  protocol.ResponseStatusCode_FAILED,
@@ -332,7 +323,7 @@ func (s *server) GetManifest(ctx context.Context, group *protocol.ManifestGroup)
 func (s *server) Upload(stream protocol.ServiceAPI_UploadServer) (err error) {
 	var (
 		tmpfile   *os.File
-		file      npio.Object
+		file      storio.Object
 		group     string
 		customID  string
 		overwrite bool
@@ -409,7 +400,7 @@ func (s *server) Upload(stream protocol.ServiceAPI_UploadServer) (err error) {
 		tmpfile,
 		storage.WithTags(tags),
 		storage.WithCustomID(
-			npio.ObjectIDType(customID),
+			storio.ObjectIDType(customID),
 		),
 		storage.WithOverwrite(overwrite),
 	)
@@ -440,10 +431,10 @@ func (s *server) Upload(stream protocol.ServiceAPI_UploadServer) (err error) {
 }
 
 // UploadObject for the specific group of files
-func (s *server) UploadObject(ctx context.Context, group, customID string, overwrite bool, tags []string, obj io.Reader) (npio.Object, error) {
+func (s *server) UploadObject(ctx context.Context, group, customID string, overwrite bool, tags []string, obj io.Reader) (storio.Object, error) {
 	var (
 		err    error
-		nobj   npio.Object
+		nobj   storio.Object
 		object *protocol.Object
 	)
 	ctxlogger.Get(ctx).Error("UploadObject", zap.String("group", group))
@@ -460,7 +451,7 @@ func (s *server) UploadObject(ctx context.Context, group, customID string, overw
 	nobj, err = s.store.Upload(ctx, group, obj,
 		storage.WithTags(tags),
 		storage.WithCustomID(
-			npio.ObjectIDType(customID),
+			storio.ObjectIDType(customID),
 		),
 		storage.WithOverwrite(overwrite),
 	)
@@ -498,7 +489,7 @@ func (s *server) Receive(message nc.Message) error {
 		err     error
 		ctx     = message.Context()
 		event   models.Event
-		cObject npio.Object
+		cObject storio.Object
 	)
 
 	// Unpack event from body
@@ -534,7 +525,7 @@ func (s *server) Receive(message nc.Message) error {
 			if !isNotFound {
 				// send processed error event
 				if event.Object != nil {
-					_ = event.Object.Manifest.SetValue(cObject.Manifest())
+					_ = event.Object.Workflow.SetValue(cObject.Workflow())
 					_ = event.Object.Meta.SetValue(cObject.Meta())
 				}
 				s.sendEvent(ctx, models.ProcessedEventType, event.Object, err)
@@ -547,7 +538,7 @@ func (s *server) Receive(message nc.Message) error {
 
 	switch event.Type {
 	case models.RefreshEventType:
-		cObject.Meta().ResetCompletion()
+		cObject.Meta().CleanSubItems()
 		fallthrough
 	case models.UpdateEventType:
 		s.updateEventAction(ctx, &event, cObject, fields)
@@ -561,13 +552,12 @@ func (s *server) Receive(message nc.Message) error {
 	return message.Ack()
 }
 
-func (s *server) updateEventAction(ctx context.Context, event *models.Event, cObject npio.Object, fields []zapcore.Field) {
+func (s *server) updateEventAction(ctx context.Context, event *models.Event, cObject storio.Object, fields []zapcore.Field) {
 	var (
 		err        error
 		isComplete bool
 		items      []*models.ItemMeta
 	)
-	cObject.Meta().RemoveExcessTasks(cObject.Manifest())
 
 	// Clean object before continue
 	if cObject.Meta().Main.IsEmpty() {
@@ -581,10 +571,12 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 		ctxlogger.Get(ctx).Error("invalid processing object", append(fields, zap.Error(err))...)
 		return
 	}
+
+	wf := s.store.ObjectWorkflow(ctx, cObject)
 	if event.Type == models.RefreshEventType {
 		items = cObject.Meta().Items
 	} else {
-		items = cObject.Meta().ExcessItems(cObject.Manifest())
+		items = cObject.Meta().ExcessItems(wf)
 	}
 	// Remove redundant extra objects
 	_ = s.removeObjectItems(ctx, cObject, items, fields...)
@@ -605,7 +597,7 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 	case isComplete:
 		ctxlogger.Get(ctx).Info("process complete", fields...)
 		if event.Object != nil {
-			_ = event.Object.Manifest.SetValue(cObject.Manifest())
+			_ = event.Object.Workflow.SetValue(cObject.Workflow())
 			_ = event.Object.Meta.SetValue(cObject.Meta())
 		}
 		s.sendEvent(ctx, models.ProcessedEventType, event.Object, nil)
@@ -615,7 +607,7 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 	}
 }
 
-func (s *server) removeObjectItems(ctx context.Context, cObject npio.Object,
+func (s *server) removeObjectItems(ctx context.Context, cObject storio.Object,
 	items []*models.ItemMeta, fields ...zapcore.Field) error {
 	if len(items) == 0 {
 		return nil
@@ -632,14 +624,13 @@ func (s *server) removeObjectItems(ctx context.Context, cObject npio.Object,
 		ctxlogger.Get(ctx).Debug("refresh delete old",
 			append(fields, zap.Strings(`objects`, removeSubObjects))...)
 	}
-	cObject.Meta().RemoveExcessTasks(cObject.Manifest())
 	return err
 }
 
-func (s *server) protoObject(obj npio.Object) (_ *protocol.Object, err error) {
+func (s *server) protoObject(obj storio.Object) (_ *protocol.Object, err error) {
 	var manifest *protocol.Manifest
-	if obj.Manifest() != nil {
-		if manifest, err = protocol.ManifestFromModel(obj.Manifest()); err != nil {
+	if wf := obj.Workflow(); wf != nil && !wf.IsEmpty() {
+		if manifest, err = protocol.ManifestFromModel(wf.ToManifest()); err != nil {
 			return nil, err
 		}
 	}
@@ -647,18 +638,18 @@ func (s *server) protoObject(obj npio.Object) (_ *protocol.Object, err error) {
 		Id:     obj.ID().String(),
 		Bucket: obj.Bucket(),
 		Path:   obj.Path(),
-		HashId: obj.MustMeta().Main.HashID,
+		HashId: obj.MetaOrNew().Main.HashID,
 
 		Status: &protocol.ObjectStatus{
 			Status:  obj.Status().String(),
 			Message: obj.StatusMessage(),
 		},
 
-		ObjectType:  string(obj.MustMeta().Main.Type),
-		ContentType: obj.MustMeta().Main.ContentType,
+		ObjectType:  string(obj.MetaOrNew().Main.Type),
+		ContentType: obj.MetaOrNew().Main.ContentType,
 		Manifest:    manifest,
-		Meta:        protocol.MetaFromModel(obj.MustMeta()),
-		Size:        uint32(obj.MustMeta().Main.Size),
+		Meta:        protocol.MetaFromModel(obj.MetaOrNew()),
+		Size:        uint32(obj.MetaOrNew().Main.Size),
 
 		CreatedAt: obj.CreatedAt().UnixNano(),
 		UpdatedAt: obj.UpdatedAt().UnixNano(),

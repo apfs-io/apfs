@@ -30,7 +30,7 @@ func ProtocolAPIObject(ctx context.Context, eventsConf *appcontext.EventstreamCo
 		api.WithTaskProcessingLimit(storageConf.ProcessingTaskLimit),
 		api.WithEventstream(events),
 		api.WithUpdateState(updateLocker(storageConf)),
-		api.WithStorageConverters(Converters(storageConf, logger)),
+		api.WithStorageConverters(Converters(ctx, storageConf, logger)),
 		api.WithRetries(storageConf.ProcessingMaxRetries),
 	)
 	if err != nil {

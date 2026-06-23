@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	npio "github.com/apfs-io/apfs/internal/io"
 	"github.com/apfs-io/apfs/internal/object"
+	storio "github.com/apfs-io/apfs/internal/storio"
 )
 
 var (
@@ -79,7 +79,7 @@ func prepareExt(ext string) string {
 }
 
 func updateObjectFileInfo(obj *object.Object, info os.FileInfo) {
-	meta := obj.MustMeta()
+	meta := obj.MetaOrNew()
 
 	if info != nil {
 		modeTime := info.ModTime()
@@ -94,7 +94,7 @@ func updateObjectFileInfo(obj *object.Object, info os.FileInfo) {
 	}
 }
 
-func isValidID(id npio.ObjectID) bool {
+func isValidID(id storio.ObjectID) bool {
 	if id == nil || id.ID() == "" {
 		return false
 	}
@@ -109,7 +109,7 @@ func isValidID(id npio.ObjectID) bool {
 	return true
 }
 
-func objectFromID(id npio.ObjectID) *object.Object {
+func objectFromID(id storio.ObjectID) *object.Object {
 	filepath := strings.Trim(string(id.ID()), "/")
 	splits := strings.SplitN(filepath, "/", 2)
 	if len(splits) != 2 {

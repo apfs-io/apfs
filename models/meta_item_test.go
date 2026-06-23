@@ -24,5 +24,32 @@ func TestItemMetaSetGetExt(t *testing.T) {
 				"test": nil,
 			},
 		},
-	}, item.Ext)
+	}, item.Attributes)
+}
+
+func TestItemMetaFullname(t *testing.T) {
+	item := ItemMeta{Name: "main", NameExt: "mp4"}
+	assert.Equal(t, "main.mp4", item.Fullname())
+
+	item2 := ItemMeta{Name: "main.mp4", NameExt: "mp4"}
+	assert.Equal(t, "main.mp4", item2.Fullname())
+
+	item3 := ItemMeta{Name: "thumb", NameExt: ""}
+	assert.Equal(t, "thumb", item3.Fullname())
+}
+
+func TestItemMetaUpdateName(t *testing.T) {
+	var item ItemMeta
+	item.UpdateName("thumbs/1.jpg")
+	assert.Equal(t, "1", item.Name)
+	assert.Equal(t, "jpg", item.NameExt)
+	assert.Equal(t, "thumbs/1.jpg", item.Path)
+}
+
+func TestItemMetaEffectivePath(t *testing.T) {
+	item := ItemMeta{Name: "main", NameExt: "mp4"}
+	assert.Equal(t, "main.mp4", item.EffectivePath())
+
+	item2 := ItemMeta{Name: "1", NameExt: "jpg", Path: "thumbs/1.jpg"}
+	assert.Equal(t, "thumbs/1.jpg", item2.EffectivePath())
 }

@@ -1,0 +1,20 @@
+# echo-args — test procedure: echoes arguments then stdin.
+# Output: "<arg1> <arg2>\n<stdin>\n"
+
+driver: exec
+
+args:
+  - "{{arg1}}"
+  - "{{arg2}}"
+
+params:
+  - name: arg1
+    type: string
+  - name: arg2
+    type: string
+  - name: input
+    type: binary
+    stdin: true
+
+output:
+  type: binary

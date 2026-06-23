@@ -1,0 +1,78 @@
+# User Avatar Workflow
+#
+# Validates, resizes, and strips metadata from a user-uploaded avatar.
+# A small square thumbnail is also produced for notification emails.
+#
+# Procedures used (deploy/procedures/):
+#   image-resize-w   – resize to max-width via ImageMagick
+#   image-strip-meta – strip EXIF data via ImageMagick mogrify
+#
+# runs-on tags:
+#   image-worker – any node that has ImageMagick installed.
+
+name: user-avatar
+
+on:
+  content_types:
+    - image/jpeg
+    - image/png
+    - image/webp
+  max_size: 5MB
+  keep_original: false
+
+jobs:
+  avatar:
+    name: Avatar (256 px)
+    runs-on: image-worker
+    steps:
+      - name: resize
+        uses: procedure
+        with:
+          name: image-resize-w
+          args:
+            - "256"
+            - "{{inputFile}}"
+            - "{{outputFile}}"
+          input-file: "{{inputFile}}"
+          output-file: "{{outputFile}}"
+          target: avatar.jpg
+
+      - name: strip-exif
+        uses: procedure
+        with:
+          name: image-strip-meta
+          args:
+            - "{{inputFile}}"
+            - "{{outputFile}}"
+          input-file: "{{inputFile}}"
+          output-file: "{{outputFile}}"
+          target: avatar.jpg
+
+  micro:
+    name: Micro avatar (40 px)
+    runs-on: image-worker
+    needs:
+      - avatar
+    steps:
+      - name: resize
+        uses: procedure
+        with:
+          name: image-resize-w
+          args:
+            - "40"
+            - "{{inputFile}}"
+            - "{{outputFile}}"
+          input-file: "{{inputFile}}"
+          output-file: "{{outputFile}}"
+          target: micro.jpg
+
+      - name: strip-exif
+        uses: procedure
+        with:
+          name: image-strip-meta
+          args:
+            - "{{inputFile}}"
+            - "{{outputFile}}"
+          input-file: "{{inputFile}}"
+          output-file: "{{outputFile}}"
+          target: micro.jpg

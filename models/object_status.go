@@ -59,8 +59,8 @@ func (s ObjectStatus) IsError() bool {
 	return s == StatusError
 }
 
-// Improtant returns more significant status one of two
-func (s ObjectStatus) Improtant(status2 ObjectStatus) ObjectStatus {
+// Important returns more significant status one of two
+func (s ObjectStatus) Important(status2 ObjectStatus) ObjectStatus {
 	if slices.Index(statusList, s) > slices.Index(statusList, status2) {
 		return s
 	}

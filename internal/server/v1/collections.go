@@ -8,14 +8,14 @@ import (
 
 	"github.com/apfs-io/apfs/internal/driver/fs"
 	"github.com/apfs-io/apfs/internal/driver/s3"
-	"github.com/apfs-io/apfs/internal/io"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor/memory"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor/redis"
+	"github.com/apfs-io/apfs/internal/storio"
 )
 
 // newStorage creates the new accessor collection object
-func newStorage(ctx context.Context, connect string) (io.StorageAccessor, error) {
+func newStorage(ctx context.Context, connect string) (storio.StorageAccessor, error) {
 	var (
 		i      = strings.Index(connect, "://")
 		driver = connect[:i]

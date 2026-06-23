@@ -1,7 +1,7 @@
 package fs
 
 import (
-	"github.com/apfs-io/apfs/internal/io/objectpath"
+	"github.com/apfs-io/apfs/internal/storio/objectpath"
 )
 
 // Option property modification

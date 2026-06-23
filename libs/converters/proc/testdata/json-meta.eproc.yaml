@@ -1,0 +1,14 @@
+# json-meta — test procedure that outputs a JSON object.
+# Used to verify target-meta routing.
+
+driver: shell
+
+run: |
+  printf '{"label":"%s"}' "{{label}}"
+
+params:
+  - name: label
+    type: string
+
+output:
+  type: json

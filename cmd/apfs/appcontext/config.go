@@ -56,6 +56,17 @@ type EventstreamConfig struct {
 	PoolSize    int    `json:"pool_size" yaml:"pool_size" env:"EVENTSTREAM_POOL_SIZE"`
 }
 
+// WorkerConfig holds configuration specific to a worker (processor) instance.
+type WorkerConfig struct {
+	// Tags are labels that describe this worker's capabilities.
+	// Workflow jobs declare a runs-on: value; the worker handles a job only when
+	// at least one of its tags matches that value.
+	//
+	// Common tags: cpu, gpu, small, large, ffmpeg-6, label:<custom>
+	// Set as comma-separated ENV: WORKER_TAGS=gpu,large,ffmpeg-6
+	Tags []string `json:"tags" yaml:"tags" env:"WORKER_TAGS"`
+}
+
 // ConfigType contains all application options
 type ConfigType struct {
 	Processing bool `cli:"processing"`
@@ -72,6 +83,7 @@ type ConfigType struct {
 	Server      ServerConfig      `json:"server" yaml:"server"`
 	Storage     StorageConfig     `json:"storage" yaml:"storage"`
 	Eventstream EventstreamConfig `json:"eventstream" yaml:"eventstream"`
+	Worker      WorkerConfig      `json:"worker" yaml:"worker"`
 }
 
 // String implementation of Stringer interface

@@ -7,11 +7,9 @@ package object
 
 import (
 	"encoding/json"
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/apfs-io/apfs/internal/io"
+	"github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/models"
 )
 
@@ -22,7 +20,7 @@ import (
 // Meta contains information about all related to the object subfiles like thumbs or postprocessed files
 type Object struct {
 	// ID of the object
-	id io.ObjectIDType
+	id storio.ObjectIDType
 
 	// Group where located out file
 	bucket string
@@ -30,14 +28,14 @@ type Object struct {
 	// filepath of root directory
 	filepath string
 
-	// manifest object information
-	manifest *models.Manifest
+	// workflow (bucket-level processing manifest)
+	workflow *models.Workflow
 
 	// meta information of files
 	meta *models.Meta
 
 	// Status of processing
-	status    io.Status
+	status    storio.Status
 	statusMsg string
 
 	createdAt time.Time
@@ -45,7 +43,7 @@ type Object struct {
 }
 
 // NewObject liked to bucket and object codename
-func NewObject(id io.ObjectIDType, bucket, filepath string) *Object {
+func NewObject(id storio.ObjectIDType, bucket, filepath string) *Object {
 	return &Object{
 		id:        id,
 		bucket:    bucket,
@@ -60,7 +58,7 @@ func (f *Object) String() string {
 }
 
 // ID of the object in the storage
-func (f *Object) ID() io.ObjectIDType {
+func (f *Object) ID() storio.ObjectIDType {
 	return f.id
 }
 
@@ -86,44 +84,38 @@ func (f *Object) Meta() *models.Meta {
 }
 
 // MustMeta information returns from the object or creates new if not exists
-func (f *Object) MustMeta() *models.Meta {
+func (f *Object) MetaOrNew() *models.Meta {
 	if f.meta == nil {
 		f.meta = &models.Meta{}
 	}
 	return f.meta
 }
 
-// Manifest information of the object
-func (f *Object) Manifest() *models.Manifest {
-	return f.manifest
+// Workflow returns the bucket-level processing workflow for this object.
+func (f *Object) Workflow() *models.Workflow {
+	return f.workflow
 }
 
-// MustManifest information returns from the object or creates new if not exists
-func (f *Object) MustManifest() *models.Manifest {
-	if f.manifest == nil {
-		f.manifest = &models.Manifest{}
+// MustWorkflow returns the workflow, creating an empty one if nil.
+func (f *Object) WorkflowOrNew() *models.Workflow {
+	if f.workflow == nil {
+		f.workflow = &models.Workflow{}
 	}
-	return f.manifest
+	return f.workflow
 }
 
 // Status returns the object status
-func (f *Object) Status() io.Status {
+func (f *Object) Status() storio.Status {
 	return f.status
 }
 
-// StatusMessage returns common message of all items
+// StatusMessage returns the status message set on this object.
 func (f *Object) StatusMessage() string {
-	var msgs []string
-	for _, task := range f.meta.Tasks {
-		if task.StatusMessage != "" {
-			msgs = append(msgs, fmt.Sprintf("%s: %s", task.ID, task.StatusMessage))
-		}
-	}
-	return strings.Join(msgs, "\n")
+	return f.statusMsg
 }
 
 // StatusUpdate state
-func (f *Object) StatusUpdate(status io.Status) {
+func (f *Object) StatusUpdate(status storio.Status) {
 	f.status = status
 }
 
@@ -182,7 +174,7 @@ func (f *Object) MarshalJSON() ([]byte, error) {
 		ID:        f.id,
 		Bucket:    f.bucket,
 		Filepath:  f.filepath,
-		Manifest:  f.manifest,
+		Workflow:  f.workflow,
 		Meta:      f.meta,
 		CreatedAt: f.createdAt,
 		UpdatedAt: f.updatedAt,
@@ -200,7 +192,7 @@ func (f *Object) UnmarshalJSON(data []byte) error {
 			id:        objState.ID,
 			bucket:    objState.Bucket,
 			filepath:  objState.Filepath,
-			manifest:  objState.Manifest,
+			workflow:  objState.Workflow,
 			meta:      objState.Meta,
 			createdAt: objState.CreatedAt,
 			updatedAt: objState.UpdatedAt,

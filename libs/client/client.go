@@ -15,8 +15,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/apfs-io/apfs/internal/io/streamreader"
 	protocol "github.com/apfs-io/apfs/internal/server/protocol/v1"
+	"github.com/apfs-io/apfs/internal/storio/streamreader"
 	"github.com/apfs-io/apfs/libs/storerrors"
 	"github.com/apfs-io/apfs/models"
 )
@@ -30,7 +30,7 @@ type client struct {
 
 // Connect new client to disk service
 // address should be in format tcp://host:port/default-group-name
-// Scheme tcp:// or dns:// is required
+// Scheme tcp:// or dsn:// is required
 func Connect(ctx context.Context, address string, opts ...grpc.DialOption) (Client, error) {
 	if len(opts) < 1 {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -135,52 +135,6 @@ func (c *client) Get(ctx context.Context, id *ObjectID, opts ...RequestOption) (
 	}
 
 	return obj, reader, err
-}
-
-// SetManifest of the group
-func (c *client) SetManifest(ctx context.Context, manifest *models.Manifest, opts ...RequestOption) error {
-	protoManifest, err := protocol.ManifestFromModel(manifest.PrepareInfo())
-	if err != nil {
-		return err
-	}
-
-	var requestOptions RequestOptions
-	for _, opt := range opts {
-		opt(&requestOptions)
-	}
-	requestOptions.prepareGroup(c.defaultGroup)
-
-	status, err := c.sclient.SetManifest(ctx, &protocol.DataManifest{
-		Group:    requestOptions.group,
-		Manifest: protoManifest,
-	}, requestOptions.grpcOpts...)
-	if err == nil && !status.GetStatus().IsOK() {
-		err = errors.New(status.GetMessage())
-	}
-	return err
-}
-
-// GetManifest of the group
-func (c *client) GetManifest(ctx context.Context, opts ...RequestOption) (*models.Manifest, error) {
-	var requestOptions RequestOptions
-	for _, opt := range opts {
-		opt(&requestOptions)
-	}
-	requestOptions.prepareGroup(c.defaultGroup)
-
-	response, err := c.sclient.GetManifest(ctx,
-		&protocol.ManifestGroup{
-			Group: requestOptions.group,
-		}, requestOptions.grpcOpts...)
-	if err != nil {
-		return nil, err
-	}
-
-	if !response.GetStatus().IsOK() {
-		return nil, errors.New(response.GetMessage())
-	}
-
-	return response.GetManifest().ToModel(), nil
 }
 
 // UploadFile object into storage
@@ -298,6 +252,49 @@ func (c *client) Delete(ctx context.Context, id any, opts ...RequestOption) erro
 	return err
 }
 
+// SetWorkflow stores the workflow manifest for the group.
+func (c *client) SetWorkflow(ctx context.Context, w *models.Workflow, opts ...RequestOption) error {
+	if w == nil {
+		return nil
+	}
+	protoManifest, err := protocol.ManifestFromModel(w.ToManifest())
+	if err != nil {
+		return err
+	}
+	var requestOptions RequestOptions
+	for _, opt := range opts {
+		opt(&requestOptions)
+	}
+	requestOptions.prepareGroup(c.defaultGroup)
+	status, err := c.sclient.SetManifest(ctx, &protocol.DataManifest{
+		Group:    requestOptions.group,
+		Manifest: protoManifest,
+	}, requestOptions.grpcOpts...)
+	if err == nil && !status.GetStatus().IsOK() {
+		err = errors.New(status.GetMessage())
+	}
+	return err
+}
+
+// GetWorkflow reads the workflow manifest for the group.
+func (c *client) GetWorkflow(ctx context.Context, opts ...RequestOption) (*models.Workflow, error) {
+	var requestOptions RequestOptions
+	for _, opt := range opts {
+		opt(&requestOptions)
+	}
+	requestOptions.prepareGroup(c.defaultGroup)
+	response, err := c.sclient.GetManifest(ctx, &protocol.ManifestGroup{
+		Group: requestOptions.group,
+	}, requestOptions.grpcOpts...)
+	if err != nil {
+		return nil, err
+	}
+	if !response.GetStatus().IsOK() {
+		return nil, errors.New(response.GetMessage())
+	}
+	return models.FromLegacyManifest(response.GetManifest().ToModel()), nil
+}
+
 // WithGroup returns client with group name by default
 func (c *client) WithGroup(name string) Client {
 	return &client{
@@ -328,7 +325,7 @@ func dial(ctx context.Context, network, addr string, opts ...grpc.DialOption) (*
 	switch network {
 	case "tcp", "grpc":
 		return dialTCP(ctx, addr, opts...)
-	case "dns":
+	case "dsn", "apfs":
 		//nolint:staticcheck
 		return grpc.DialContext(ctx, addr, opts...)
 	case "unix":

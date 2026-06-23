@@ -14,88 +14,77 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/apfs-io/apfs/internal/context/ctxlogger"
-	npio "github.com/apfs-io/apfs/internal/io"
 	"github.com/apfs-io/apfs/internal/storage/converters"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor/memory"
+	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/models"
 )
 
 // Error definitions for specific failure scenarios
 var (
-	ErrStorageNoConverters       = errors.New("[processor] no eny converter registered") // No converters available for processing
-	ErrStorageObjectInProcessing = errors.New("[processor] object in processing")        // Object is already being processed
-	ErrStorageInvalidAction      = errors.New("[processor] invalid action")              // Invalid action encountered
+	ErrStorageNoConverters       = errors.New("[processor] no converter registered")
+	ErrStorageObjectInProcessing = errors.New("[processor] object in processing")
+	ErrStorageInvalidAction      = errors.New("[processor] invalid action")
 )
 
-// Processor struct orchestrates task processing
+// Processor orchestrates manifest-driven task processing.
+// It operates on models.Manifest (v1) directly; once Phase 4 replaces it
+// with the Workflow executor this struct will be removed.
 type Processor struct {
-	// Mutex for thread-safe processing status updates
 	mx sync.Mutex
 
-	// Storage interface for object operations
 	storage Storage
 
-	// Accessor for file objects
-	driver npio.StorageAccessor
+	driver storio.StorageAccessor
 
-	// List of converters for task processing
 	converters []converters.Converter
 
-	// Key-value accessor for processing statuses
 	processingStatus kvaccessor.KVAccessor
 
-	// Maximum number of retries for task processing
 	maxRetries int
 }
 
-// NewProcessor creates a new Processor instance with the provided options
+// NewProcessor creates a Processor with the provided options.
 func NewProcessor(opts ...Option) (*Processor, error) {
 	options := &Options{}
 	for _, opt := range opts {
 		opt(options)
 	}
-	// Validate options and set default processing status if not provided
 	if err := options.validate(); err != nil {
 		return nil, err
 	}
 	if options.processingStatus == nil {
-		options.processingStatus = memory.NewKVMemory(time.Minute * 20) // Default in-memory KV store
+		options.processingStatus = memory.NewKVMemory(time.Minute * 20)
 	}
 	return &Processor{
 		storage:          options.storage,
 		driver:           options.driver,
 		converters:       options.converters,
 		processingStatus: options.processingStatus,
-		maxRetries:       max(options.maxRetries, 1), // Ensure at least one retry
+		maxRetries:       max(options.maxRetries, 1),
 	}, nil
 }
 
-// ProcessTasks processes tasks for a given object and returns completion status and error
+// ProcessTasks processes pending manifest tasks for an object.
+// It returns (completed bool, error).
 func (s *Processor) ProcessTasks(ctx context.Context, obj any, maxTasks, maxStages int) (bool, error) {
-	cObject, err := s.storage.Object(ctx, obj) // Open the object
+	cObject, err := s.storage.Object(ctx, obj)
 	if err != nil {
 		return false, err
 	}
 
-	var (
-		meta     = cObject.MustMeta()                     // Retrieve metadata of the object
-		manifest = s.storage.ObjectManifest(ctx, cObject) // Retrieve the object's manifest
-	)
+	manifest := workflowToManifest(s.storage.ObjectWorkflow(ctx, cObject))
 
-	// Ensure there are converters available if tasks exist
-	if manifest.TaskCount() > 0 && len(s.converters) < 1 {
+	if manifest.TaskCount() > 0 && len(s.converters) == 0 {
 		return false, ErrStorageNoConverters
 	}
 
-	// Check if the object is already being processed
 	if !s.startProcessing(ctx, cObject) {
 		return false, errors.Wrap(ErrStorageObjectInProcessing, cObject.ID().String())
 	}
 
-	// Defer cleanup and status updates
 	defer func() {
-		// Update object metadata
 		if upErr := s.storage.UpdateObjectInfo(ctx, cObject); upErr != nil {
 			ctxlogger.Get(ctx).Error("update meta info",
 				zap.String(`object_bucket`, cObject.Bucket()),
@@ -105,7 +94,6 @@ func (s *Processor) ProcessTasks(ctx context.Context, obj any, maxTasks, maxStag
 				err = upErr
 			}
 		}
-		// Update processing status if still marked as processing
 		if s.getProcessingStatus(ctx, cObject).IsProcessing() {
 			if sErr := s.setProcessingStatus(ctx, cObject, processingStatusBy(cObject, manifest, err)); sErr != nil {
 				ctxlogger.Get(ctx).Error(`update processing status`,
@@ -115,74 +103,84 @@ func (s *Processor) ProcessTasks(ctx context.Context, obj any, maxTasks, maxStag
 		}
 	}()
 
-	// Update manifest version in metadata
+	meta := cObject.MetaOrNew()
 	meta.ManifestVersion = manifest.GetVersion()
 
-	// Begin task processing loop
 PROCESSING_LOOP:
 	for _, stage := range manifest.GetStages() {
-		// Iterate through tasks in the stage
 		for _, task := range stage.Tasks {
-			// Skip tasks that are already complete
-			if meta.IsProcessingCompleteTask(task, s.maxRetries) {
+			// Skip if this target already exists in meta
+			if task.Target != "" && meta.ItemByName(task.Target) != nil {
 				continue
 			}
-			// Skip tasks if no suitable converter is available
 			if !s.canProcess(task) {
 				ctxlogger.Get(ctx).Debug(`skip task`,
 					zap.String(`task_id`, task.ID),
-					zap.Int(`task_actions`, len(task.Actions)),
 					zap.String(`object_bucket`, cObject.Bucket()),
 					zap.String(`object_path`, cObject.Path()),
-					zap.Stack("stack"),
 					zap.String("reason", "no suitable converter"))
-				break // Skip the stage
+				break
 			}
-			// Execute the task
 			if err := s.executeTask(ctx, cObject, manifest, task); err != nil {
 				ctxlogger.Get(ctx).Error("execute task",
 					zap.String(`task_id`, task.ID),
-					zap.Int(`task_actions`, len(task.Actions)),
 					zap.String(`object_bucket`, cObject.Bucket()),
 					zap.String(`object_path`, cObject.Path()),
-					zap.Error(err),
-					zap.Stack("stack"))
+					zap.Error(err))
 				return false, err
 			}
-			// Stop processing if maxTasks limit is reached
 			if maxTasks--; maxTasks == 0 {
 				break PROCESSING_LOOP
 			}
 		}
-		// Stop processing if maxStages limit is reached
 		if maxStages--; maxStages == 0 {
 			break
 		}
 	}
 
-	// Return true if manifest is nil or all tasks are complete
-	return manifest == nil || meta.IsProcessingComplete(manifest), err
+	// All manifest targets produced?
+	return s.isComplete(cObject, manifest), err
 }
 
-// executeTask processes an individual task
-func (s *Processor) executeTask(ctx context.Context, cObject npio.Object, manifest *models.Manifest, task *models.ManifestTask) error {
+// isComplete returns true when all REQUIRED manifest targets exist in meta.Items.
+// Tasks with Required=false (optional/can-fail tasks) are ignored.
+func (s *Processor) isComplete(cObject storio.Object, manifest *models.Manifest) bool {
+	if manifest == nil || manifest.TaskCount() == 0 {
+		return true
+	}
+	meta := cObject.MetaOrNew()
+	for _, stage := range manifest.GetStages() {
+		for _, task := range stage.Tasks {
+			if task.Target == "" {
+				continue
+			}
+			// Required tasks must produce their target file.
+			// !Required means the task is optional (inverted semantics).
+			if task.Required && meta.ItemByName(task.Target) == nil {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// executeTask runs a single manifest task on cObject.
+func (s *Processor) executeTask(ctx context.Context, cObject storio.Object, manifest *models.Manifest, task *models.ManifestTask) error {
 	var (
 		err            error
-		finalizers     []io.Closer // List of resources to close after processing
-		meta           = cObject.MustMeta()
-		sourceMeta     = meta.ItemByName(task.Source) // Metadata of the source item
+		finalizers     []io.Closer
+		meta           = cObject.MetaOrNew()
+		sourceMeta     = meta.ItemByName(task.Source)
 		targetFilename string
 		targetMeta     *models.ItemMeta
 		inputStream    io.Reader
 		out            converters.Output
 	)
 
-	// Ensure source metadata exists
 	if sourceMeta == nil {
 		return fmt.Errorf("source meta information not found [%s]", task.Source)
 	}
 
-	// Determine target metadata
 	if task.Target == "" {
 		targetMeta = sourceMeta
 	} else {
@@ -197,7 +195,6 @@ func (s *Processor) executeTask(ctx context.Context, cObject npio.Object, manife
 		)
 	}
 
-	// Log task execution details
 	ctxlogger.Get(ctx).Debug("execute processing task",
 		zap.String(`task_id`, task.ID),
 		zap.String(`task_source`, task.Source),
@@ -207,7 +204,6 @@ func (s *Processor) executeTask(ctx context.Context, cObject npio.Object, manife
 		zap.Int(`task_count`, manifest.TaskCount()),
 		zap.Int(`action_count`, len(task.Actions)))
 
-	// Defer cleanup of IO resources
 	defer func() {
 		for _, obj := range finalizers {
 			if err := obj.Close(); err != nil {
@@ -216,7 +212,6 @@ func (s *Processor) executeTask(ctx context.Context, cObject npio.Object, manife
 		}
 	}()
 
-	// Open source stream
 	if obj, err := s.driver.Read(ctx, cObject, task.Source); err != nil {
 		return err
 	} else {
@@ -224,9 +219,8 @@ func (s *Processor) executeTask(ctx context.Context, cObject npio.Object, manife
 		inputStream = obj
 	}
 
-	// Process each action in the task
 	for _, action := range task.Actions {
-		conv := s.converterByAction(action) // Retrieve the appropriate converter
+		conv := s.converterByAction(action)
 		if conv == nil {
 			err = errors.Wrap(ErrStorageInvalidAction, action.Name)
 			break
@@ -234,13 +228,11 @@ func (s *Processor) executeTask(ctx context.Context, cObject npio.Object, manife
 		in := converters.NewInput(inputStream, task, action, sourceMeta)
 		out = converters.NewOutput(targetMeta)
 
-		// Execute the action using the converter
 		if err = conv.Process(in, out); err != nil && err != converters.ErrSkip {
 			err = errors.Wrap(err, "process action")
 			break
 		}
 
-		// Handle skipped actions or reset input stream
 		if err == converters.ErrSkip || out.ObjectReader() == nil {
 			inputStream, err = resetReader(in.ObjectReader())
 			if err != nil && !errors.Is(err, errReaderResetPosition) {
@@ -251,14 +243,11 @@ func (s *Processor) executeTask(ctx context.Context, cObject npio.Object, manife
 			continue
 		}
 
-		// Finalize processing if output differs from input
 		if !out.IsEqual(in) {
 			if cl := getFinishCloser(conv, in, out); cl != nil {
 				finalizers = append(finalizers, cl)
 			}
 		}
-
-		// Update input stream for the next action
 		inputStream = out.ObjectReader()
 
 		if err != nil && !errors.Is(err, errReaderResetPosition) {
@@ -266,47 +255,54 @@ func (s *Processor) executeTask(ctx context.Context, cObject npio.Object, manife
 		}
 	}
 
-	// Update metadata and save the target file
 	if targetFilename == "" {
 		targetFilename = models.SourceFilename(task.Source, meta.Main.NameExt)
 		out = nil
 	}
 
-	// Mark the task as complete or failed if an error occurred
-	meta.Complete(targetMeta, task, err)
+	// On error: if the task is not required, swallow the error
+	if err != nil && !task.Required {
+		ctxlogger.Get(ctx).Warn("task failed but not required",
+			zap.String("task_id", task.ID), zap.Error(err))
+		err = nil
+	}
 
-	if err != nil || (out != nil && !isEmptyOutput(out.ObjectReader())) || !targetMeta.IsEmpty() {
+	// Always persist metadata for tasks with a named target (even failed optional ones),
+	// so ExcessItemsFromManifest can discover and clean them up later if needed.
+	if err == nil && (task.Target != "" || out != nil && !isEmptyOutput(out.ObjectReader()) || !targetMeta.IsEmpty()) {
 		targetMeta.UpdatedAt = time.Now()
 		targetMeta.UpdateName(targetFilename)
+
+		updateProcessingState(cObject, manifest)
+
 		var outputStream io.Reader
 		if out != nil {
 			outputStream = out.ObjectReader()
 		}
 
-		// Update the processing status
-		updateProcessingState(cObject, manifest)
-
-		// Upload the processed output
 		if isNil(outputStream) {
-			if err := s.driver.UpdateMeta(ctx, cObject, targetFilename, targetMeta); err != nil {
-				return errors.Wrapf(err, "execute task update meta:'%s'", targetFilename)
+			if upErr := s.driver.UpdateMeta(ctx, cObject, targetFilename, targetMeta); upErr != nil {
+				return errors.Wrapf(upErr, "execute task update meta:'%s'", targetFilename)
 			}
 		} else {
-			if err := s.driver.Update(ctx, cObject, targetFilename, outputStream, targetMeta); err != nil {
-				return errors.Wrapf(err, "execute task upload:'%s'", targetFilename)
+			if upErr := s.driver.Update(ctx, cObject, targetFilename, outputStream, targetMeta); upErr != nil {
+				return errors.Wrapf(upErr, "execute task upload:'%s'", targetFilename)
 			}
+		}
+
+		// Store artifact in meta
+		if task.Target != "" {
+			targetMeta.Role = task.ID
+			meta.SetItem(targetMeta)
 		}
 	}
 
-	// If the task is not required, then skip error handling
 	if err != nil && task.Required {
 		return err
 	}
-
 	return nil
 }
 
-// Additional helper methods
 func (s *Processor) converterByAction(action *models.Action) converters.Converter {
 	for _, conv := range s.converters {
 		if conv.Test(action) {
@@ -325,7 +321,7 @@ func (s *Processor) canProcess(task *models.ManifestTask) bool {
 	return len(task.Actions) == 0
 }
 
-func (s *Processor) startProcessing(ctx context.Context, cObject npio.Object) bool {
+func (s *Processor) startProcessing(ctx context.Context, cObject storio.Object) bool {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 
@@ -333,18 +329,18 @@ func (s *Processor) startProcessing(ctx context.Context, cObject npio.Object) bo
 	status, _ := s.processingStatus.Get(ctx, key)
 
 	if models.ObjectStatus(status).IsEmpty() {
-		return s.processingStatus.TrySet(ctx, key, status) == nil
+		return s.processingStatus.TrySet(ctx, key, models.StatusProcessing.String()) == nil
 	}
 	return false
 }
 
-func (s *Processor) getProcessingStatus(ctx context.Context, cObject npio.Object) models.ObjectStatus {
+func (s *Processor) getProcessingStatus(ctx context.Context, cObject storio.Object) models.ObjectStatus {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	return GetProcessingStatus(ctx, s.processingStatus, s.storage, cObject)
 }
 
-func (s *Processor) setProcessingStatus(ctx context.Context, cObject npio.Object, status models.ObjectStatus) error {
+func (s *Processor) setProcessingStatus(ctx context.Context, cObject storio.Object, status models.ObjectStatus) error {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	return SetProcessingStatus(ctx, s.processingStatus, cObject, status)
@@ -355,8 +351,8 @@ func getFinishCloser(conv converters.Converter, in converters.Input, out convert
 		return closer(func() error { return finisher.Finish(in, out) })
 	}
 	if out != nil {
-		if closer, ok := out.ObjectReader().(io.Closer); ok {
-			return closer
+		if c, ok := out.ObjectReader().(io.Closer); ok {
+			return c
 		}
 	}
 	return nil
