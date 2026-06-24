@@ -66,6 +66,9 @@ func (r *StepRunner) CanRun(step *models.WorkflowStep) bool {
 		// A step with no uses but with a docker block or a run: block is ours.
 		return step.Run != "" || step.Docker != nil
 	}
+	if strings.HasPrefix(step.Uses, UsesProcedure+"/") {
+		return true
+	}
 	return false
 }
 
@@ -143,7 +146,7 @@ func (r *StepRunner) resolveManifest(step *models.WorkflowStep) (*manifest.Manif
 	if step.Run != "" {
 		return buildInlineManifest(step), nil
 	}
-	if name := withString(step.With, "name", ""); name != "" {
+	if name := procedureName(step); name != "" {
 		m := r.store.Get(name)
 		if m == nil {
 			return nil, errors.Errorf("procedure %q not found in store", name)
@@ -151,6 +154,20 @@ func (r *StepRunner) resolveManifest(step *models.WorkflowStep) (*manifest.Manif
 		return m, nil
 	}
 	return nil, errors.Errorf("step %q: either run: or with.name must be set", step.Name)
+}
+
+// procedureName returns the store procedure name from with.name or uses: procedure/<name>.
+func procedureName(step *models.WorkflowStep) string {
+	if step == nil {
+		return ""
+	}
+	if name := withString(step.With, "name", ""); name != "" {
+		return name
+	}
+	if strings.HasPrefix(step.Uses, UsesProcedure+"/") {
+		return strings.TrimPrefix(step.Uses, UsesProcedure+"/")
+	}
+	return ""
 }
 
 // buildInlineManifest constructs a plugeproc manifest from a step's run: block.

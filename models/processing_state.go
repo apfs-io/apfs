@@ -90,6 +90,39 @@ func NewProcessingState(objectID, manifestVersion string, jobIDs []string) *Proc
 	return ps
 }
 
+// ProcessingCounters holds aggregate task counts for a processing pipeline.
+type ProcessingCounters struct {
+	Total     int
+	Pending   int
+	Running   int
+	Succeeded int
+	Failed    int
+	Skipped   int
+}
+
+// Counters computes aggregate job counts from the current state.
+func (ps *ProcessingState) Counters() ProcessingCounters {
+	if ps == nil {
+		return ProcessingCounters{}
+	}
+	c := ProcessingCounters{Total: len(ps.Jobs)}
+	for _, j := range ps.Jobs {
+		switch j.Status {
+		case JobStatusPending:
+			c.Pending++
+		case JobStatusRunning:
+			c.Running++
+		case JobStatusCompleted:
+			c.Succeeded++
+		case JobStatusFailed:
+			c.Failed++
+		case JobStatusSkipped:
+			c.Skipped++
+		}
+	}
+	return c
+}
+
 // ComputeProgress recalculates Progress from the current job states.
 func (ps *ProcessingState) ComputeProgress() {
 	if ps == nil || len(ps.Jobs) == 0 {

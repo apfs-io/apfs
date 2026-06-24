@@ -43,10 +43,18 @@ message Data {
   repeated string tags      = 3;
 }
 
+// ObjectRequestOptions controls which optional data is included in the object response.
+message ObjectRequestOptions {
+  bool with_workflow   = 1; // include bucket workflow manifest
+  bool with_state      = 2; // include processing state (counters only)
+  bool state_full      = 3; // include full job details (requires with_state=true)
+}
+
 message ObjectID {
-  string          id        = 1;
+  string                id        = 1;
   // The list of possible required files. Will be taked only first existing file
-  repeated string name      = 2;
+  repeated string       name      = 2;
+  ObjectRequestOptions  options   = 3; // optional; nil = default (no extras)
 }
 
 message ObjectIDNames {

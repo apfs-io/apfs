@@ -123,7 +123,7 @@ run: build-docker-dev ## Run application
 	${DCMD} run --rm --service-ports server
 
 .PHONY: runtest
-runtest: build-docker-testapp ## Run test application
+runtest: build-docker-testapp build-docker-dev-im ## Run test application
 	${DCMD} run --rm --service-ports test
 
 .PHONY: stop

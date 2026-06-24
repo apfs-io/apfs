@@ -119,7 +119,7 @@ PROCESSING_LOOP:
 					zap.String(`object_bucket`, cObject.Bucket()),
 					zap.String(`object_path`, cObject.Path()),
 					zap.String("reason", "no suitable converter"))
-				break
+				continue
 			}
 			if err := s.executeTask(ctx, cObject, manifest, task); err != nil {
 				ctxlogger.Get(ctx).Error("execute task",

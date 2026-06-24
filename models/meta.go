@@ -116,10 +116,35 @@ func (m *Meta) ExcessItems(w *Workflow) []*ItemMeta {
 	return excess
 }
 
+// MissingJobTargets returns job IDs whose declared step targets are absent from Items.
+func (m *Meta) MissingJobTargets(w *Workflow) []string {
+	if m == nil || w == nil {
+		return nil
+	}
+	missing := make([]string, 0)
+	for jobID, job := range w.Jobs {
+		if job == nil {
+			continue
+		}
+		for _, step := range job.Steps {
+			target, _ := step.With["target"].(string)
+			if target == "" {
+				continue
+			}
+			if m.ItemByName(target) == nil {
+				missing = append(missing, jobID)
+				break
+			}
+		}
+	}
+	slices.Sort(missing)
+	return missing
+}
+
 // IsConsistent reports whether this meta is up-to-date with the given workflow.
 // A meta is consistent when:
 //   - ManifestVersion matches the workflow version, AND
-//   - the number of derived items matches the number of jobs that produce artifacts.
+//   - there are no excess or missing derived items for the workflow jobs.
 func (m *Meta) IsConsistent(w *Workflow) bool {
 	if m == nil {
 		return false
@@ -130,7 +155,7 @@ func (m *Meta) IsConsistent(w *Workflow) bool {
 	if m.ManifestVersion != w.Version {
 		return false
 	}
-	return len(m.ExcessItems(w)) == 0
+	return len(m.ExcessItems(w)) == 0 && len(m.MissingJobTargets(w)) == 0
 }
 
 // SetAttribute sets a free-form attribute on the object.

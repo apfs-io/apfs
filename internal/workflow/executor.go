@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -21,6 +22,8 @@ type ExecutorStorage interface {
 	WriteState(ctx context.Context, id storio.ObjectID, state *models.ProcessingState) error
 	// WriteFile writes data to a relative path inside an object scope.
 	WriteFile(ctx context.Context, id storio.ObjectID, path string, data interface{ Read([]byte) (int, error) }, meta *models.ItemMeta) error
+	// ReadFile opens a named subfile inside an object scope for reading.
+	ReadFile(ctx context.Context, id storio.ObjectID, name string) (io.ReadCloser, error)
 	// ReadMeta reads the current Meta for an object.
 	ReadMeta(ctx context.Context, id storio.ObjectID) (*models.Meta, error)
 	// WriteMeta persists updated Meta for an object.
@@ -209,13 +212,22 @@ func (e *Executor) runSteps(
 		}
 
 		start := time.Now()
+		sourceName := stepSourceName(step, meta)
+		reader, err := e.storage.ReadFile(ctx, id, sourceName)
+		if err != nil {
+			ss.Status = models.StepStatusFailed
+			ss.Error = err.Error()
+			return fmt.Errorf("step %q read source %q: %w", step.Name, sourceName, err)
+		}
 		in := StepInput{
 			ObjectID:   id.ID().String(),
 			JobID:      jobID,
 			Meta:       meta,
 			JobOutputs: jobOutputs,
+			Reader:     reader,
 		}
 		out, err := runner.Run(ctx, step, in)
+		_ = reader.Close()
 		ss.DurationMs = time.Since(start).Milliseconds()
 
 		if err != nil {
@@ -259,4 +271,16 @@ func collectOutputs(state *models.ProcessingState) map[string]map[string]any {
 		}
 	}
 	return out
+}
+
+func stepSourceName(step *models.WorkflowStep, meta *models.Meta) string {
+	if step != nil {
+		if src, ok := step.With["source"].(string); ok && src != "" && !models.IsOriginal(src) {
+			if item := meta.ItemByName(src); item != nil && item.Fullname() != "" {
+				return item.Fullname()
+			}
+			return src
+		}
+	}
+	return models.OriginalFilename
 }

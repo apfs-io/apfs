@@ -33,7 +33,7 @@ services:
     expose: [ "4222" ]
 
   server:
-    image: github.com/apfs-io/apfs:latest
+    image: github.com/apfs-io/apfs:ubuntu-imagemagick
     ports:
       - "18080:8080"
       - "18082:8082"

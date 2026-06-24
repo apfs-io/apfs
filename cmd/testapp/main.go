@@ -35,20 +35,30 @@ func main() {
 	newObj, err := imgClient.UploadFile(ctx, "/testdata/crowd.jpg", client.WithTags("test1"))
 	fatalError(err, "image upload failed")
 
-	var objMeta *models.Object
+	var obj *apfs.Object
+	fmt.Println("Uploaded image:", newObj.ID, newObj.Size, "bytes")
+
 	for i := range 9 {
-		objMeta, err = imgClient.Head(ctx, apfs.NewObjectID(newObj.ID))
+		obj, err = imgClient.Head(ctx, apfs.NewObjectID(newObj.ID), client.WithState())
 		fatalError(err, "failed to retrieve image metadata")
 		time.Sleep(time.Second)
-		fmt.Println(i+1, ">", objMeta.Status.String(), objMeta.StatusMessage)
-		if objMeta.Status.IsProcessed() {
+
+		if i > 0 {
+			fmt.Print("\033[1A\033[2K") // move cursor up and clear line
+		}
+		fmt.Printf("%d > %s %d/%d - Failed: %d\n",
+			i+1, obj.Status.String(),
+			obj.State.Counters.Succeeded,
+			obj.State.Counters.Total,
+			obj.State.Counters.Failed)
+		if obj.Status.IsProcessed() {
 			break
 		}
 	}
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	_ = enc.Encode(objMeta)
+	_ = enc.Encode(obj)
 }
 
 // initImageStore initializes the image storage with a workflow manifest.
@@ -80,7 +90,7 @@ func imageResizeJob(name string, size int) *models.WorkflowJob {
 					"source":     "@",
 					"target":     name,
 					"type":       string(models.TypeImage),
-					"size":       strconv.Itoa(size),
+					"width":      strconv.Itoa(size),
 					"inputFile":  "{{inputFile}}",
 					"outputFile": "{{outputFile}}",
 				},

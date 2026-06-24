@@ -33,15 +33,8 @@ type SimpleResponse struct {
 	Message string
 }
 
-// Model aliases shared with models — keep as type aliases so callers don't need
-// two separate imports.
-type (
-	ObjectType        = models.ObjectType
-	Manifest          = models.Manifest
-	ManifestTaskStage = models.ManifestTaskStage
-	ManifestTask      = models.ManifestTask
-	Action            = models.Action
-)
+// ObjectType is a convenience alias so callers don't need to import models directly.
+type ObjectType = models.ObjectType
 
 // ─── Mapping helpers (package-private) ───────────────────────────────────────
 

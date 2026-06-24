@@ -9,6 +9,8 @@ option java_package = "com.apfs.protocol.v1";
 
 import "v1/manifest.proto";
 import "v1/meta.proto";
+import "v1/workflow.proto";
+import "v1/state.proto";
 
 message Object {
   string        id              = 1;
@@ -25,4 +27,8 @@ message Object {
 
   int64         created_at      = 11;
   int64         updated_at      = 12;
+
+  // Conditionally populated fields (require ObjectRequestOptions in the request)
+  Workflow         workflow     = 13; // populated when with_workflow=true
+  ProcessingState  state        = 14; // populated when with_state=true
 }

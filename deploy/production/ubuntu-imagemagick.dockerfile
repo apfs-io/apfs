@@ -19,7 +19,11 @@ RUN apt-get update \
  && apt-get clean
 
 COPY deploy/procedures/requirements.txt /tmp/procedures-requirements.txt
-RUN pip3 install --break-system-packages -r /tmp/procedures-requirements.txt \
+# torch is installed from the CPU wheel index (smaller, no CUDA in base image).
+RUN pip3 install --break-system-packages \
+      --index-url https://download.pytorch.org/whl/cpu \
+      torch torchvision \
+ && pip3 install --break-system-packages -r /tmp/procedures-requirements.txt \
  && rm /tmp/procedures-requirements.txt
 
 COPY .build/zoneinfo.zip /usr/local/go/lib/time/

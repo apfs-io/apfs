@@ -24,13 +24,13 @@ func (c *client) Group(name string) *Group {
 }
 
 // Head returns the meta information for the named object.
-func (g *Group) Head(ctx context.Context, id string, opts ...RequestOption) (*models.Object, error) {
+func (g *Group) Head(ctx context.Context, id string, opts ...RequestOption) (*Object, error) {
 	all := append(opts, WithGroupOpt(g.name))
 	return g.client.Head(ctx, &ObjectID{Id: id}, all...)
 }
 
 // Get returns the named object and its data stream.
-func (g *Group) Get(ctx context.Context, id string, opts ...RequestOption) (*models.Object, io.ReadCloser, error) {
+func (g *Group) Get(ctx context.Context, id string, opts ...RequestOption) (*Object, io.ReadCloser, error) {
 	all := append(opts, WithGroupOpt(g.name))
 	return g.client.Get(ctx, &ObjectID{Id: id}, all...)
 }
@@ -42,13 +42,13 @@ func (g *Group) Refresh(ctx context.Context, id string, opts ...RequestOption) e
 }
 
 // Upload uploads data to the group and returns the resulting object.
-func (g *Group) Upload(ctx context.Context, data io.Reader, opts ...RequestOption) (*models.Object, error) {
+func (g *Group) Upload(ctx context.Context, data io.Reader, opts ...RequestOption) (*Object, error) {
 	all := append(opts, WithGroupOpt(g.name))
 	return g.client.Upload(ctx, data, all...)
 }
 
 // UploadFile uploads a file from disk to the group.
-func (g *Group) UploadFile(ctx context.Context, filepath string, opts ...RequestOption) (*models.Object, error) {
+func (g *Group) UploadFile(ctx context.Context, filepath string, opts ...RequestOption) (*Object, error) {
 	all := append(opts, WithGroupOpt(g.name))
 	return g.client.UploadFile(ctx, filepath, all...)
 }
@@ -71,14 +71,21 @@ func (g *Group) GetWorkflow(ctx context.Context, opts ...RequestOption) (*models
 }
 
 // ProcessingState returns the current processing state for the given object ID.
-func (g *Group) ProcessingState(ctx context.Context, id string, opts ...RequestOption) (*models.ProcessingState, error) {
-	obj, err := g.Head(ctx, id, opts...)
+// Pass WithState() for a compact view (counters only) or WithFullState() for
+// the complete job detail. Without either option the returned State field will
+// be nil on the Object — use this method for a dedicated state query via Head.
+func (g *Group) ProcessingState(ctx context.Context, id string, opts ...RequestOption) (*ProcessingState, error) {
+	obj, err := g.Head(ctx, id, append(opts, WithFullState())...)
 	if err != nil {
 		return nil, err
 	}
 	if obj == nil {
 		return nil, nil
 	}
+	if obj.State != nil {
+		return obj.State, nil
+	}
+	// Fallback: synthesize a minimal state from the object status.
 	status := models.ProcessingStatusPending
 	switch obj.Status {
 	case models.StatusOK:
@@ -88,7 +95,7 @@ func (g *Group) ProcessingState(ctx context.Context, id string, opts ...RequestO
 	case models.StatusError:
 		status = models.ProcessingStatusFailed
 	}
-	return &models.ProcessingState{
+	return &ProcessingState{
 		ObjectID: id,
 		Status:   status,
 	}, nil
@@ -96,7 +103,7 @@ func (g *Group) ProcessingState(ctx context.Context, id string, opts ...RequestO
 
 // WatchProgress calls handler on each state update until the object reaches a
 // terminal state or the context is cancelled.
-func (g *Group) WatchProgress(ctx context.Context, id string, handler func(*models.ProcessingState)) error {
+func (g *Group) WatchProgress(ctx context.Context, id string, handler func(*ProcessingState)) error {
 	if handler == nil {
 		return nil
 	}

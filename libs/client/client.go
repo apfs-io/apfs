@@ -66,34 +66,32 @@ func Connect(ctx context.Context, address string, opts ...grpc.DialOption) (Clie
 }
 
 // Head returns object info
-func (c *client) Head(ctx context.Context, id *ObjectID, opts ...RequestOption) (*models.Object, error) {
-	var requestOptions RequestOptions
+func (c *client) Head(ctx context.Context, id *ObjectID, opts ...RequestOption) (*Object, error) {
+	var ro RequestOptions
 	for _, opt := range opts {
-		opt(&requestOptions)
+		opt(&ro)
 	}
-	requestOptions.prepareGroup(c.defaultGroup)
+	ro.prepareGroup(c.defaultGroup)
 
-	objResp, err := c.sclient.Head(
-		prepareContext(ctx),
-		toProtoObjectID(id, requestOptions.group),
-		requestOptions.grpcOpts...,
-	)
+	protoID := toProtoObjectID(id, ro.group)
+	protoID.Options = toProtoRequestOptions(&ro)
 
-	return prepareSimpleObjectResponse(objResp, err)
+	objResp, err := c.sclient.Head(prepareContext(ctx), protoID, ro.grpcOpts...)
+	return prepareSimpleObjectResponse(objResp, err, ro.includeStateFull)
 }
 
 // Refresh object in state in storage
 func (c *client) Refresh(ctx context.Context, id *ObjectID, opts ...RequestOption) error {
-	var requestOptions RequestOptions
+	var ro RequestOptions
 	for _, opt := range opts {
-		opt(&requestOptions)
+		opt(&ro)
 	}
-	requestOptions.prepareGroup(c.defaultGroup)
+	ro.prepareGroup(c.defaultGroup)
 
 	objResp, err := c.sclient.Refresh(
 		prepareContext(ctx),
-		toProtoObjectID(id, requestOptions.group),
-		requestOptions.grpcOpts...,
+		toProtoObjectID(id, ro.group),
+		ro.grpcOpts...,
 	)
 	if err != nil {
 		return err
@@ -107,21 +105,20 @@ func (c *client) Refresh(ctx context.Context, id *ObjectID, opts ...RequestOptio
 }
 
 // Get object from storage and return reader
-func (c *client) Get(ctx context.Context, id *ObjectID, opts ...RequestOption) (obj *models.Object, reader io.ReadCloser, err error) {
+func (c *client) Get(ctx context.Context, id *ObjectID, opts ...RequestOption) (obj *Object, reader io.ReadCloser, err error) {
 	var (
-		cli            protocol.ServiceAPI_GetClient
-		requestOptions RequestOptions
+		cli protocol.ServiceAPI_GetClient
+		ro  RequestOptions
 	)
 	for _, opt := range opts {
-		opt(&requestOptions)
+		opt(&ro)
 	}
-	requestOptions.prepareGroup(c.defaultGroup)
+	ro.prepareGroup(c.defaultGroup)
 
-	if cli, err = c.sclient.Get(
-		prepareContext(ctx),
-		toProtoObjectID(id, requestOptions.group),
-		requestOptions.grpcOpts...,
-	); err != nil {
+	protoID := toProtoObjectID(id, ro.group)
+	protoID.Options = toProtoRequestOptions(&ro)
+
+	if cli, err = c.sclient.Get(prepareContext(ctx), protoID, ro.grpcOpts...); err != nil {
 		return nil, nil, err
 	}
 
@@ -131,14 +128,14 @@ func (c *client) Get(ctx context.Context, id *ObjectID, opts ...RequestOption) (
 		if simpleResponse.GetStatus().IsOK() && err != io.EOF {
 			reader = streamreader.NewClientStreamReader(cli, nil)
 		}
-		obj, err = prepareObjectResponse(recv, err)
+		obj, err = prepareObjectResponse(recv, err, ro.includeStateFull)
 	}
 
 	return obj, reader, err
 }
 
 // UploadFile object into storage
-func (c *client) UploadFile(ctx context.Context, filepath string, opts ...RequestOption) (*models.Object, error) {
+func (c *client) UploadFile(ctx context.Context, filepath string, opts ...RequestOption) (*Object, error) {
 	file, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
@@ -148,14 +145,14 @@ func (c *client) UploadFile(ctx context.Context, filepath string, opts ...Reques
 }
 
 // Upload file object into storage
-func (c *client) Upload(ctx context.Context, data io.Reader, opts ...RequestOption) (*models.Object, error) {
-	var requestOptions RequestOptions
+func (c *client) Upload(ctx context.Context, data io.Reader, opts ...RequestOption) (*Object, error) {
+	var ro RequestOptions
 	for _, opt := range opts {
-		opt(&requestOptions)
+		opt(&ro)
 	}
-	requestOptions.prepareGroup(c.defaultGroup)
+	ro.prepareGroup(c.defaultGroup)
 
-	uploadClient, err := c.sclient.Upload(prepareContext(ctx), requestOptions.grpcOpts...)
+	uploadClient, err := c.sclient.Upload(prepareContext(ctx), ro.grpcOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -165,12 +162,12 @@ func (c *client) Upload(ctx context.Context, data io.Reader, opts ...RequestOpti
 	if err = uploadClient.Send(&protocol.Data{
 		Item: &protocol.Data_Info{
 			Info: &protocol.DataCustomID{
-				Group:     requestOptions.group,
-				CustomId:  requestOptions.customID,
-				Overwrite: requestOptions.overwrite,
+				Group:     ro.group,
+				CustomId:  ro.customID,
+				Overwrite: ro.overwrite,
 			},
 		},
-		Tags: requestOptions.tags,
+		Tags: ro.tags,
 	}); err != nil {
 		return nil, err
 	}
@@ -180,7 +177,7 @@ func (c *client) Upload(ctx context.Context, data io.Reader, opts ...RequestOpti
 		content = make([]byte, 10*1024)
 	)
 
-	// Read elements by chanks
+	// Read elements by chunks
 	for {
 		if count, err = data.Read(content); count > 0 {
 			err = uploadClient.Send(&protocol.Data{
@@ -201,7 +198,7 @@ func (c *client) Upload(ctx context.Context, data io.Reader, opts ...RequestOpti
 
 	var objResp *protocol.SimpleObjectResponse
 	objResp, err = uploadClient.CloseAndRecv()
-	return prepareSimpleObjectResponse(objResp, err)
+	return prepareSimpleObjectResponse(objResp, err, ro.includeStateFull)
 }
 
 // Delete object from storage
@@ -221,24 +218,24 @@ func (c *client) Delete(ctx context.Context, id any, opts ...RequestOption) erro
 			}
 			idNames.Names = append(idNames.Names, v.Name...)
 		}
-	case *models.Object:
+	case *Object:
 		idNames = &ObjectIDNames{Id: v.ID}
 	default:
 		return ErrInvalidParams
 	}
 
 	// Prepare request options
-	var requestOptions RequestOptions
+	var ro RequestOptions
 	for _, opt := range opts {
-		opt(&requestOptions)
+		opt(&ro)
 	}
-	requestOptions.prepareGroup(c.defaultGroup)
+	ro.prepareGroup(c.defaultGroup)
 
 	// Perform delete request
 	resp, err := c.sclient.Delete(
 		prepareContext(ctx),
-		toProtoObjectIDNames(idNames, requestOptions.group),
-		requestOptions.grpcOpts...,
+		toProtoObjectIDNames(idNames, ro.group),
+		ro.grpcOpts...,
 	)
 	if err != nil {
 		return err
@@ -261,15 +258,15 @@ func (c *client) SetWorkflow(ctx context.Context, w *models.Workflow, opts ...Re
 	if err != nil {
 		return err
 	}
-	var requestOptions RequestOptions
+	var ro RequestOptions
 	for _, opt := range opts {
-		opt(&requestOptions)
+		opt(&ro)
 	}
-	requestOptions.prepareGroup(c.defaultGroup)
+	ro.prepareGroup(c.defaultGroup)
 	status, err := c.sclient.SetManifest(ctx, &protocol.DataManifest{
-		Group:    requestOptions.group,
+		Group:    ro.group,
 		Manifest: protoManifest,
-	}, requestOptions.grpcOpts...)
+	}, ro.grpcOpts...)
 	if err == nil && !status.GetStatus().IsOK() {
 		err = errors.New(status.GetMessage())
 	}
@@ -278,14 +275,14 @@ func (c *client) SetWorkflow(ctx context.Context, w *models.Workflow, opts ...Re
 
 // GetWorkflow reads the workflow manifest for the group.
 func (c *client) GetWorkflow(ctx context.Context, opts ...RequestOption) (*models.Workflow, error) {
-	var requestOptions RequestOptions
+	var ro RequestOptions
 	for _, opt := range opts {
-		opt(&requestOptions)
+		opt(&ro)
 	}
-	requestOptions.prepareGroup(c.defaultGroup)
+	ro.prepareGroup(c.defaultGroup)
 	response, err := c.sclient.GetManifest(ctx, &protocol.ManifestGroup{
-		Group: requestOptions.group,
-	}, requestOptions.grpcOpts...)
+		Group: ro.group,
+	}, ro.grpcOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -370,13 +367,25 @@ func dialUnix(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.
 /// Helper methods
 ///////////////////////////////////////////////////////////////////////////////
 
-func prepareObjectResponse(resp *protocol.ObjectResponse, err error) (obj *models.Object, _ error) {
-	return prepareSimpleObjectResponse(resp.GetResponse(), err)
+// toProtoRequestOptions converts RequestOptions flags to an ObjectRequestOptions proto.
+func toProtoRequestOptions(ro *RequestOptions) *protocol.ObjectRequestOptions {
+	if ro == nil || (!ro.includeWorkflow && !ro.includeState) {
+		return nil
+	}
+	return &protocol.ObjectRequestOptions{
+		WithWorkflow: ro.includeWorkflow,
+		WithState:    ro.includeState,
+		StateFull:    ro.includeStateFull,
+	}
 }
 
-func prepareSimpleObjectResponse(simpleResponse *protocol.SimpleObjectResponse, err error) (obj *models.Object, _ error) {
+func prepareObjectResponse(resp *protocol.ObjectResponse, err error, full bool) (*Object, error) {
+	return prepareSimpleObjectResponse(resp.GetResponse(), err, full)
+}
+
+func prepareSimpleObjectResponse(simpleResponse *protocol.SimpleObjectResponse, err error, full bool) (*Object, error) {
 	if simpleResponse == nil {
-		return obj, err
+		return nil, err
 	}
 	if err == io.EOF {
 		err = nil
@@ -391,7 +400,7 @@ func prepareSimpleObjectResponse(simpleResponse *protocol.SimpleObjectResponse, 
 	if err != nil {
 		return nil, err
 	}
-	return simpleResponse.GetObject().ToModel(), nil
+	return objectFromProto(simpleResponse.GetObject(), full), nil
 }
 
 func prepareContext(ctx context.Context) context.Context {

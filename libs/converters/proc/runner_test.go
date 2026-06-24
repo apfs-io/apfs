@@ -42,6 +42,7 @@ func TestStepRunnerCanRun(t *testing.T) {
 		{&models.WorkflowStep{Uses: "docker"}, true},
 		{&models.WorkflowStep{Uses: "", Run: "echo hi"}, true},
 		{&models.WorkflowStep{Uses: "", Docker: &models.WorkflowStepDocker{Image: "alpine"}}, true},
+		{&models.WorkflowStep{Uses: "procedure/image-resize-w"}, true},
 		{&models.WorkflowStep{Uses: "image"}, false},
 		{&models.WorkflowStep{Uses: ""}, false},
 	}

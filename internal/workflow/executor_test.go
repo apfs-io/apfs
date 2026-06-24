@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -22,12 +23,14 @@ type fakeStorage struct {
 	readErr   error
 	writeErr  error
 	written   map[string][]byte // path → content
+	source    []byte
 	writeMeta []*models.ItemMeta
 }
 
 func newFakeStorage() *fakeStorage {
 	return &fakeStorage{
 		written: map[string][]byte{},
+		source:  []byte("fake-image-data"),
 	}
 }
 
@@ -56,6 +59,13 @@ func (f *fakeStorage) WriteFile(_ context.Context, _ storio.ObjectID, path strin
 	return f.writeErr
 }
 
+func (f *fakeStorage) ReadFile(_ context.Context, _ storio.ObjectID, _ string) (io.ReadCloser, error) {
+	if f.readErr != nil {
+		return nil, f.readErr
+	}
+	return io.NopCloser(bytes.NewReader(f.source)), nil
+}
+
 // ── Fake StepRunner ───────────────────────────────────────────────────────────
 
 type fakeRunner struct {
@@ -70,7 +80,7 @@ func (r *fakeRunner) CanRun(step *models.WorkflowStep) bool {
 	return strings.HasPrefix(step.Uses, r.usesPrefix)
 }
 
-func (r *fakeRunner) Run(_ context.Context, _ *models.WorkflowStep, _ StepInput) (StepOutput, error) {
+func (r *fakeRunner) Run(_ context.Context, step *models.WorkflowStep, _ StepInput) (StepOutput, error) {
 	r.callCount++
 	if r.err != nil {
 		// errUntil=0 means "always fail"; errUntil>0 means "fail for first N calls"
@@ -78,7 +88,14 @@ func (r *fakeRunner) Run(_ context.Context, _ *models.WorkflowStep, _ StepInput)
 			return StepOutput{}, r.err
 		}
 	}
-	return r.output, nil
+	out := r.output
+	if target, ok := step.With["target"].(string); ok && target != "" {
+		out.TargetPath = target
+		if out.ItemMeta == nil {
+			out.ItemMeta = &models.ItemMeta{}
+		}
+	}
+	return out, nil
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -321,4 +338,43 @@ func TestRunnerRegistry_FindAndRegister(t *testing.T) {
 
 	step.Uses = "unknown/tool"
 	assert.Nil(t, reg.Find(step))
+}
+
+func TestProcessObject_HappyPath(t *testing.T) {
+	store := newFakeStorage()
+	store.meta = &models.Meta{Main: models.ItemMeta{Name: "prim.jfif", Type: models.TypeImage}}
+	runner := &fakeRunner{
+		usesPrefix: "image/",
+		output: StepOutput{
+			Writer:     strings.NewReader("thumb-data"),
+			TargetPath: "thumb.jpg",
+			ItemMeta:   &models.ItemMeta{},
+		},
+	}
+	reg := NewRunnerRegistry()
+	reg.Register(runner)
+
+	wf := &models.Workflow{
+		Version: "2",
+		Jobs: map[string]*models.WorkflowJob{
+			"thumb": {
+				Steps: []*models.WorkflowStep{
+					{Uses: "image/resize", With: map[string]any{"target": "thumb"}},
+				},
+			},
+			"small": {
+				Steps: []*models.WorkflowStep{
+					{Uses: "image/resize", With: map[string]any{"target": "small"}},
+				},
+			},
+		},
+	}
+	exec := NewExecutor(store, reg)
+	complete, err := exec.ProcessObject(context.Background(), wf, "obj-1", []string{"image"}, 0)
+	require.NoError(t, err)
+	assert.True(t, complete)
+	assert.Equal(t, models.ProcessingStatusCompleted, store.state.Status)
+	assert.NotNil(t, store.meta.ItemByName("thumb"))
+	assert.NotNil(t, store.meta.ItemByName("small"))
+	assert.Equal(t, 2, runner.callCount)
 }

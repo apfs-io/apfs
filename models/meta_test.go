@@ -81,12 +81,43 @@ func TestMetaAttributes(t *testing.T) {
 
 func TestMetaIsConsistent(t *testing.T) {
 	keep := true
-	w := &Workflow{Version: "2", KeepOriginal: &keep}
+	w := &Workflow{
+		Version: "2",
+		KeepOriginal: &keep,
+		Jobs: map[string]*WorkflowJob{
+			"thumb": {
+				Steps: []*WorkflowStep{
+					{Uses: "image/resize", With: map[string]any{"target": "thumb.jpg"}},
+				},
+			},
+		},
+	}
 	meta := Meta{ManifestVersion: "2"}
+	assert.False(t, meta.IsConsistent(w))
+
+	meta.Items = []*ItemMeta{{Name: "thumb", NameExt: "jpg", Path: "thumb.jpg"}}
 	assert.True(t, meta.IsConsistent(w))
 
 	meta.ManifestVersion = "1"
 	assert.False(t, meta.IsConsistent(w))
+}
+
+func TestMetaMissingJobTargets(t *testing.T) {
+	w := &Workflow{
+		Version: "2",
+		Jobs: map[string]*WorkflowJob{
+			"card": {Steps: []*WorkflowStep{{Uses: "procedure/x", With: map[string]any{"target": "card"}}}},
+			"small": {Steps: []*WorkflowStep{{Uses: "procedure/x", With: map[string]any{"target": "small"}}}},
+		},
+	}
+	meta := Meta{
+		ManifestVersion: "2",
+		Items: []*ItemMeta{
+			{Name: "card", Path: "card.jpg"},
+		},
+	}
+	missing := meta.MissingJobTargets(w)
+	assert.Equal(t, []string{"small"}, missing)
 }
 
 func TestMetaCleanSubItems(t *testing.T) {

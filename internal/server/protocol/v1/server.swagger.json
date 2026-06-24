@@ -64,6 +64,27 @@
               "type": "string"
             },
             "collectionFormat": "multi"
+          },
+          {
+            "name": "options.withWorkflow",
+            "description": "include bucket workflow manifest",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "options.withState",
+            "description": "include processing state (counters only)",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "options.stateFull",
+            "description": "include full job details (requires with_state=true)",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -217,6 +238,27 @@
               "type": "string"
             },
             "collectionFormat": "multi"
+          },
+          {
+            "name": "options.withWorkflow",
+            "description": "include bucket workflow manifest",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "options.withState",
+            "description": "include processing state (counters only)",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "options.stateFull",
+            "description": "include full job details (requires with_state=true)",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -349,6 +391,27 @@
               "type": "string"
             },
             "collectionFormat": "multi"
+          },
+          {
+            "name": "options.withWorkflow",
+            "description": "include bucket workflow manifest",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "options.withState",
+            "description": "include processing state (counters only)",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "options.stateFull",
+            "description": "include full job details (requires with_state=true)",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -392,6 +455,27 @@
               "type": "string"
             },
             "collectionFormat": "multi"
+          },
+          {
+            "name": "options.withWorkflow",
+            "description": "include bucket workflow manifest",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "options.withState",
+            "description": "include processing state (counters only)",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "options.stateFull",
+            "description": "include full job details (requires with_state=true)",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -478,6 +562,10 @@
             "type": "string"
           },
           "title": "The list of possible required files. Will be taked only first existing file"
+        },
+        "options": {
+          "$ref": "#/definitions/v1ObjectRequestOptions",
+          "title": "optional; nil = default (no extras)"
         }
       }
     },
@@ -864,8 +952,35 @@
         "updatedAt": {
           "type": "string",
           "format": "int64"
+        },
+        "workflow": {
+          "$ref": "#/definitions/v1Workflow",
+          "description": "populated when with_workflow=true",
+          "title": "Conditionally populated fields (require ObjectRequestOptions in the request)"
+        },
+        "state": {
+          "$ref": "#/definitions/v1ProcessingState",
+          "title": "populated when with_state=true"
         }
       }
+    },
+    "v1ObjectRequestOptions": {
+      "type": "object",
+      "properties": {
+        "withWorkflow": {
+          "type": "boolean",
+          "title": "include bucket workflow manifest"
+        },
+        "withState": {
+          "type": "boolean",
+          "title": "include processing state (counters only)"
+        },
+        "stateFull": {
+          "type": "boolean",
+          "title": "include full job details (requires with_state=true)"
+        }
+      },
+      "description": "ObjectRequestOptions controls which optional data is included in the object response."
     },
     "v1ObjectResponse": {
       "type": "object",
@@ -889,6 +1004,36 @@
         }
       }
     },
+    "v1ProcessingCounters": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "pending": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "running": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "succeeded": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "failed": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "skipped": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "ProcessingCounters holds aggregate job counts."
+    },
     "v1ProcessingState": {
       "type": "object",
       "properties": {
@@ -910,7 +1055,8 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1JobState"
-          }
+          },
+          "title": "jobs is populated only when state_full=true in ObjectRequestOptions"
         },
         "startedAt": {
           "type": "string",
@@ -923,6 +1069,10 @@
         "finishedAt": {
           "type": "string",
           "format": "int64"
+        },
+        "counters": {
+          "$ref": "#/definitions/v1ProcessingCounters",
+          "title": "always populated"
         }
       },
       "description": "ProcessingState tracks the full execution state of a processing pipeline\nfor a single object."

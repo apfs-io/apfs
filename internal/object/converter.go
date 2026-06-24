@@ -8,6 +8,7 @@ import (
 // ToModel converts object interface to model
 func ToModel(inObj storio.Object) (*models.Object, error) {
 	meta := inObj.Meta()
+	createdAt, updatedAt := Timestamps(inObj)
 	obj := &models.Object{
 		ID:            inObj.ID().String(),
 		Bucket:        inObj.Bucket(),
@@ -18,6 +19,8 @@ func ToModel(inObj storio.Object) (*models.Object, error) {
 		ContentType:   meta.Main.ContentType,
 		Type:          meta.Main.Type,
 		Size:          uint64(meta.Main.Size),
+		CreatedAt:     createdAt,
+		UpdatedAt:     updatedAt,
 	}
 	if err := obj.Tags.SetValue(inObj.Meta().Tags); err != nil {
 		return nil, err

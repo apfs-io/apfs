@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -285,6 +286,20 @@ func (s *Storage) ObjectWorkflow(ctx context.Context, obj storio.Object) *models
 		}
 	}
 	return obj.Workflow()
+}
+
+// MarkProcessingComplete sets the object status to OK in both the processing-status
+// KV (read by every Head call) and the database. Call this once the event pipeline
+// determines that all tasks have finished (isComplete=true).
+func (s *Storage) MarkProcessingComplete(ctx context.Context, obj storio.Object) error {
+	object.TouchUpdatedAt(obj, time.Now())
+	s.mx.Lock()
+	if err := processor.SetProcessingStatus(ctx, s.processingStatus, obj, models.StatusOK); err != nil {
+		s.mx.Unlock()
+		return err
+	}
+	s.mx.Unlock()
+	return s.UpdateObjectInfo(ctx, obj)
 }
 
 func (s *Storage) getProcessingStatus(ctx context.Context, cObject storio.Object) models.ObjectStatus {

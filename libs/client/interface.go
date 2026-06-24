@@ -16,22 +16,23 @@ var (
 
 // ObjectManagerClient interface represents interaction with object storage
 type ObjectManagerClient interface {
-	// Refresg file object data
+	// Refresh triggers reprocessing of the named object.
 	Refresh(ctx context.Context, id *ObjectID, opts ...RequestOption) error
 
-	// Get file object from storage
-	Head(ctx context.Context, id *ObjectID, opts ...RequestOption) (*models.Object, error)
+	// Head returns the object descriptor. Pass WithWorkflow(), WithState(), or
+	// WithFullState() to include additional data in the single response.
+	Head(ctx context.Context, id *ObjectID, opts ...RequestOption) (*Object, error)
 
-	// Read object with body
-	Get(ctx context.Context, id *ObjectID, opts ...RequestOption) (*models.Object, io.ReadCloser, error)
+	// Get returns the object descriptor and a content stream.
+	Get(ctx context.Context, id *ObjectID, opts ...RequestOption) (*Object, io.ReadCloser, error)
 
-	// UploadFile object into storage
-	UploadFile(ctx context.Context, filepath string, opts ...RequestOption) (*models.Object, error)
+	// UploadFile uploads a file from disk to storage.
+	UploadFile(ctx context.Context, filepath string, opts ...RequestOption) (*Object, error)
 
-	// Upload file object into storage
-	Upload(ctx context.Context, data io.Reader, opts ...RequestOption) (*models.Object, error)
+	// Upload streams data to storage and returns the resulting object.
+	Upload(ctx context.Context, data io.Reader, opts ...RequestOption) (*Object, error)
 
-	// Delete object from storage
+	// Delete removes an object (or named sub-items) from storage.
 	Delete(ctx context.Context, id any, opts ...RequestOption) error
 }
 
