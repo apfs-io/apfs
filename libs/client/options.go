@@ -9,6 +9,11 @@ type RequestOptions struct {
 	grpcOpts  []grpc.CallOption
 	tags      []string
 	overwrite bool
+
+	// Optional data to include in the object response (single-request fetch).
+	includeWorkflow  bool // include bucket workflow manifest
+	includeState     bool // include processing state (counters only)
+	includeStateFull bool // include full job details (requires includeState=true)
 }
 
 func (o *RequestOptions) prepareGroup(defaultGroup string) {
@@ -56,5 +61,23 @@ func WithOverwrite(opts ...bool) func(*RequestOptions) {
 		} else {
 			o.overwrite = true
 		}
+	}
+}
+
+// WithWorkflow instructs the server to include the bucket workflow manifest in the response.
+func WithWorkflow() RequestOption {
+	return func(o *RequestOptions) { o.includeWorkflow = true }
+}
+
+// WithState instructs the server to include a compact ProcessingState (counters + status only).
+func WithState() RequestOption {
+	return func(o *RequestOptions) { o.includeState = true }
+}
+
+// WithFullState instructs the server to include the full ProcessingState (counters + job details).
+func WithFullState() RequestOption {
+	return func(o *RequestOptions) {
+		o.includeState = true
+		o.includeStateFull = true
 	}
 }

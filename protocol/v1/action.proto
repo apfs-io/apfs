@@ -7,15 +7,12 @@ option java_multiple_files = true;
 option java_outer_classname = "Action";
 option java_package = "com.apfs.protocol.v1";
 
-import "google/protobuf/any.proto";
-
-message Param {
-  string              name     = 1;
-  google.protobuf.Any value    = 2;
-}
-
-// Action which must be applied to source
+// Action which must be applied to source.
+// Parameter values are carried as a JSON-encoded string (values_json) so that
+// the REST/JSON representation stays clean and free of "@type" annotations.
 message Action {
-  string          name     = 1;
-  repeated Param  values   = 2;
+  string  name        = 1;
+  // values_json holds a JSON-encoded map[string]any of the action parameters.
+  // Example: {"name":"image-resize-w","width":"1200","target":"large.jpg"}
+  string  values_json = 2;
 }

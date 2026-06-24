@@ -30,7 +30,7 @@ func TestS3Collection(t *testing.T) {
 		WithMainBucket("test"),
 		WithRegion("r"),
 		WithEndpoint(endpointURL),
-		WithS3Credentionals(accessKey, secretKey),
+		WithS3Credentials(accessKey, secretKey),
 	)
 	assert.NoError(t, err, `new collection`)
 

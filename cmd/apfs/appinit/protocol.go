@@ -16,7 +16,7 @@ import (
 const EventStreamName = "events"
 
 // ProtocolAPIObject inites the API implementation
-func ProtocolAPIObject(ctx context.Context, eventsConf *appcontext.EventstreamConfig, storageConf *appcontext.StorageConfig, logger *zap.Logger) (api.ServiceServer, error) {
+func ProtocolAPIObject(ctx context.Context, eventsConf *appcontext.EventstreamConfig, storageConf *appcontext.StorageConfig, workerTags []string, logger *zap.Logger) (api.ServiceServer, error) {
 	// Register the notification stream
 	events, err := registerStream(ctx, EventStreamName, eventsConf.Connect)
 	if err != nil {
@@ -30,7 +30,9 @@ func ProtocolAPIObject(ctx context.Context, eventsConf *appcontext.EventstreamCo
 		api.WithTaskProcessingLimit(storageConf.ProcessingTaskLimit),
 		api.WithEventstream(events),
 		api.WithUpdateState(updateLocker(storageConf)),
-		api.WithStorageConverters(Converters(storageConf, logger)),
+		api.WithStorageConverters(Converters(ctx, storageConf, logger)),
+		api.WithWorkflowExecutor(StepRunners(ctx, storageConf, logger)),
+		api.WithWorkerTags(workerTags),
 		api.WithRetries(storageConf.ProcessingMaxRetries),
 	)
 	if err != nil {

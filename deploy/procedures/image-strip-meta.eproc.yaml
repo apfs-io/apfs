@@ -1,0 +1,28 @@
+# image-strip-meta — strip EXIF/IPTC metadata from an image using ImageMagick.
+#
+# Pairs with: deploy/procedures/image-strip-meta (bash script)
+#
+# Usage in a workflow step:
+#
+#   steps:
+#     - name: Strip EXIF
+#       uses: procedure
+#       with:
+#         name: image-strip-meta
+#         target: clean.jpg
+#
+# The input image bytes are written to a temp file ({{inputFile}}),
+# and the cleaned image is written to a second temp file ({{out}}).
+
+driver: exec
+
+args:
+  - "{{inputFile}}"
+  - "{{out}}"
+
+params:
+  - name: inputFile
+    type: file
+
+output:
+  type: file

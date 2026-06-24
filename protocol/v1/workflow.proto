@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package v1;
+
+option go_package = "./v1";
+option java_multiple_files = true;
+option java_outer_classname = "Workflow";
+option java_package = "com.apfs.protocol.v1";
+
+import "v1/common.proto";
+
+// WorkflowStep is a single action within a WorkflowJob.
+message WorkflowStep {
+  string              name      = 1;
+  string              uses      = 2;
+  string              with_json = 3; // JSON-encoded map[string]any
+}
+
+// WorkflowJob is a node in the processing DAG.
+message WorkflowJob {
+  string              id                = 1;
+  string              runs_on           = 2;
+  repeated string     needs             = 3;
+  int32               timeout_minutes   = 4;
+  string              on_failure        = 5;
+  string              if_expr           = 6;  // maps to "if" in YAML
+  repeated WorkflowStep steps           = 7;
+}
+
+// WorkflowValidateCheck is a single validation check.
+message WorkflowValidateCheck {
+  string              name      = 1;
+  string              uses      = 2;
+  string              with_json = 3;
+}
+
+// WorkflowValidate defines pre-upload validation rules.
+message WorkflowValidate {
+  string                        max_size       = 1;
+  string                        min_size       = 2;
+  repeated string               content_types  = 3;
+  repeated WorkflowValidateCheck checks        = 4;
+}
+
+// Workflow is the top-level v2 manifest.
+message Workflow {
+  string                    version         = 1;
+  string                    name            = 2;
+  string                    description     = 3;
+  repeated string           content_types   = 4;
+  repeated string           tags            = 5;
+  bool                      keep_original   = 6;
+  string                    original_name   = 7;
+  WorkflowValidate          validate        = 8;
+  repeated WorkflowJob      jobs            = 9;
+}
+
+// DataWorkflow is the request body for SetWorkflow RPC.
+message DataWorkflow {
+  Workflow  workflow  = 1;
+  string    group     = 2;
+}
+
+// WorkflowResponse is the response for GetWorkflow RPC.
+message WorkflowResponse {
+  ResponseStatusCode  status    = 1;
+  string              message   = 2;
+  Workflow            workflow  = 3;
+}

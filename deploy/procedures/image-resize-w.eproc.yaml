@@ -1,0 +1,33 @@
+# image-resize-w — resize an image to a maximum width using ImageMagick.
+#
+# Pairs with: deploy/procedures/image-resize-w (bash script)
+#
+# Usage in a workflow step:
+#
+#   steps:
+#     - name: Resize to 1200 px
+#       uses: procedure
+#       with:
+#         name: image-resize-w
+#         width: "1200"
+#         target: large.jpg
+#
+# The input image is written to a temp file whose path is substituted as
+# {{inputFile}} in the args list.  ImageMagick writes the result to the
+# temp output file whose path is substituted as {{out}}.
+
+driver: exec
+
+args:
+  - "{{width}}"
+  - "{{inputFile}}"
+  - "{{out}}"
+
+params:
+  - name: width
+    type: string
+  - name: inputFile
+    type: file
+
+output:
+  type: file

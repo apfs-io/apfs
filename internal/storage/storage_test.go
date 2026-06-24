@@ -11,27 +11,24 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/apfs-io/apfs/internal/driver/fs"
-	npio "github.com/apfs-io/apfs/internal/io"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor/memory"
 	"github.com/apfs-io/apfs/internal/storage/processor"
+	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/libs/converters/image"
-	"github.com/apfs-io/apfs/libs/converters/procedure"
 	"github.com/apfs-io/apfs/models"
 )
 
 var (
-	testStorePath    = "teststore"
-	proceduresDir, _ = filepath.Abs("../../deploy/procedures")
-	fsdriver         *fs.Storage
-	storage          *Storage
-	procc            *processor.Processor
+	testStorePath = "teststore"
+	fsdriver      *fs.Storage
+	storage       *Storage
+	procc         *processor.Processor
 )
 
 func init() {
 	_, filePath, _, _ := runtime.Caller(0)
 	__dir, _ := filepath.Abs(filepath.Dir(filePath))
 	testStorePath = filepath.Join(__dir, "teststore")
-	proceduresDir, _ = filepath.Abs(filepath.Join(__dir, "../../deploy/procedures"))
 
 	// Init file system driver for storage
 	fsdriver, _ = fs.NewStorage(testStorePath)
@@ -46,10 +43,10 @@ func init() {
 		WithProcessingStatus(processingState),
 	)
 
-	// Init object processor
+	// Init object processor (image converter only; procedure/shell/exec steps
+	// run through the workflow StepRunner, not the converter pipeline).
 	procc, _ = processor.NewProcessor(
-		processor.WithConverters(image.NewDefaultConverter(),
-			procedure.New(proceduresDir)),
+		processor.WithConverters(image.NewDefaultConverter()),
 		processor.WithStorage(storage),
 		processor.WithDriver(fsdriver),
 		processor.WithProcessingStatus(processingState),
@@ -60,7 +57,7 @@ func init() {
 func TestStorageUpload(t *testing.T) {
 	var (
 		ctx, cancel = context.WithTimeout(context.TODO(), time.Second*10)
-		obj         npio.Object
+		obj         storio.Object
 		err         error
 	)
 	defer cancel()
@@ -81,11 +78,12 @@ func TestStorageProcess(t *testing.T) {
 	)
 
 	var (
-		object           npio.Object
+		object           storio.Object
 		tags             = []string{"tag1", "tag2"}
 		originalFilepath = filepath.Join(testStorePath, "bucket/file/prim.jpg")
 		ctx, cancel      = context.WithTimeout(context.TODO(), time.Second*10)
-		manifest         = &models.Manifest{
+		// Build the workflow from the legacy manifest for the test.
+		workflow = models.FromLegacyManifest((&models.Manifest{
 			Stages: []*models.ManifestTaskStage{
 				{
 					Name: "",
@@ -157,36 +155,14 @@ func TestStorageProcess(t *testing.T) {
 						},
 					},
 				},
-				// {
-				// 	Name: "object-meta",
-				// 	Tasks: []*models.ManifestTask{
-				// 		{
-				// 			Source: "@",
-				// 			Type:   models.TypeImage,
-				// 			Actions: []*models.Action{
-				// 				procedure.NewActionMeta("face_meta.py", "faces", false, "{{inputFile}}"),
-				// 			},
-				// 		},
-				// 		{
-				// 			Source: "@",
-				// 			Type:   models.TypeImage,
-				// 			Actions: []*models.Action{
-				// 				procedure.NewActionMeta("object-detection2.py", "objects", false, "{{inputFile}}"),
-				// 			},
-				// 		},
-				// 	},
-				// },
 			},
-		}
+		}).PrepareInfo())
 	)
 	defer cancel()
 
-	// Prepare manifest info
-	manifest.PrepareInfo()
-
-	// 1. Set images manifest
-	err := storage.SetManifest(ctx, imagesBucket, manifest)
-	if !assert.NoError(t, err, "Set images manifest") {
+	// 1. Set images workflow
+	err := storage.SetWorkflow(ctx, imagesBucket, workflow)
+	if !assert.NoError(t, err, "Set images workflow") {
 		return
 	}
 
@@ -206,14 +182,34 @@ func TestStorageProcess(t *testing.T) {
 		return
 	}
 
-	// 4. Adjust object with extra tasks
+	// 4. Simulate removing the "icon.png" job from the workflow and check
+	//    that ExcessItems identifies it as excess.
 	objectAdjust, err := storage.Object(ctx, object.ID().String())
 	if assert.NoError(t, err, "open object") && assert.NotNil(t, object, "object reference") {
-		manifest := objectAdjust.Manifest()
-		manifest.Stages[0].Tasks = manifest.Stages[0].Tasks[1:]
+		// Build a reduced workflow that omits the icon.png target.
+		// This is used to test the ExcessItems detection without YAML roundtrip issues.
+		reducedWF := &models.Workflow{
+			Jobs: make(map[string]*models.WorkflowJob),
+		}
+		wf := objectAdjust.Workflow()
 
-		items := objectAdjust.Meta().ExcessItems(manifest)
-		if assert.Equal(t, 1, len(items)) {
+		// Find the job that produces "icon.png" and exclude it from the reduced workflow.
+		// PrepareInfo() assigns IDs like "icon.png:1", so we must search by target value.
+		for jobID, job := range wf.Jobs {
+			isIconJob := false
+			for _, step := range job.Steps {
+				if tgt, _ := step.With["target"].(string); tgt == "icon.png" {
+					isIconJob = true
+					break
+				}
+			}
+			if !isIconJob {
+				reducedWF.Jobs[jobID] = job
+			}
+		}
+
+		items := objectAdjust.Meta().ExcessItems(reducedWF)
+		if assert.Equal(t, 1, len(items), "icon.png should be excess") {
 			removeSubObjects := make([]string, 0, len(items))
 			for _, it := range items {
 				removeSubObjects = append(removeSubObjects, it.Fullname())

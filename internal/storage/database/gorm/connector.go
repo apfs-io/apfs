@@ -13,9 +13,9 @@ import (
 	"github.com/apfs-io/apfs/models"
 )
 
-type openFnk func(dsn string) gorm.Dialector
+type openFunc func(dsn string) gorm.Dialector
 
-var dialectors = map[string]openFnk{}
+var dialectors = map[string]openFunc{}
 
 // Connector object
 type connector struct {

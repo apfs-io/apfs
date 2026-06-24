@@ -10,7 +10,7 @@ import (
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/demdxx/gocast/v2"
 
-	"github.com/apfs-io/apfs/internal/io/objectpath"
+	"github.com/apfs-io/apfs/internal/storio/objectpath"
 )
 
 // Errors list
@@ -47,8 +47,8 @@ func WithMainBucket(bucketName string) Options {
 	}
 }
 
-// WithS3Credentionals to the server
-func WithS3Credentionals(accessKeyID, secretAccessKey string) Options {
+// WithS3Credentials to the server
+func WithS3Credentials(accessKeyID, secretAccessKey string) Options {
 	return func(conf *optionConfig) error {
 		// Set credentials only if set in the options.
 		// If not set, the SDK uses the shared credentials file or environment variables, which is the preferred way.
@@ -101,7 +101,7 @@ func WithS3FromURL(connect string) Options {
 				gocast.IfThen(insecure, "http://", "https://") + urlParsed.Host)
 		})
 
-		return WithS3Credentionals(accessKey, secretKey)(conf)
+		return WithS3Credentials(accessKey, secretKey)(conf)
 	}
 }
 
@@ -143,7 +143,7 @@ func WithInsecure(insecure bool) Options {
 	return func(conf *optionConfig) error {
 		conf.insecure = insecure
 		if conf.config.BaseEndpoint != nil {
-			WithEndpoint(*conf.config.BaseEndpoint)(conf)
+			_ = WithEndpoint(*conf.config.BaseEndpoint)(conf)
 		}
 		return nil
 	}

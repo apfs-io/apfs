@@ -3,15 +3,17 @@ package storage
 import (
 	"net/url"
 
-	npio "github.com/apfs-io/apfs/internal/io"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor"
+	storio "github.com/apfs-io/apfs/internal/storio"
 )
 
 type uploadOption struct {
-	customID  npio.ObjectID
-	tags      []string
-	params    map[string][]string
-	overwrite bool
+	customID      storio.ObjectID
+	tags          []string
+	params        map[string][]string
+	overwrite     bool
+	contentLength int64  // for validation
+	contentType   string // for validation
 }
 
 func (opt *uploadOption) Params() url.Values {
@@ -51,8 +53,22 @@ func WithOverwrite(overwrite bool) UploadOption {
 	}
 }
 
-// WithOverwrite of the custom file
-func WithCustomID(id npio.ObjectID) UploadOption {
+// WithContentLength sets the expected file size for validation.
+func WithContentLength(size int64) UploadOption {
+	return func(opt *uploadOption) {
+		opt.contentLength = size
+	}
+}
+
+// WithContentType sets the declared MIME type for validation.
+func WithContentType(ct string) UploadOption {
+	return func(opt *uploadOption) {
+		opt.contentType = ct
+	}
+}
+
+// WithCustomID sets the custom object ID for the upload.
+func WithCustomID(id storio.ObjectID) UploadOption {
 	return func(opt *uploadOption) {
 		if id != nil && id.ID().String() == "" {
 			id = nil
@@ -67,7 +83,7 @@ type Options struct {
 	Database DB
 
 	// collection of file objects
-	Driver npio.StorageAccessor
+	Driver storio.StorageAccessor
 
 	// Processing status KeyValue accessor.
 	// contains statuses of the object processing stages
@@ -76,7 +92,7 @@ type Options struct {
 
 func (opts *Options) validate() error {
 	if opts.Driver == nil {
-		return ErrStorageCollectionIsRequred
+		return ErrStorageCollectionIsRequired
 	}
 	return nil
 }
@@ -92,7 +108,7 @@ func WithDatabase(database DB) Option {
 }
 
 // WithDriver object accessor interface
-func WithDriver(driver npio.StorageAccessor) Option {
+func WithDriver(driver storio.StorageAccessor) Option {
 	return func(opts *Options) {
 		opts.Driver = driver
 	}

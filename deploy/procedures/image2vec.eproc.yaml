@@ -1,0 +1,30 @@
+# image2vec — compute a ResNet-18 embedding vector for an image.
+#
+# Pairs with: deploy/procedures/image2vec.py
+# Requires:   torch, img2vec_pytorch, Pillow (see requirements.txt)
+# Init:       run image2vec-init.py once before starting the worker
+#
+# Usage in a workflow step:
+#
+#   steps:
+#     - name: Image embedding
+#       uses: procedure
+#       with:
+#         name: image2vec
+#         target-meta: vector    # stores JSON array in meta.attributes.vector
+#
+# The script outputs a JSON float array to stdout which the runner stores as a
+# meta attribute.  Set on-failure: continue on the parent job so that images
+# that cannot be processed don't block the pipeline.
+
+driver: exec
+
+args:
+  - "{{inputFile}}"
+
+params:
+  - name: inputFile
+    type: file
+
+output:
+  type: json

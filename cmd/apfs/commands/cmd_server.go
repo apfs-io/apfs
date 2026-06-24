@@ -20,6 +20,7 @@ type serverConfig struct {
 	Server      appcontext.ServerConfig      `json:"server" yaml:"server"`
 	Storage     appcontext.StorageConfig     `json:"storage" yaml:"storage"`
 	Eventstream appcontext.EventstreamConfig `json:"eventstream" yaml:"eventstream"`
+	Worker      appcontext.WorkerConfig      `json:"worker" yaml:"worker"`
 }
 
 // ServerCommand defines the CLI command for running the server.
@@ -36,7 +37,7 @@ func serverCommandExec(ctx context.Context, args []string, config *serverConfig)
 
 	// Initialize the protocol API object with eventstream, storage, and logger configurations.
 	protoAPI, err := appinit.ProtocolAPIObject(ctx,
-		&config.Eventstream, &config.Storage, logger)
+		&config.Eventstream, &config.Storage, config.Worker.Tags, logger)
 	fatalError(err, "protocol initialization")
 
 	// Run the processor if the Processing flag is set.

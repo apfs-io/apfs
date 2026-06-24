@@ -1,0 +1,73 @@
+# Image Gallery Workflow
+#
+# Demonstrates three execution styles:
+#   1. uses: procedure  — named .eproc procedure from deploy/procedures/
+#   2. uses: shell      — inline bash script via run:
+#   3. uses: docker     — command inside a Docker container
+#
+# Bucket/group: images
+
+version: "2"
+name: image-gallery
+description: Resize uploaded images to three sizes and strip EXIF metadata.
+
+content_types:
+  - image/jpeg
+  - image/png
+  - image/webp
+
+keep_original: false
+
+validate:
+  max_size: 20MB
+  content_types:
+    - image/jpeg
+    - image/png
+    - image/webp
+
+jobs:
+  large:
+    runs-on: image
+    steps:
+      - name: Resize
+        uses: procedure
+        with:
+          name: image-resize-w
+          width: "1200"
+          target: large.jpg
+
+      - name: Strip EXIF
+        uses: procedure
+        with:
+          name: image-strip-meta
+          target: large.jpg
+
+  medium:
+    runs-on: image
+    steps:
+      - name: Resize and strip
+        uses: shell
+        with:
+          target: medium.jpg
+        run: |
+          W=$(identify -format "%w" "{{inputFile}}")
+          if [ "$W" -gt 600 ]; then
+            convert "{{inputFile}}" -resize "600x>" -interlace Plane -auto-orient \
+              -strip "{{outputFile}}"
+          else
+            cp "{{inputFile}}" "{{outputFile}}"
+          fi
+
+  thumb-docker:
+    runs-on: docker
+    steps:
+      - name: Resize thumb
+        uses: docker
+        docker:
+          image: dpokidov/imagemagick:latest
+          remove_after_done: true
+        with:
+          target: thumb.jpg
+        run: |
+          convert "{{inputFile}}" -resize "120x>" -interlace Plane \
+            -strip -auto-orient "{{outputFile}}"

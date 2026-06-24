@@ -1,0 +1,61 @@
+# User Avatar Workflow
+#
+# Validates, resizes, and strips metadata from user-uploaded avatars.
+# Also produces a 40 px micro thumbnail for notification emails.
+#
+# Procedures (deploy/procedures/):
+#   image-resize-w   — resize to max width via ImageMagick
+#   image-strip-meta — strip EXIF via ImageMagick mogrify
+#
+# Bucket/group: avatars
+
+version: "2"
+name: user-avatar
+description: Avatar and micro-thumbnail generation for user profiles.
+
+content_types:
+  - image/jpeg
+  - image/png
+  - image/webp
+
+keep_original: false
+
+validate:
+  max_size: 5MB
+  content_types:
+    - image/jpeg
+    - image/png
+    - image/webp
+
+jobs:
+  avatar:
+    runs-on: image
+    steps:
+      - name: resize
+        uses: procedure
+        with:
+          name: image-resize-w
+          width: "256"
+          target: avatar.jpg
+
+      - name: strip-exif
+        uses: procedure
+        with:
+          name: image-strip-meta
+          target: avatar.jpg
+
+  micro:
+    runs-on: image
+    steps:
+      - name: resize
+        uses: procedure
+        with:
+          name: image-resize-w
+          width: "40"
+          target: micro.jpg
+
+      - name: strip-exif
+        uses: procedure
+        with:
+          name: image-strip-meta
+          target: micro.jpg

@@ -5,9 +5,9 @@ import (
 
 	"github.com/demdxx/xtypes"
 
-	npio "github.com/apfs-io/apfs/internal/io"
 	"github.com/apfs-io/apfs/internal/storage/converters"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor"
+	storio "github.com/apfs-io/apfs/internal/storio"
 )
 
 var (
@@ -20,7 +20,7 @@ type Options struct {
 	storage Storage
 
 	// collection of file objects
-	driver npio.StorageAccessor
+	driver storio.StorageAccessor
 
 	// converter list of processing
 	converters []converters.Converter
@@ -51,7 +51,7 @@ func WithStorage(storage Storage) Option {
 }
 
 // WithDriver object accessor interface
-func WithDriver(driver npio.StorageAccessor) Option {
+func WithDriver(driver storio.StorageAccessor) Option {
 	return func(opts *Options) {
 		opts.driver = driver
 	}

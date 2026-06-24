@@ -3,18 +3,19 @@ package processor
 import (
 	"context"
 
-	npio "github.com/apfs-io/apfs/internal/io"
+	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/models"
 )
 
 // Storage interface defines methods for interacting with storage objects
 type Storage interface {
 	// Object returns the object from the storage
-	Object(ctx context.Context, obj any) (npio.Object, error)
+	Object(ctx context.Context, obj any) (storio.Object, error)
 
-	// Retrieve the object's manifest
-	ObjectManifest(ctx context.Context, obj npio.Object) *models.Manifest
+	// ObjectWorkflow returns the effective workflow for the object,
+	// falling back to the bucket-level workflow if the object has none.
+	ObjectWorkflow(ctx context.Context, obj storio.Object) *models.Workflow
 
 	// Update object metadata
-	UpdateObjectInfo(ctx context.Context, obj npio.Object) error
+	UpdateObjectInfo(ctx context.Context, obj storio.Object) error
 }

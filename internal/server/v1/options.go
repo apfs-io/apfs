@@ -1,11 +1,12 @@
 package v1
 
 import (
-	"github.com/apfs-io/apfs/internal/io"
 	"github.com/apfs-io/apfs/internal/storage"
 	"github.com/apfs-io/apfs/internal/storage/converters"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor"
 	"github.com/apfs-io/apfs/internal/storage/processor"
+	"github.com/apfs-io/apfs/internal/storio"
+	"github.com/apfs-io/apfs/internal/workflow"
 
 	nc "github.com/geniusrabbit/notificationcenter/v2"
 )
@@ -35,9 +36,15 @@ type Options struct {
 
 	// Update state accessor
 	updateState updateStateI
+
+	// v2 workflow runner registry (optional)
+	wfRegistry *workflow.RunnerRegistry
+
+	// Worker tags for workflow job affinity
+	workerTags []string
 }
 
-func (opts *Options) _storage(database storage.DB, driver io.StorageAccessor, stateKV kvaccessor.KVAccessor) *storage.Storage {
+func (opts *Options) _storage(database storage.DB, driver storio.StorageAccessor, stateKV kvaccessor.KVAccessor) *storage.Storage {
 	if opts.store == nil {
 		opts.store = storage.NewStorage(
 			storage.WithDatabase(database),
@@ -48,7 +55,7 @@ func (opts *Options) _storage(database storage.DB, driver io.StorageAccessor, st
 	return opts.store
 }
 
-func (opts *Options) _processor(driver io.StorageAccessor, stateKV kvaccessor.KVAccessor) *processor.Processor {
+func (opts *Options) _processor(driver storio.StorageAccessor, stateKV kvaccessor.KVAccessor) *processor.Processor {
 	proc, err := processor.NewProcessor(
 		processor.WithStorage(opts.store),
 		processor.WithDriver(driver),
@@ -109,5 +116,19 @@ func WithUpdateState(updateState updateStateI) Option {
 func WithRetries(maxRetries int) Option {
 	return func(opts *Options) {
 		opts.maxRetries = maxRetries
+	}
+}
+
+// WithWorkflowExecutor registers v2 workflow step runners for the event pipeline.
+func WithWorkflowExecutor(registry *workflow.RunnerRegistry) Option {
+	return func(opts *Options) {
+		opts.wfRegistry = registry
+	}
+}
+
+// WithWorkerTags sets worker capability tags used for workflow runs-on matching.
+func WithWorkerTags(tags []string) Option {
+	return func(opts *Options) {
+		opts.workerTags = tags
 	}
 }

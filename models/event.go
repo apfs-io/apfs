@@ -18,6 +18,7 @@ const (
 )
 
 // Event produced by storage
+//
 //easyjson:json
 type Event struct {
 	Type   EventType `json:"type"`

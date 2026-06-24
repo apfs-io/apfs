@@ -109,12 +109,12 @@ func (s *GRPCServer) RunGRPC(ctx context.Context, listen string) error {
 		grpc.ChainUnaryInterceptor(
 			middleware.GRPCErrorUnaryWrapper,
 			grpc_zap.UnaryServerInterceptor(s.Logger, zapOpts...),
-			middleware.GRPCContextUnaryWrapper(s.contextWrapFnk()),
+			middleware.GRPCContextUnaryWrapper(s.contextWrapFunc()),
 		),
 		grpc.ChainStreamInterceptor(
 			middleware.GRPCErrorStreamWrapper,
 			grpc_zap.StreamServerInterceptor(s.Logger, zapOpts...),
-			middleware.GRPCContextStreamWrapper(s.contextWrapFnk()),
+			middleware.GRPCContextStreamWrapper(s.contextWrapFunc()),
 		),
 		grpc.MaxConcurrentStreams(s.Concurrency),
 		grpc.ConnectionTimeout(s.ConnectionTimeout),
@@ -157,7 +157,7 @@ func (s *GRPCServer) RunHTTP(ctx context.Context, address string) error {
 	// Set up the HTTP router with middleware and routes.
 	mux := chi.NewRouter()
 	mux.Use(chimiddleware.RequestID)
-	mux.Use(chimiddleware.RealIP)
+	mux.Use(chimiddleware.ClientIPFromRemoteAddr)
 	mux.Use(chimiddleware.Logger)
 	mux.Use(chimiddleware.Recoverer)
 
@@ -179,7 +179,7 @@ func (s *GRPCServer) RunHTTP(ctx context.Context, address string) error {
 		Addr:        address,
 		Handler:     handler,
 		BaseContext: func(l net.Listener) context.Context { return ctx },
-		ConnContext: s.connContextWrapFnk(),
+		ConnContext: s.connContextWrapFunc(),
 	}
 
 	// Gracefully shut down the server when the context is canceled.
@@ -205,15 +205,15 @@ func (s *GRPCServer) swaggerHandler() http.Handler {
 		tools.SwaggerServer("/swagger/swagger.json", true))
 }
 
-// contextWrapFnk wraps the context with additional data for gRPC.
-func (s *GRPCServer) contextWrapFnk() func(ctx context.Context) (context.Context, error) {
+// contextWrapFunc wraps the context with additional data for gRPC.
+func (s *GRPCServer) contextWrapFunc() func(ctx context.Context) (context.Context, error) {
 	return func(ctx context.Context) (context.Context, error) {
 		return s.ContextWrap(ctx), nil
 	}
 }
 
-// connContextWrapFnk wraps the connection context with additional data.
-func (s *GRPCServer) connContextWrapFnk() func(ctx context.Context, c net.Conn) context.Context {
+// connContextWrapFunc wraps the connection context with additional data.
+func (s *GRPCServer) connContextWrapFunc() func(ctx context.Context, c net.Conn) context.Context {
 	return func(ctx context.Context, c net.Conn) context.Context {
 		return s.ContextWrap(ctx)
 	}

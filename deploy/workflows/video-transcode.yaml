@@ -1,0 +1,81 @@
+# Video Transcoding Workflow
+#
+# Demonstrates Docker steps for heavy FFmpeg workloads.
+# Requires a worker with the "video" tag and access to a Docker daemon.
+#
+# Produces:
+#   main.mp4  — H.264 @ 1080p
+#   small.mp4 — H.264 @ 480p
+#   thumb.jpg — first-frame thumbnail
+#
+# Bucket/group: videos
+
+version: "2"
+name: video-transcode
+description: Transcode uploaded video to HD/SD MP4 and extract a thumbnail.
+
+content_types:
+  - video/mp4
+  - video/quicktime
+  - video/x-msvideo
+
+keep_original: false
+
+validate:
+  max_size: 2GB
+  content_types:
+    - video/mp4
+    - video/quicktime
+    - video/x-msvideo
+
+jobs:
+  hd:
+    runs-on: video
+    steps:
+      - name: ffmpeg-hd
+        uses: docker
+        docker:
+          image: jrottenberg/ffmpeg:4.4-alpine
+          remove_after_done: true
+        with:
+          target: main.mp4
+        run: |
+          ffmpeg -i "{{inputFile}}" \
+            -vf "scale=-2:1080" \
+            -c:v libx264 -preset fast -crf 22 \
+            -c:a aac -b:a 128k \
+            -movflags +faststart \
+            -y "{{outputFile}}"
+
+  sd:
+    runs-on: video
+    steps:
+      - name: ffmpeg-sd
+        uses: docker
+        docker:
+          image: jrottenberg/ffmpeg:4.4-alpine
+          remove_after_done: true
+        with:
+          target: small.mp4
+        run: |
+          ffmpeg -i "{{inputFile}}" \
+            -vf "scale=-2:480" \
+            -c:v libx264 -preset fast -crf 26 \
+            -c:a aac -b:a 96k \
+            -movflags +faststart \
+            -y "{{outputFile}}"
+
+  thumbnail:
+    runs-on: video
+    steps:
+      - name: ffmpeg-thumb
+        uses: docker
+        docker:
+          image: jrottenberg/ffmpeg:4.4-alpine
+          remove_after_done: true
+        with:
+          target: thumb.jpg
+        run: |
+          ffmpeg -i "{{inputFile}}" \
+            -vframes 1 -q:v 2 \
+            -y "{{outputFile}}"

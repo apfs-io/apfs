@@ -10,15 +10,11 @@ option java_package = "com.apfs.protocol.v1";
 import "google/api/annotations.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
 
+import "v1/common.proto";
 import "v1/object.proto";
 import "v1/manifest.proto";
-
-enum ResponseStatusCode {
-  UNKNOWN_INVALID = 0;
-  OK              = 1;
-  FAILED          = 2;
-  NOT_FOUND       = 3;
-}
+import "v1/workflow.proto";
+import "v1/state.proto";
 
 message ManifestGroup {
   string    group       = 1;
@@ -47,10 +43,18 @@ message Data {
   repeated string tags      = 3;
 }
 
+// ObjectRequestOptions controls which optional data is included in the object response.
+message ObjectRequestOptions {
+  bool with_workflow   = 1; // include bucket workflow manifest
+  bool with_state      = 2; // include processing state (counters only)
+  bool state_full      = 3; // include full job details (requires with_state=true)
+}
+
 message ObjectID {
-  string          id        = 1;
+  string                id        = 1;
   // The list of possible required files. Will be taked only first existing file
-  repeated string name      = 2;
+  repeated string       name      = 2;
+  ObjectRequestOptions  options   = 3; // optional; nil = default (no extras)
 }
 
 message ObjectIDNames {
@@ -119,12 +123,6 @@ service ServiceAPI {
   rpc Get(ObjectID) returns (stream ObjectResponse) {
     option (google.api.http) = {
       get: "/v1/object/{id}"
-      // Example:
-      // curl -i "http://hostname:port/v1/object/images/object/path?[name=subobject.name]&[meta=true]"
-      //
-      // Content-Type: based on file mime type
-      // Content-Length: size of file in bytes
-      // X-Content-Meta: Meta.JSON.Base64 encoded if "meta" is true
     };
   };
 
@@ -163,6 +161,36 @@ service ServiceAPI {
   rpc Delete(ObjectIDNames) returns (SimpleResponse) {
     option (google.api.http) = {
       delete: "/v1/object/{id=**}"
+    };
+  };
+
+  // SetWorkflow stores a v2 workflow manifest for a group/bucket.
+  rpc SetWorkflow(DataWorkflow) returns (SimpleResponse) {
+    option (google.api.http) = {
+      put: "/v1/workflow/{group}"
+      body: "*"
+    };
+  };
+
+  // GetWorkflow returns the v2 workflow manifest for a group/bucket.
+  rpc GetWorkflow(ManifestGroup) returns (WorkflowResponse) {
+    option (google.api.http) = {
+      get: "/v1/workflow/{group}"
+    };
+  };
+
+  // GetProcessingState returns the current processing state for an object.
+  rpc GetProcessingState(ObjectID) returns (ProcessingStateResponse) {
+    option (google.api.http) = {
+      get: "/v1/state/{id=**}"
+    };
+  };
+
+  // WatchProcessingState streams processing state updates for an object.
+  // The stream ends when the object reaches a terminal state.
+  rpc WatchProcessingState(ObjectID) returns (stream ProcessingState) {
+    option (google.api.http) = {
+      get: "/v1/state/watch/{id=**}"
     };
   };
 }

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	npio "github.com/apfs-io/apfs/internal/io"
+	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/models"
 )
 
@@ -69,7 +69,7 @@ func TestDiskCollectionCreate(t *testing.T) {
 
 // TestDiskCollectionOpen tests opening a file and verifying its path.
 func TestDiskCollectionOpen(t *testing.T) {
-	file, err := diskCollection.Open(context.TODO(), npio.ObjectIDType("bucket/file"))
+	file, err := diskCollection.Open(context.TODO(), storio.ObjectIDType("bucket/file"))
 	if err != nil {
 		t.Error(err)
 		return

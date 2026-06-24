@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/apfs-io/apfs/internal/storage/converters"
+	"github.com/apfs-io/apfs/internal/workflow"
 	"github.com/apfs-io/apfs/libs/converters/image/actionprocessors"
 	"github.com/apfs-io/apfs/libs/converters/image/imagereader"
 	"github.com/apfs-io/apfs/models"
@@ -65,6 +66,12 @@ func (ic *Converter) RegisterImageProcessor(processors ...ImageProcessor) *Conve
 // Name of the converter
 func (ic *Converter) Name() string {
 	return "image"
+}
+
+// StepRunner returns a workflow.StepRunner that wraps this converter,
+// allowing image steps to be dispatched by the v2 workflow Executor.
+func (ic *Converter) StepRunner() workflow.StepRunner {
+	return converters.NewStepRunner(ic.Name(), ic)
 }
 
 // Test if action is suitable to perform

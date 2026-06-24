@@ -15,7 +15,7 @@ import (
 	api "github.com/apfs-io/apfs/internal/server/v1"
 )
 
-func updateLocker(conf *appcontext.StorageConfig) api.UpdateStateFnk {
+func updateLocker(conf *appcontext.StorageConfig) api.UpdateStateFunc {
 	conn := conf.ProcessingInterlockConnect
 	switch {
 	case strings.HasPrefix(conn, "redis://"):
@@ -27,7 +27,7 @@ func updateLocker(conf *appcontext.StorageConfig) api.UpdateStateFnk {
 	}
 }
 
-func redisLocker(conn string, lifetime time.Duration) api.UpdateStateFnk {
+func redisLocker(conn string, lifetime time.Duration) api.UpdateStateFunc {
 	rlock, err := redislock.NewByURL(conn, lifetime)
 	if err != nil {
 		log.Fatal(err)
@@ -37,7 +37,7 @@ func redisLocker(conn string, lifetime time.Duration) api.UpdateStateFnk {
 	}
 }
 
-func lruLocker(lifetime time.Duration) api.UpdateStateFnk {
+func lruLocker(lifetime time.Duration) api.UpdateStateFunc {
 	cache, err := lru.New[string, any](1024)
 	if err != nil {
 		panic(errors.Wrap(err, `init LRU cache`))
