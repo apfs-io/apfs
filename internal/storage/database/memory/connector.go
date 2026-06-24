@@ -7,7 +7,6 @@ import (
 
 	"github.com/apfs-io/apfs/internal/storage"
 	"github.com/apfs-io/apfs/models"
-	"golang.org/x/exp/maps"
 )
 
 var (
@@ -61,6 +60,6 @@ func (db *connector) Delete(id string) error {
 func (db *connector) Close() error {
 	db.mx.Lock() // Acquire a write lock for thread-safe modification.
 	defer db.mx.Unlock()
-	maps.Clear(db.mem) // Clear the in-memory map.
+	clear(db.mem) // Clear the in-memory map.
 	return nil
 }
