@@ -786,7 +786,7 @@ func (c *Storage) ReadState(ctx context.Context, id storio.ObjectID) (*models.Pr
 		}
 		return nil, err
 	}
-	defer result.Body.Close()
+	defer func() { _ = result.Body.Close() }()
 	data, err := io.ReadAll(result.Body)
 	if err != nil {
 		return nil, err

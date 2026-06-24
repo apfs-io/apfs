@@ -19,11 +19,11 @@ func NewWorkflowStorage(store *Storage) *WorkflowStorage {
 }
 
 func (s *WorkflowStorage) ReadState(ctx context.Context, id storio.ObjectID) (*models.ProcessingState, error) {
-	return s.Storage.GetProcessingState(ctx, id.ID().String())
+	return s.GetProcessingState(ctx, id.ID().String())
 }
 
 func (s *WorkflowStorage) WriteState(ctx context.Context, id storio.ObjectID, state *models.ProcessingState) error {
-	return s.Storage.SetProcessingState(ctx, id.ID().String(), state)
+	return s.SetProcessingState(ctx, id.ID().String(), state)
 }
 
 func (s *WorkflowStorage) WriteFile(

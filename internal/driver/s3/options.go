@@ -143,7 +143,7 @@ func WithInsecure(insecure bool) Options {
 	return func(conf *optionConfig) error {
 		conf.insecure = insecure
 		if conf.config.BaseEndpoint != nil {
-			WithEndpoint(*conf.config.BaseEndpoint)(conf)
+			_ = WithEndpoint(*conf.config.BaseEndpoint)(conf)
 		}
 		return nil
 	}

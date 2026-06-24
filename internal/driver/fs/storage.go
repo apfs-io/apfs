@@ -526,7 +526,7 @@ func (c *Storage) WriteFile(ctx context.Context, id storio.ObjectID, path string
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = io.Copy(f, data)
 	return err
 }

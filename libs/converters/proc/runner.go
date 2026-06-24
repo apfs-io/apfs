@@ -34,15 +34,6 @@ var reservedWithKeys = map[string]bool{
 	"tojson":      true, // wrap raw output in a JSON string
 }
 
-// reservedStoreKeys extends reservedWithKeys for store-lookup steps.
-var reservedStoreKeys = map[string]bool{
-	"name":        true, // procedure name in store
-	"target":      true,
-	"target-meta": true,
-	"input":       true,
-	"tojson":      true,
-}
-
 // StepRunner is a workflow.StepRunner backed by plugeproc.
 // It handles steps with uses: shell | procedure | exec | docker.
 type StepRunner struct {
@@ -66,10 +57,7 @@ func (r *StepRunner) CanRun(step *models.WorkflowStep) bool {
 		// A step with no uses but with a docker block or a run: block is ours.
 		return step.Run != "" || step.Docker != nil
 	}
-	if strings.HasPrefix(step.Uses, UsesProcedure+"/") {
-		return true
-	}
-	return false
+	return strings.HasPrefix(step.Uses, UsesProcedure+"/")
 }
 
 // Run executes the step.

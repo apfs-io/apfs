@@ -157,7 +157,7 @@ func (s *GRPCServer) RunHTTP(ctx context.Context, address string) error {
 	// Set up the HTTP router with middleware and routes.
 	mux := chi.NewRouter()
 	mux.Use(chimiddleware.RequestID)
-	mux.Use(chimiddleware.RealIP)
+	mux.Use(chimiddleware.ClientIPFromRemoteAddr)
 	mux.Use(chimiddleware.Logger)
 	mux.Use(chimiddleware.Recoverer)
 
