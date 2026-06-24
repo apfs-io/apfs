@@ -42,6 +42,10 @@ type Options struct {
 
 	// Worker tags for workflow job affinity
 	workerTags []string
+
+	// Workflows bootstrap from filesystem on startup
+	workflowsDir         string
+	workflowsReconfigure bool
 }
 
 func (opts *Options) _storage(database storage.DB, driver storio.StorageAccessor, stateKV kvaccessor.KVAccessor) *storage.Storage {
@@ -130,5 +134,13 @@ func WithWorkflowExecutor(registry *workflow.RunnerRegistry) Option {
 func WithWorkerTags(tags []string) Option {
 	return func(opts *Options) {
 		opts.workerTags = tags
+	}
+}
+
+// WithWorkflowsBootstrap seeds bucket workflows from a directory on startup.
+func WithWorkflowsBootstrap(dir string, reconfigure bool) Option {
+	return func(opts *Options) {
+		opts.workflowsDir = dir
+		opts.workflowsReconfigure = reconfigure
 	}
 }

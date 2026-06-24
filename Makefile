@@ -135,12 +135,9 @@ test-upload:
 	curl -X POST -v -F 'file=@"testdata/cat.jpg"' \
 		"http://localhost:18080/object/images?tags=test1&tags=test2"
 
-.PHONY: test-workflow seed-workflows
-seed-workflows:
-	WORKFLOWS_DIR=$(CURDIR)/deploy/workflows S3_ENDPOINT=http://localhost:9000 sh deploy/init/seed-workflows.sh
-
+.PHONY: test-workflow
 test-workflow:
-	python3 deploy/init/upload_workflow.py images deploy/workflows/image-gallery.yaml
+	python3 deploy/init/upload_workflow.py images deploy/workflows/images/manifest.yaml
 
 test-get-workflow:
 	curl -X GET -s "http://localhost:18080/v1/manifest/images" | jq '.'

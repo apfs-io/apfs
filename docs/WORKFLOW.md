@@ -6,6 +6,31 @@ The schema is inspired by GitHub Actions: jobs form a DAG via `needs:`, support 
 
 ---
 
+## Deploying workflows
+
+### Automatic bootstrap (recommended)
+
+Place manifests on the filesystem before or during container start. APFS applies
+them on startup from `WORKFLOWS_DIR` (default `/workflows`):
+
+```
+/workflows/images/manifest.yaml
+/workflows/videos/manifest.yaml
+```
+
+See [INITIALIZATION.md](INITIALIZATION.md) for apply rules, version upgrades
+(`WORKFLOWS_RECONFIGURE`), and Docker examples.
+
+Example manifests live in [`deploy/workflows/`](../deploy/workflows/).
+
+### Manual registration
+
+- **API:** `PUT /v1/manifest/{group}` with JSON body
+- **Go client:** `client.Group("images").SetWorkflow(ctx, wf)`
+- **Filesystem driver:** copy YAML to `{storage_root}/{group}/manifest.yaml`
+
+---
+
 ## Top-level keys
 
 ```yaml

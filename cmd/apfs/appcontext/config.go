@@ -39,6 +39,15 @@ type StorageConfig struct {
 	// Directory where located predefined scripts and applications
 	ProcedureDirectory string `json:"procedure_directory" yaml:"procedure_directory" env:"STORAGE_PROCEDURE_DIR" default:"procedures"`
 
+	// WorkflowsDir is a directory with per-group workflow manifests:
+	// {WorkflowsDir}/{groupName}/manifest.{yaml|json}. When set, manifests are
+	// applied on service startup (see WORKFLOWS_RECONFIGURE).
+	WorkflowsDir string `json:"workflows_dir" yaml:"workflows_dir" env:"WORKFLOWS_DIR" default:"/workflows"`
+
+	// WorkflowsReconfigure allows replacing an existing group workflow when the
+	// incoming manifest version is greater than the stored one.
+	WorkflowsReconfigure bool `json:"workflows_reconfigure" yaml:"workflows_reconfigure" env:"WORKFLOWS_RECONFIGURE" default:"false"`
+
 	// The processing state locker to exclude simultaneous operations
 	ProcessingInterlockConnect string        `json:"processing_interlock_connection" yaml:"processing_interlock_connection" env:"PROCESSING_INTERLOCK_CONNECTION"`
 	ProcessingLifetime         time.Duration `json:"processing_lifetime" yaml:"processing_lifetime" env:"PROCESSING_LIFETIME" default:"5m"`

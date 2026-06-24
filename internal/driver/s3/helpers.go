@@ -29,6 +29,14 @@ func isNotExist(err error) bool {
 	case "NoSuchBucket", "NoSuchKey":
 		return true
 	}
+	// AWS SDK v2 may surface 404 / NoSuchKey only in the wrapped error string.
+	msg := err.Error()
+	if strings.Contains(msg, "NoSuchKey") || strings.Contains(msg, "NoSuchBucket") {
+		return true
+	}
+	if strings.Contains(msg, "StatusCode: 404") {
+		return true
+	}
 	return false
 }
 

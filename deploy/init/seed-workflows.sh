@@ -1,6 +1,9 @@
 #!/bin/sh
-# Seed bucket-level workflow manifests into MinIO (S3 backend).
-# See deploy/README.md for group mapping.
+# Deprecated: APFS server seeds workflows on startup from WORKFLOWS_DIR.
+# This script remains for manual S3 uploads outside the APFS process.
+#
+# Layout: ${WORKFLOWS_DIR}/{groupName}/manifest.{yaml|json}
+# See deploy/README.md
 
 set -eu
 
@@ -10,7 +13,6 @@ else
   PY=python
 fi
 
-# Install deps when running in minimal containers (Alpine seed service).
 if ! "$PY" -c "import yaml, boto3" 2>/dev/null; then
   if command -v apk >/dev/null 2>&1; then
     apk add --no-cache py3-pip >/dev/null
@@ -42,13 +44,6 @@ access = os.environ["S3_ACCESS_KEY"]
 secret = os.environ["S3_SECRET_KEY"]
 workflows_dir = Path(os.environ.get("WORKFLOWS_DIR", "/workflows"))
 
-mapping = {
-    "image-gallery.yaml": "images",
-    "image-analysis.yaml": "analysis",
-    "user-avatar.yaml": "avatars",
-    "video-transcode.yaml": "videos",
-}
-
 client = boto3.client(
     "s3",
     endpoint_url=endpoint,
@@ -72,14 +67,18 @@ try:
 except client.exceptions.ClientError:
     client.create_bucket(Bucket=bucket)
 
-for filename, group in mapping.items():
-    path = workflows_dir / filename
-    if not path.exists():
-        print(f"skip missing {path}")
+manifest_names = ("manifest.yaml", "manifest.yml", "manifest.json")
+
+for group_dir in sorted(workflows_dir.iterdir()):
+    if not group_dir.is_dir() or group_dir.name.startswith("."):
         continue
-    with path.open() as f:
+    manifest_path = next((group_dir / name for name in manifest_names if (group_dir / name).exists()), None)
+    if manifest_path is None:
+        print(f"skip missing manifest in {group_dir}")
+        continue
+    with manifest_path.open() as f:
         doc = yaml.safe_load(f)
-    key = f"{group}/manifest.json"
+    key = f"{group_dir.name}/manifest.json"
     body = json.dumps(doc, ensure_ascii=False).encode()
     client.put_object(
         Bucket=bucket,
@@ -87,5 +86,5 @@ for filename, group in mapping.items():
         Body=body,
         ContentType="application/json",
     )
-    print(f"uploaded s3://{bucket}/{key} from {filename}")
+    print(f"uploaded s3://{bucket}/{key} from {manifest_path}")
 PY

@@ -56,32 +56,16 @@ services:
     environment:
       STORAGE_CONVERTERS: image,procedure,shell,exec,docker
       WORKER_TAGS: image,gpu,cpu,docker,video,any
+      WORKFLOWS_DIR: /workflows
     volumes:
       - /tmp/data/minio/:/tmp/data/storage
       - /var/run/docker.sock:/var/run/docker.sock
-
-  seed:
-    image: python:3-alpine
-    depends_on:
-      s3server:
-        condition: service_started
-      server:
-        condition: service_healthy
-    env_file:
-      - ../../.env
-    environment:
-      S3_ENDPOINT: http://s3server:9000
-      S3_BUCKET: assets
-      WORKFLOWS_DIR: /workflows
-    volumes:
-      - ../init:/init:ro
       - ../workflows:/workflows:ro
-    entrypoint: ["/bin/sh", "/init/seed-workflows.sh"]
 
   test:
     image: github.com/apfs-io/apfs-testapp:latest
     depends_on:
-      seed:
-        condition: service_completed_successfully
+      server:
+        condition: service_healthy
     environment:
       STORAGE_CONNECT: tcp://server:8081/images

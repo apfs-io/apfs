@@ -68,6 +68,24 @@ videos.WatchProgress(ctx, obj.ID, func(state *models.ProcessingState) {
 
 See [docs/USE_CASES.md](docs/USE_CASES.md) for complete examples and [docs/WORKFLOW.md](docs/WORKFLOW.md) for the full schema reference.
 
+## Deployment & initialization
+
+On startup APFS can automatically configure bucket workflows from a directory
+(default `/workflows`):
+
+```
+/workflows/{groupName}/manifest.yaml
+```
+
+Mount the directory in Docker or bake manifests into the image — no separate
+seed container is needed. See [docs/INITIALIZATION.md](docs/INITIALIZATION.md)
+for the full startup sequence, environment variables, and upgrade rules.
+
+```bash
+# Local stack (workflows mounted from deploy/workflows)
+make build-docker-dev && make run
+```
+
 ## API Overview
 
 ### Services
@@ -124,8 +142,10 @@ The API is defined with `proto3` in [`protocol/v1/`](protocol/v1/). A REST gatew
 
 | Document                                                     | Description                                                   |
 | ------------------------------------------------------------ | ------------------------------------------------------------- |
+| [docs/INITIALIZATION.md](docs/INITIALIZATION.md)             | Service startup, workflow bootstrap, Docker deployment        |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md)                         | Full v2 workflow YAML schema reference                        |
 | [docs/USE_CASES.md](docs/USE_CASES.md)                       | End-to-end examples: image gallery, video, documents, avatars |
+| [deploy/README.md](deploy/README.md)                         | Docker images, compose stack, example manifests               |
 | [internal/driver/s3/README.md](internal/driver/s3/README.md) | Local S3 setup with MinIO                                     |
 
 ## License

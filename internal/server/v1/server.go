@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/apfs-io/apfs/internal/bootstrap/workflows"
 	"github.com/apfs-io/apfs/internal/context/ctxlogger"
 	"github.com/apfs-io/apfs/internal/object"
 	protocol "github.com/apfs-io/apfs/internal/server/protocol/v1"
@@ -91,6 +92,11 @@ func NewServer(ctx context.Context, connect, storageConnect, stateConnect string
 		return &bufferItem{buff: make([]byte, 10*1024)}
 	}}
 	store := options._storage(database, driver, stateKV)
+	if options.workflowsDir != "" {
+		if err := workflows.Bootstrap(ctx, store, options.workflowsDir, options.workflowsReconfigure, ctxlogger.Get(ctx)); err != nil {
+			return nil, errors.Wrap(err, "workflows bootstrap")
+		}
+	}
 	var wfExecutor *workflow.Executor
 	if options.wfRegistry != nil {
 		wfExecutor = workflow.NewExecutor(storage.NewWorkflowStorage(store), options.wfRegistry)

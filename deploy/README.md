@@ -10,10 +10,11 @@ deploy/
 ├── build.mk                 # Cross-platform build helpers (included from Makefile)
 ├── develop/                 # Local docker-compose stack
 │   ├── apfs.dockerfile      # Dev server image (ImageMagick + Docker CLI)
-│   ├── docker-compose.yml   # MinIO, Redis, NATS, APFS server, seed, testapp
+│   ├── docker-compose.yml   # MinIO, Redis, NATS, APFS server, testapp
 │   └── testapp.dockerfile
 ├── init/
-│   └── seed-workflows.sh    # Upload workflow YAML → S3 manifest.json (dev stack)
+│   ├── seed-workflows.sh    # Legacy manual S3 upload helper (deprecated)
+│   └── upload_workflow.py   # HTTP upload helper for a single group
 ├── procedures/              # plugeproc .eproc manifests + scripts
 │   ├── *.eproc.yaml
 │   ├── image-resize-w
@@ -26,24 +27,51 @@ deploy/
 │   ├── debian.dockerfile
 │   ├── ubuntu.dockerfile
 │   └── ubuntu-imagemagick.dockerfile
-└── workflows/               # v2 workflow examples (YAML)
-    ├── image-gallery.yaml
-    ├── image-analysis.yaml
-    ├── user-avatar.yaml
-    └── video-transcode.yaml
+└── workflows/               # v2 workflow examples (per-group directories)
+    ├── images/manifest.yaml
+    ├── analysis/manifest.yaml
+    ├── avatars/manifest.yaml
+    └── videos/manifest.yaml
 ```
+
+## Workflow bootstrap on startup
+
+APFS seeds bucket workflows automatically on service start — no `seed` sidecar
+is required. Full documentation: [docs/INITIALIZATION.md](../docs/INITIALIZATION.md).
+
+Summary:
+
+```
+/workflows/{groupName}/manifest.{yaml|yml|json}
+```
+
+| Condition | Behaviour |
+| --------- | --------- |
+| Group has no workflow yet | Apply manifest |
+| Group already configured, `WORKFLOWS_RECONFIGURE=false` (default) | Skip |
+| Group already configured, `WORKFLOWS_RECONFIGURE=true` | Replace only when incoming `version` is greater |
+
+```yaml
+environment:
+  WORKFLOWS_DIR: /workflows
+  WORKFLOWS_RECONFIGURE: "false"
+volumes:
+  - ./my-workflows:/workflows:ro
+```
+
+Production images bake manifests with `COPY deploy/workflows /workflows`.
 
 ## Workflow examples
 
-Each file in `workflows/` is a **v2 workflow** (`version: "2"`). Upload it to a
-bucket/group as `manifest.yaml` (filesystem driver) or `manifest.json` (S3 driver).
+Each file in `workflows/{group}/manifest.yaml` is a **v2 workflow**
+(`version: "2"`). The directory name is the APFS group/bucket name.
 
-| File                  | APFS group | Purpose                                      |
-| --------------------- | ---------- | -------------------------------------------- |
-| `image-gallery.yaml`  | `images`   | procedure + shell + docker resize pipeline   |
-| `image-analysis.yaml` | `analysis` | ML embedding + face detection + dimensions   |
-| `user-avatar.yaml`    | `avatars`  | Avatar + micro thumbnail                     |
-| `video-transcode.yaml`| `videos`   | FFmpeg Docker transcode + thumbnail          |
+| Group dir  | Purpose                                      |
+| ---------- | -------------------------------------------- |
+| `images`   | procedure + shell + docker resize pipeline   |
+| `analysis` | ML embedding + face detection + dimensions   |
+| `avatars`  | Avatar + micro thumbnail                     |
+| `videos`   | FFmpeg Docker transcode + thumbnail          |
 
 See [docs/WORKFLOW.md](../docs/WORKFLOW.md) for the full schema.
 
@@ -101,7 +129,7 @@ manifest. Reserved keys: `target`, `target-meta`, `input`, `tojson`, `name`.
 ## Local development
 
 ```bash
-# Build and start the stack (MinIO + APFS + workflow seed + testapp)
+# Build and start the stack (MinIO + APFS + testapp)
 make build-docker-dev
 make run
 
@@ -115,8 +143,8 @@ make test-workflow
 make test-get-workflow
 ```
 
-The `seed` service in docker-compose uploads all workflow examples to MinIO as
-`{group}/manifest.json` before the testapp starts.
+The APFS server mounts `deploy/workflows` at `/workflows` and seeds all example
+groups on startup.
 
 ### Required environment
 
@@ -126,6 +154,7 @@ Key variables (see `.env`):
 STORAGE_PROCEDURE_DIR=/procedures/
 STORAGE_CONVERTERS=image,procedure,shell,exec,docker
 WORKER_TAGS=image,gpu,cpu,docker,video,any
+WORKFLOWS_DIR=/workflows
 STORAGE_CONNECT=s3://s3server:9000/assets?...
 ```
 
@@ -140,9 +169,9 @@ volumes:
 
 | Image                    | Base              | Includes                          |
 | ------------------------ | ----------------- | --------------------------------- |
-| `scratch.dockerfile`     | scratch           | Binary + procedures only          |
-| `debian.dockerfile`      | debian:stable-slim| Binary + procedures               |
-| `ubuntu.dockerfile`      | ubuntu:plucky     | Binary + procedures               |
+| `scratch.dockerfile`     | scratch           | Binary + procedures + workflows   |
+| `debian.dockerfile`      | debian:stable-slim| Binary + procedures + workflows   |
+| `ubuntu.dockerfile`      | ubuntu:plucky     | Binary + procedures + workflows   |
 | `ubuntu-imagemagick`     | ubuntu:plucky     | + ImageMagick, Python ML deps     |
 
 Build all production variants:
@@ -161,7 +190,7 @@ Pick worker tags per deployment — e.g. a GPU node runs with
 Copy YAML to the bucket root:
 
 ```bash
-cp deploy/workflows/image-gallery.yaml /data/storage/images/manifest.yaml
+cp deploy/workflows/images/manifest.yaml /data/storage/images/manifest.yaml
 ```
 
 ### HTTP API
@@ -169,7 +198,7 @@ cp deploy/workflows/image-gallery.yaml /data/storage/images/manifest.yaml
 ```bash
 # Convert YAML to JSON for S3-backed storage
 curl -X PUT -H 'Content-Type: application/json' \
-  --data-binary "@<(yq -o=json deploy/workflows/image-gallery.yaml)" \
+  --data-binary "@<(yq -o=json deploy/workflows/images/manifest.yaml)" \
   "http://localhost:18080/v1/manifest/images"
 ```
 

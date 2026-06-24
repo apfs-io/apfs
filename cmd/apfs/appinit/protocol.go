@@ -34,6 +34,7 @@ func ProtocolAPIObject(ctx context.Context, eventsConf *appcontext.EventstreamCo
 		api.WithWorkflowExecutor(StepRunners(ctx, storageConf, logger)),
 		api.WithWorkerTags(workerTags),
 		api.WithRetries(storageConf.ProcessingMaxRetries),
+		api.WithWorkflowsBootstrap(storageConf.WorkflowsDir, storageConf.WorkflowsReconfigure),
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "server create")

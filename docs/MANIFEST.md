@@ -1,5 +1,9 @@
 # Manifest file description
 
+> **Note:** v1 manifests described here are legacy. New deployments should use
+> v2 workflows (`version: "2"`) — see [WORKFLOW.md](WORKFLOW.md). Workflows can
+> be applied automatically on service start via [INITIALIZATION.md](INITIALIZATION.md).
+
 Manifest contains information about object transformation.
 
 ## Structure

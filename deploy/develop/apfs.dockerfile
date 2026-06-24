@@ -21,9 +21,11 @@ RUN apt-get update \
 ENV STORAGE_PROCEDURE_DIR=/procedures
 ENV STORAGE_CONVERTERS=image,procedure,shell,exec,docker
 ENV WORKER_TAGS=image,gpu,cpu,docker,video,any
+ENV WORKFLOWS_DIR=/workflows
 
 RUN mkdir -p /tmp/data/
 ADD deploy/procedures /procedures
+ADD deploy/workflows /workflows
 ADD .build/${TARGETPLATFORM}/apfs /apfs
 
 ENTRYPOINT [ "/apfs" ]
