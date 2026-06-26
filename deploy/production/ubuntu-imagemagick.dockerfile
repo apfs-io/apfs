@@ -31,6 +31,5 @@ COPY .build/zoneinfo.zip /usr/local/go/lib/time/
 COPY .build/${TARGETPLATFORM}/apfs /
 COPY .build/.empty /data
 COPY deploy/procedures /procedures
-COPY deploy/workflows /workflows
 
 ENTRYPOINT ["/apfs", "server", "--processing=1"]

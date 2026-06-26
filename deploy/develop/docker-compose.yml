@@ -60,7 +60,7 @@ services:
     volumes:
       - /tmp/data/minio/:/tmp/data/storage
       - /var/run/docker.sock:/var/run/docker.sock
-      - ../workflows:/workflows:ro
+      - ../workflow-examples:/workflows:ro
 
   test:
     image: github.com/apfs-io/apfs-testapp:latest
