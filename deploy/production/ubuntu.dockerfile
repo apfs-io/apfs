@@ -20,4 +20,6 @@ COPY .build/${TARGETPLATFORM}/apfs /
 COPY .build/.empty /data
 COPY deploy/procedures /procedures
 
-ENTRYPOINT ["/apfs", "server", "--processing=1"]
+ENTRYPOINT ["/apfs"]
+
+CMD ["server", "--processing=1"]
