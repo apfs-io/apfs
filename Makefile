@@ -98,11 +98,14 @@ build-docker-testapp: build-testapp
 	echo "Build test app docker image"
 	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker build -t ${DOCKER_CONTAINER_TESTAPP_IMAGE} -f deploy/develop/testapp.dockerfile .
 
+# PyTorch has no CPU wheels for 32-bit ARM; imagemagick image is amd64+arm64 only.
+DOCKER_IMAGEMAGICK_PLATFORMS=linux/amd64,linux/arm64/v8
+
 .PHONY: buildx-docker-production
 buildx-docker-production: ## Build production docker image
 	echo "Build production docker image"
 	docker buildx build \
-		--platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
+		--platform ${DOCKER_IMAGEMAGICK_PLATFORMS} \
 		-t ${IMAGE_NAME}:ubuntu-imagemagick -f deploy/production/ubuntu-imagemagick.dockerfile .
 	docker buildx build \
 		--platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
