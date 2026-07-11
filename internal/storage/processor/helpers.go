@@ -13,6 +13,31 @@ import (
 
 var errReaderResetPosition = errors.New(`reader can't reset position`)
 
+// eventStatus derives the models.ProcessingStatus for a status stream event
+// based on the task execution counters and any error that occurred.
+func eventStatus(failed, skipped int, err error) models.ProcessingStatus {
+	if failed > 0 || err != nil {
+		return models.ProcessingStatusFailed
+	}
+	if skipped > 0 {
+		return models.ProcessingStatusPartial
+	}
+	return models.ProcessingStatusCompleted
+}
+
+// eventProgress returns a 0.0–1.0 progress ratio.
+// A fully successful run (no failures, no error) reports 1.0.
+// Otherwise the ratio reflects how many tasks actually completed.
+func eventProgress(total, completed, failed int, err error) float64 {
+	if total <= 0 {
+		return 0
+	}
+	if failed == 0 && err == nil && completed >= total {
+		return 1.0
+	}
+	return float64(completed) / float64(total)
+}
+
 func processingStatusBy(cObject storio.Object, manifest *models.Manifest, err error) models.ObjectStatus {
 	if err != nil {
 		return models.StatusError

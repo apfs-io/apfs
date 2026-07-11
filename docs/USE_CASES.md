@@ -1,6 +1,7 @@
 # Use Cases
 
 Each section shows a complete workflow YAML and the Go client code needed to register it and upload a file.
+For progress tracking and event-stream subscription see [PROCESSING.md](PROCESSING.md).
 
 ---
 

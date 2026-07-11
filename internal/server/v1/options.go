@@ -34,6 +34,9 @@ type Options struct {
 	// Event stream object chanel
 	eventStream nc.Publisher
 
+	// Status stream for per-task progress events (optional)
+	statusStream nc.Publisher
+
 	// Update state accessor
 	updateState updateStateI
 
@@ -106,6 +109,13 @@ func WithStorageConverters(convs []converters.Converter) Option {
 func WithEventstream(eventStream nc.Publisher) Option {
 	return func(opts *Options) {
 		opts.eventStream = eventStream
+	}
+}
+
+// WithStatusStream sets the optional publisher used for per-task progress events.
+func WithStatusStream(pub nc.Publisher) Option {
+	return func(opts *Options) {
+		opts.statusStream = pub
 	}
 }
 

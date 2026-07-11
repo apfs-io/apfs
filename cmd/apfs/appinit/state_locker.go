@@ -15,15 +15,15 @@ import (
 	api "github.com/apfs-io/apfs/internal/server/v1"
 )
 
-func updateLocker(conf *appcontext.StorageConfig) api.UpdateStateFunc {
-	conn := conf.ProcessingInterlockConnect
+func updateLocker(conf *appcontext.ProcessingConfig) api.UpdateStateFunc {
+	conn := conf.InterlockConnect
 	switch {
 	case strings.HasPrefix(conn, "redis://"):
-		return redisLocker(conn, conf.ProcessingLifetime)
+		return redisLocker(conn, conf.Lifetime)
 	case conn == "memory" || conn == "":
-		return lruLocker(conf.ProcessingLifetime)
+		return lruLocker(conf.Lifetime)
 	default:
-		panic(fmt.Errorf("invalid interlock option: %s", conf.ProcessingInterlockConnect))
+		panic(fmt.Errorf("invalid interlock option: %s", conf.InterlockConnect))
 	}
 }
 

@@ -10,59 +10,66 @@ import (
 
 type ServerConfig struct {
 	HTTP struct {
-		Listen       string        `default:":8080" json:"listen" yaml:"listen" cli:"http-listen" env:"SERVER_HTTP_LISTEN"`
-		ReadTimeout  time.Duration `default:"120s" json:"read_timeout" yaml:"read_timeout" env:"SERVER_HTTP_READ_TIMEOUT"`
-		WriteTimeout time.Duration `default:"120s" json:"write_timeout" yaml:"write_timeout" env:"SERVER_HTTP_WRITE_TIMEOUT"`
-	}
+		Listen       string        `default:":8080" json:"listen" yaml:"listen" cli:"http-listen" env:"LISTEN"`
+		ReadTimeout  time.Duration `default:"120s" json:"read_timeout" yaml:"read_timeout" env:"READ_TIMEOUT"`
+		WriteTimeout time.Duration `default:"120s" json:"write_timeout" yaml:"write_timeout" env:"WRITE_TIMEOUT"`
+	} `envPrefix:"HTTP_"`
 	GRPC struct {
-		Listen      string        `default:":8081" json:"listen" yaml:"listen" cli:"grpc-listen" env:"SERVER_GRPC_LISTEN"`
-		Timeout     time.Duration `default:"120s" json:"timeout" yaml:"timeout" env:"SERVER_GRPC_TIMEOUT"`
-		Concurrency uint32        `default:"100" json:"concurrency" yaml:"concurrency" env:"SERVER_GRPC_CPNCURRENCY"`
-	}
+		Listen      string        `default:":8081" json:"listen" yaml:"listen" cli:"grpc-listen" env:"LISTEN"`
+		Timeout     time.Duration `default:"120s" json:"timeout" yaml:"timeout" env:"TIMEOUT"`
+		Concurrency uint32        `default:"100" json:"concurrency" yaml:"concurrency" env:"CONCURRENCY"`
+	} `envPrefix:"GRPC_"`
 	Profile struct {
-		Mode   string `json:"mode" yaml:"mode" default:"" env:"SERVER_PROFILE_MODE"`
-		Listen string `json:"listen" yaml:"listen" default:"" env:"SERVER_PROFILE_LISTEN"`
-	}
+		Mode   string `json:"mode" yaml:"mode" default:"" env:"MODE"`
+		Listen string `json:"listen" yaml:"listen" default:"" env:"LISTEN"`
+	} `envPrefix:"PROFILE_"`
 }
 
 type StorageConfig struct {
 	// Connect to the storage of files fs:///dir/path s3://host:9000/assets?access=${S3_ACCESS_KEY}&secret=${S3_SECRET_KEY}&region=default&insecure=true
-	Connect string `json:"connect" yaml:"connect" env:"STORAGE_CONNECT"`
+	Connect string `json:"connect" yaml:"connect" env:"CONNECT"`
 
 	// Metaintformation storage cache
-	MetadbConnect string `json:"meta_dbconnect" yaml:"meta_dbconnect" env:"STORAGE_METADB_CONNECT"`
-	StateConnect  string `json:"state_connect" yaml:"state_connect" env:"STORAGE_STATE_CONNECT"`
+	MetadbConnect string `json:"meta_dbconnect" yaml:"meta_dbconnect" env:"METADB_CONNECT"`
+	StateConnect  string `json:"state_connect" yaml:"state_connect" env:"STATE_CONNECT"`
 
 	// List of converters available for the current storage
-	Converters []string `json:"converters" yaml:"converters" env:"STORAGE_CONVERTERS"`
+	Converters []string `json:"converters" yaml:"converters" env:"CONVERTERS"`
 
 	// Directory where located predefined scripts and applications
-	ProcedureDirectory string `json:"procedure_directory" yaml:"procedure_directory" env:"STORAGE_PROCEDURE_DIR" default:"procedures"`
+	ProcedureDirectory string `json:"procedure_directory" yaml:"procedure_directory" env:"PROCEDURE_DIR" default:"procedures"`
+}
 
-	// WorkflowsDir is a directory with per-group workflow manifests:
-	// {WorkflowsDir}/{groupName}/manifest.{yaml|json}. When set, manifests are
-	// applied on service startup (see WORKFLOWS_RECONFIGURE).
-	WorkflowsDir string `json:"workflows_dir" yaml:"workflows_dir" env:"WORKFLOWS_DIR" default:"/workflows"`
+// WorkflowsConfig holds workflow bootstrap configuration.
+type WorkflowsConfig struct {
+	// Dir is a directory with per-group workflow manifests:
+	// {Dir}/{groupName}/manifest.{yaml|json}. When set, manifests are
+	// applied on service startup (see Reconfigure).
+	Dir string `json:"dir" yaml:"dir" env:"DIR" default:"/workflows"`
 
-	// WorkflowsReconfigure allows replacing an existing group workflow when the
+	// Reconfigure allows replacing an existing group workflow when the
 	// incoming manifest version is greater than the stored one.
-	WorkflowsReconfigure bool `json:"workflows_reconfigure" yaml:"workflows_reconfigure" env:"WORKFLOWS_RECONFIGURE" default:"false"`
-
-	// The processing state locker to exclude simultaneous operations
-	ProcessingInterlockConnect string        `json:"processing_interlock_connection" yaml:"processing_interlock_connection" env:"PROCESSING_INTERLOCK_CONNECTION"`
-	ProcessingLifetime         time.Duration `json:"processing_lifetime" yaml:"processing_lifetime" env:"PROCESSING_LIFETIME" default:"5m"`
-
-	//Automigrate   bool   `json:"automigrate" yaml:"automigrate" env:"STORAGE_AUTOMIGRATE"`
-	// How many processing stages/tasks execute per one iteration
-	ProcessingStageLimit int `json:"processing_stage_limit" yaml:"processing_stage_limit" env:"PROCESSING_STAGE_LIMIT" default:"1"`
-	ProcessingTaskLimit  int `json:"processing_task_limit" yaml:"processing_task_limit" env:"PROCESSING_TASK_LIMIT" default:"0"`
-	ProcessingMaxRetries int `json:"processing_max_retries" yaml:"processing_max_retries" env:"PROCESSING_MAX_RETRIES" default:"1"`
+	Reconfigure bool `json:"reconfigure" yaml:"reconfigure" env:"RECONFIGURE" default:"false"`
 }
 
 type EventstreamConfig struct {
-	Connect     string `json:"connect" yaml:"connect" env:"EVENTSTREAM_CONNECT"`
-	Concurrency int    `json:"concurrency" yaml:"concurrency" env:"EVENTSTREAM_CONCURRENCY"`
-	PoolSize    int    `json:"pool_size" yaml:"pool_size" env:"EVENTSTREAM_POOL_SIZE"`
+	Connect     string `json:"connect" yaml:"connect" env:"CONNECT"`
+	Concurrency int    `json:"concurrency" yaml:"concurrency" env:"CONCURRENCY"`
+	PoolSize    int    `json:"pool_size" yaml:"pool_size" env:"POOL_SIZE"`
+}
+
+// ProcessingConfig holds processing pipeline configuration.
+type ProcessingConfig struct {
+	// InterlockConnect is the processing state locker to exclude simultaneous operations.
+	InterlockConnect string        `json:"interlock_connection" yaml:"interlock_connection" env:"INTERLOCK_CONNECTION"`
+	Lifetime         time.Duration `json:"lifetime" yaml:"lifetime" env:"LIFETIME" default:"5m"`
+
+	// How many processing stages/tasks execute per one iteration
+	StageLimit int `json:"stage_limit" yaml:"stage_limit" env:"STAGE_LIMIT" default:"1"`
+	TaskLimit  int `json:"task_limit" yaml:"task_limit" env:"TASK_LIMIT" default:"0"`
+	MaxRetries int `json:"max_retries" yaml:"max_retries" env:"MAX_RETRIES" default:"1"`
+
+	StatusStream EventstreamConfig `json:"status_stream" yaml:"status_stream" envPrefix:"STATUS_STREAM_"`
 }
 
 // WorkerConfig holds configuration specific to a worker (processor) instance.
@@ -73,12 +80,12 @@ type WorkerConfig struct {
 	//
 	// Common tags: cpu, gpu, small, large, ffmpeg-6, label:<custom>
 	// Set as comma-separated ENV: WORKER_TAGS=gpu,large,ffmpeg-6
-	Tags []string `json:"tags" yaml:"tags" env:"WORKER_TAGS"`
+	Tags []string `json:"tags" yaml:"tags" env:"TAGS"`
 }
 
 // ConfigType contains all application options
 type ConfigType struct {
-	Processing bool `cli:"processing"`
+	EnableProcessing bool `cli:"processing"`
 
 	ServiceName    string `json:"service_name" yaml:"service_name" env:"SERVICE_NAME" default:"apfs"`
 	DatacenterName string `json:"datacenter_name" yaml:"datacenter_name" env:"DC_NAME" default:"??"`
@@ -89,10 +96,12 @@ type ConfigType struct {
 	LogLevel   string `default:"debug" env:"LOG_LEVEL"`
 	LogEncoder string `json:"log_encoder" env:"LOG_ENCODER"`
 
-	Server      ServerConfig      `json:"server" yaml:"server"`
-	Storage     StorageConfig     `json:"storage" yaml:"storage"`
-	Eventstream EventstreamConfig `json:"eventstream" yaml:"eventstream"`
-	Worker      WorkerConfig      `json:"worker" yaml:"worker"`
+	Server      ServerConfig      `json:"server" yaml:"server" envPrefix:"SERVER_"`
+	Storage     StorageConfig     `json:"storage" yaml:"storage" envPrefix:"STORAGE_"`
+	Workflows   WorkflowsConfig   `json:"workflows" yaml:"workflows" envPrefix:"WORKFLOWS_"`
+	Processing  ProcessingConfig  `json:"processing" yaml:"processing" envPrefix:"PROCESSING_"`
+	Eventstream EventstreamConfig `json:"eventstream" yaml:"eventstream" envPrefix:"EVENTSTREAM_"`
+	Worker      WorkerConfig      `json:"worker" yaml:"worker" envPrefix:"WORKER_"`
 }
 
 // String implementation of Stringer interface

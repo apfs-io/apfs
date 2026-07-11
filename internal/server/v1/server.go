@@ -16,6 +16,7 @@ import (
 
 	"github.com/apfs-io/apfs/internal/bootstrap/workflows"
 	"github.com/apfs-io/apfs/internal/context/ctxlogger"
+	"github.com/apfs-io/apfs/internal/context/ctxstatusstream"
 	"github.com/apfs-io/apfs/internal/object"
 	protocol "github.com/apfs-io/apfs/internal/server/protocol/v1"
 	"github.com/apfs-io/apfs/internal/storage"
@@ -66,6 +67,9 @@ type server struct {
 	// Event stream object chanel
 	eventStream nc.Publisher
 
+	// Status stream for per-task progress events (optional)
+	statusStream nc.Publisher
+
 	// Update state accessor
 	updateState updateStateI
 }
@@ -106,6 +110,7 @@ func NewServer(ctx context.Context, connect, storageConnect, stateConnect string
 		taskProcessingLimit:  options.taskProcessingLimit,
 		bufferpool:           pool,
 		eventStream:          options.eventStream,
+		statusStream:         options.statusStream,
 		updateState:          options.updateState,
 		store:                store,
 		processor:            options._processor(driver, stateKV),
@@ -512,6 +517,11 @@ func (s *server) Receive(message nc.Message) error {
 		event   models.Event
 		cObject storio.Object
 	)
+
+	// Inject status stream publisher so the processor can emit progress events.
+	if s.statusStream != nil {
+		ctx = ctxstatusstream.WithPublisher(ctx, s.statusStream)
+	}
 
 	// Unpack event from body
 	if err := json.Unmarshal(message.Body(), &event); err != nil {

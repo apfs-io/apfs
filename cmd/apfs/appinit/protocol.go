@@ -16,25 +16,47 @@ import (
 const EventStreamName = "events"
 
 // ProtocolAPIObject inites the API implementation
-func ProtocolAPIObject(ctx context.Context, eventsConf *appcontext.EventstreamConfig, storageConf *appcontext.StorageConfig, workerTags []string, logger *zap.Logger) (api.ServiceServer, error) {
+func ProtocolAPIObject(
+	ctx context.Context,
+	eventsConf *appcontext.EventstreamConfig,
+	storageConf *appcontext.StorageConfig,
+	workflowsConf *appcontext.WorkflowsConfig,
+	processingConf *appcontext.ProcessingConfig,
+	workerTags []string,
+	logger *zap.Logger,
+) (api.ServiceServer, error) {
 	// Register the notification stream
 	events, err := registerStream(ctx, EventStreamName, eventsConf.Connect)
 	if err != nil {
 		return nil, err
 	}
+
+	opts := []api.Option{
+		api.WithStageProcessingLimit(processingConf.StageLimit),
+		api.WithTaskProcessingLimit(processingConf.TaskLimit),
+		api.WithEventstream(events),
+		api.WithUpdateState(updateLocker(processingConf)),
+		api.WithStorageConverters(Converters(ctx, storageConf, logger)),
+		api.WithWorkflowExecutor(StepRunners(ctx, storageConf, logger)),
+		api.WithWorkerTags(workerTags),
+		api.WithRetries(processingConf.MaxRetries),
+		api.WithWorkflowsBootstrap(workflowsConf.Dir, workflowsConf.Reconfigure),
+	}
+
+	// Connect the optional status stream for per-task progress events.
+	if processingConf.StatusStream.Connect != "" {
+		statusStream, err := stream.NewWriter(ctx, processingConf.StatusStream.Connect)
+		if err != nil {
+			return nil, errors.Wrap(err, "connect to status stream: "+processingConf.StatusStream.Connect)
+		}
+		opts = append(opts, api.WithStatusStream(statusStream))
+	}
+
 	srvLogic, err := api.NewServer(ctx,
 		storageConf.MetadbConnect,
 		storageConf.Connect,
 		storageConf.StateConnect,
-		api.WithStageProcessingLimit(storageConf.ProcessingStageLimit),
-		api.WithTaskProcessingLimit(storageConf.ProcessingTaskLimit),
-		api.WithEventstream(events),
-		api.WithUpdateState(updateLocker(storageConf)),
-		api.WithStorageConverters(Converters(ctx, storageConf, logger)),
-		api.WithWorkflowExecutor(StepRunners(ctx, storageConf, logger)),
-		api.WithWorkerTags(workerTags),
-		api.WithRetries(storageConf.ProcessingMaxRetries),
-		api.WithWorkflowsBootstrap(storageConf.WorkflowsDir, storageConf.WorkflowsReconfigure),
+		opts...,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "server create")

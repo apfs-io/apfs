@@ -21,9 +21,11 @@ var eventStream = appinit.EventStreamName
 
 // processorConfig holds the configuration for the processor command.
 type processorConfig struct {
-	Storage     appcontext.StorageConfig     `json:"storage" yaml:"storage"`
-	Eventstream appcontext.EventstreamConfig `json:"eventstream" yaml:"eventstream"`
-	Worker      appcontext.WorkerConfig      `json:"worker" yaml:"worker"`
+	Storage     appcontext.StorageConfig     `json:"storage" yaml:"storage" envPrefix:"STORAGE_"`
+	Workflows   appcontext.WorkflowsConfig   `json:"workflows" yaml:"workflows" envPrefix:"WORKFLOWS_"`
+	Processing  appcontext.ProcessingConfig  `json:"processing" yaml:"processing" envPrefix:"PROCESSING_"`
+	Eventstream appcontext.EventstreamConfig `json:"eventstream" yaml:"eventstream" envPrefix:"EVENTSTREAM_"`
+	Worker      appcontext.WorkerConfig      `json:"worker" yaml:"worker" envPrefix:"WORKER_"`
 }
 
 // ProcessorCommand defines the CLI command for running the processor.
@@ -40,7 +42,7 @@ func processorCommandExec(ctx context.Context, args []string, config *processorC
 
 	// Initialize the protocol API object with eventstream, storage, and logger configurations.
 	protoAPI, err := appinit.ProtocolAPIObject(ctx,
-		&config.Eventstream, &config.Storage, config.Worker.Tags, logger)
+		&config.Eventstream, &config.Storage, &config.Workflows, &config.Processing, config.Worker.Tags, logger)
 	fatalError(err, "protocol initialization")
 
 	// Execute the processor logic.

@@ -20,6 +20,7 @@ them on startup from `WORKFLOWS_DIR` (default `/workflows`):
 
 See [INITIALIZATION.md](INITIALIZATION.md) for apply rules, version upgrades
 (`WORKFLOWS_RECONFIGURE`), and Docker examples.
+See [PROCESSING.md](PROCESSING.md) for how to track processing status and subscribe to the event stream.
 
 Example manifests live in [`deploy/workflows/`](../deploy/workflows/).
 

@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/apfs-io/apfs/internal/context/ctxlogger"
+	"github.com/apfs-io/apfs/internal/context/ctxstatusstream"
 	"github.com/apfs-io/apfs/internal/storage/converters"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor/memory"
@@ -106,11 +107,49 @@ func (s *Processor) ProcessTasks(ctx context.Context, obj any, maxTasks, maxStag
 	meta := cObject.MetaOrNew()
 	meta.ManifestVersion = manifest.GetVersion()
 
+	// Counter tracking for status stream progress events.
+	var (
+		objectID  = cObject.ID().String()
+		total     = manifest.TaskCount()
+		completed int
+		skipped   int
+		taskErr   error // captured by the defer for the final publish
+	)
+
+	defer func() {
+		// Determine final error: prefer task error over UpdateObjectInfo error.
+		finalErr := taskErr
+		if finalErr == nil {
+			finalErr = err
+		}
+		errMsg := ""
+		if finalErr != nil {
+			errMsg = finalErr.Error()
+		}
+		failed := 0
+		if finalErr != nil {
+			failed = 1
+		}
+		_ = ctxstatusstream.Publish(ctx, &ctxstatusstream.ProcessingStatusEvent{
+			ObjectID:  objectID,
+			Status:    eventStatus(failed, skipped, finalErr),
+			Progress:  eventProgress(total, completed, failed, finalErr),
+			Total:     total,
+			Completed: completed,
+			Skipped:   skipped,
+			Failed:    failed,
+			Pending:   max(0, total-completed-skipped-failed),
+			Error:     errMsg,
+			Final:     true,
+		})
+	}()
+
 PROCESSING_LOOP:
 	for _, stage := range manifest.GetStages() {
 		for _, task := range stage.Tasks {
 			// Skip if this target already exists in meta
 			if task.Target != "" && meta.ItemByName(task.Target) != nil {
+				skipped++
 				continue
 			}
 			if !s.canProcess(task) {
@@ -119,6 +158,7 @@ PROCESSING_LOOP:
 					zap.String(`object_bucket`, cObject.Bucket()),
 					zap.String(`object_path`, cObject.Path()),
 					zap.String("reason", "no suitable converter"))
+				skipped++
 				continue
 			}
 			if err := s.executeTask(ctx, cObject, manifest, task); err != nil {
@@ -127,8 +167,31 @@ PROCESSING_LOOP:
 					zap.String(`object_bucket`, cObject.Bucket()),
 					zap.String(`object_path`, cObject.Path()),
 					zap.Error(err))
+				taskErr = err
+				_ = ctxstatusstream.Publish(ctx, &ctxstatusstream.ProcessingStatusEvent{
+					ObjectID:  objectID,
+					Status:    models.ProcessingStatusFailed,
+					Progress:  eventProgress(total, completed, 1, err),
+					Total:     total,
+					Completed: completed,
+					Skipped:   skipped,
+					Failed:    1,
+					Pending:   max(0, total-completed-skipped-1),
+					Error:     err.Error(),
+				})
 				return false, err
 			}
+			completed++
+			_ = ctxstatusstream.Publish(ctx, &ctxstatusstream.ProcessingStatusEvent{
+				ObjectID:  objectID,
+				Status:    models.ProcessingStatusRunning,
+				Progress:  eventProgress(total, completed, 0, nil),
+				Total:     total,
+				Completed: completed,
+				Skipped:   skipped,
+				Failed:    0,
+				Pending:   max(0, total-completed-skipped),
+			})
 			if maxTasks--; maxTasks == 0 {
 				break PROCESSING_LOOP
 			}
