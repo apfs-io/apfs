@@ -45,6 +45,8 @@ func processorCommandExec(ctx context.Context, args []string, config *processorC
 		&config.Eventstream, &config.Storage, &config.Workflows, &config.Processing, config.Worker.Tags, logger)
 	fatalError(err, "protocol initialization")
 
+	protoAPI.StartStallWatchdog(ctx, config.Processing.StallCheckInterval)
+
 	// Execute the processor logic.
 	return runProcessor(ctx, &config.Eventstream, &config.Storage,
 		protoAPI.(nc.Receiver), logger)

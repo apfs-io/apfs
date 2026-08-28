@@ -186,6 +186,16 @@ service ServiceAPI {
     };
   };
 
+  // EnsureProcessing republishes the current processing status to the status
+  // stream. If the object is not in a terminal state it enqueues further
+  // processing; if it is terminal the current (final) state is published.
+  rpc EnsureProcessing(ObjectID) returns (ProcessingStateResponse) {
+    option (google.api.http) = {
+      post: "/v1/state/{id=**}/ensure"
+      body: "*"
+    };
+  };
+
   // WatchProcessingState streams processing state updates for an object.
   // The stream ends when the object reaches a terminal state.
   rpc WatchProcessingState(ObjectID) returns (stream ProcessingState) {

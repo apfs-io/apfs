@@ -44,6 +44,7 @@ func serverCommandExec(ctx context.Context, args []string, config *serverConfig)
 
 	// Run the processor if the Processing flag is set.
 	if config.Processing {
+		protoAPI.StartStallWatchdog(ctx, config.ProcessingCfg.StallCheckInterval)
 		go func() {
 			fatalError(runProcessor(ctx,
 				&config.Eventstream, &config.Storage, protoAPI.(nc.Receiver), logger))

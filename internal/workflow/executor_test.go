@@ -268,6 +268,7 @@ func TestExecuteJob_OnFailureFail_DownstreamSkipped(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, models.JobStatusFailed, store.state.Jobs["source"].Status)
 	assert.Equal(t, models.JobStatusSkipped, store.state.Jobs["downstream"].Status)
+	assert.Equal(t, models.ProcessingStatusFailed, store.state.Status)
 }
 
 func TestExecuteJob_OnFailureRetry_ExhaustedRetries(t *testing.T) {

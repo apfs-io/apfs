@@ -34,6 +34,13 @@ type ObjectManagerClient interface {
 
 	// Delete removes an object (or named sub-items) from storage.
 	Delete(ctx context.Context, id any, opts ...RequestOption) error
+
+	// GetProcessingState returns the current processing state for an object.
+	GetProcessingState(ctx context.Context, id *ObjectID, opts ...RequestOption) (*ProcessingState, error)
+
+	// EnsureProcessing republishes status to the processing stream and resumes
+	// incomplete pipelines. Terminal objects only republish the current state.
+	EnsureProcessing(ctx context.Context, id *ObjectID, opts ...RequestOption) (*ProcessingState, error)
 }
 
 // MetadataManagerClient interface represents interaction with metadata storage

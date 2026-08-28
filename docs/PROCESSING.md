@@ -308,14 +308,35 @@ for name, job := range state.Jobs {
 ## APFS server-side stream publishing
 
 APFS publishes events via `ctxstatusstream.Publish` from within the processor
-after every task and at pipeline completion. Configure the stream publisher in
-the server YAML / environment variables (prefix: `PROCESSING_STREAM_`):
+after every task and at pipeline completion (v1 `ProcessTasks` and v2
+`ExecuteJob` / `ProcessObject`). Configure the stream publisher:
 
 ```yaml
-# apfs server config
-processing_stream:
-  connect: "nats://nats:4222/apfs?topics=status"
+processing:
+  status_stream:
+    connect: "nats://nats:4222/apfs?topics=status"
+  stall_check_interval: 2m
 ```
+
+Env: `PROCESSING_STATUS_STREAM_CONNECT`, `PROCESSING_STALL_CHECK_INTERVAL`
+(`0` disables the stall watchdog).
+
+### `EnsureProcessing`
+
+Clients (and the adnetapi watchdog) can ask APFS to check an object:
+
+```go
+state, err := cl.EnsureProcessing(ctx, apfs.ID(objectID))
+```
+
+- Always republishes the current `ProcessingStatusEvent` on the status stream.
+- If the object is **not** terminal, enqueues another `update` work event.
+- If the object **is** terminal, publishes `Final: true` and drops it from the
+  in-flight registry.
+
+APFS also keeps an in-flight registry (memory or Redis via `STORAGE_STATE_CONNECT`)
+and a stall watchdog that runs `EnsureProcessing` for objects older than
+`PROCESSING_STALL_CHECK_INTERVAL`.
 
 | Trigger           | `Status`                           | `Final`  | Notes                                                                 |
 | ----------------- | ---------------------------------- | :------: | --------------------------------------------------------------------- |

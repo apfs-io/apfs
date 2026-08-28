@@ -167,23 +167,39 @@ func (ps *ProcessingState) ComputeStatus() {
 	case failed == 0 && pending == 0 && running == 0:
 		ps.Status = ProcessingStatusCompleted
 	case failed > 0 && pending == 0 && running == 0:
-		ps.Status = ProcessingStatusPartial
+		if hasCriticalFailure(ps) {
+			ps.Status = ProcessingStatusFailed
+		} else {
+			ps.Status = ProcessingStatusPartial
+		}
 	default:
 		ps.Status = ProcessingStatusRunning
 	}
 }
 
+func hasCriticalFailure(ps *ProcessingState) bool {
+	for _, j := range ps.Jobs {
+		if j != nil && j.Status == JobStatusFailed && j.Critical {
+			return true
+		}
+	}
+	return false
+}
+
 // JobState is the runtime state of one job in the processing DAG.
 type JobState struct {
-	Status     JobStatus      `json:"status"`
-	Worker     string         `json:"worker,omitempty"`
-	Attempts   int            `json:"attempts,omitempty"`
-	Outputs    map[string]any `json:"outputs,omitempty"` // available to downstream jobs via ${{ jobID.outputs.key }}
-	Steps      []*StepState   `json:"steps,omitempty"`
-	Error      string         `json:"error,omitempty"`
-	StartedAt  *time.Time     `json:"started_at,omitempty"`
-	FinishedAt *time.Time     `json:"finished_at,omitempty"`
-	Progress   float64        `json:"progress,omitempty"`
+	Status   JobStatus      `json:"status"`
+	Worker   string         `json:"worker,omitempty"`
+	Attempts int            `json:"attempts,omitempty"`
+	Outputs  map[string]any `json:"outputs,omitempty"` // available to downstream jobs via ${{ jobID.outputs.key }}
+	Steps    []*StepState   `json:"steps,omitempty"`
+	Error    string         `json:"error,omitempty"`
+	// Critical is true when the job failed with on-failure:fail (or retries
+	// exhausted). ComputeStatus uses this to emit `failed` rather than `partial`.
+	Critical   bool       `json:"critical,omitempty"`
+	StartedAt  *time.Time `json:"started_at,omitempty"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
+	Progress   float64    `json:"progress,omitempty"`
 }
 
 // MarkStarted transitions the job to running state.
@@ -216,6 +232,12 @@ func (j *JobState) MarkFailed(err error) {
 	}
 }
 
+// MarkFailedCritical is MarkFailed plus Critical=true (on-failure:fail / retries exhausted).
+func (j *JobState) MarkFailedCritical(err error) {
+	j.MarkFailed(err)
+	j.Critical = true
+}
+
 // MarkSkipped transitions the job to skipped state.
 func (j *JobState) MarkSkipped(reason string) {
 	now := time.Now()
@@ -231,6 +253,7 @@ func (j *JobState) ResetForRetry() {
 	j.StartedAt = nil
 	j.FinishedAt = nil
 	j.Error = ""
+	j.Critical = false
 	j.Steps = nil
 	j.Progress = 0
 }

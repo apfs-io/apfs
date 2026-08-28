@@ -104,6 +104,46 @@ func (c *client) Refresh(ctx context.Context, id *ObjectID, opts ...RequestOptio
 	return nil
 }
 
+func (c *client) processingStateRPC(
+	ctx context.Context,
+	call func(context.Context, *protocol.ObjectID, ...grpc.CallOption) (*protocol.ProcessingStateResponse, error),
+	id *ObjectID,
+	opts ...RequestOption,
+) (*ProcessingState, error) {
+	var ro RequestOptions
+	for _, opt := range opts {
+		opt(&ro)
+	}
+	ro.prepareGroup(c.defaultGroup)
+
+	resp, err := call(prepareContext(ctx), toProtoObjectID(id, ro.group), ro.grpcOpts...)
+	if err != nil {
+		return nil, err
+	}
+	status := resp.GetStatus()
+	switch {
+	case status.IsFailed():
+		return nil, errors.New(resp.GetMessage())
+	case status.IsNotFound():
+		oid := ""
+		if id != nil {
+			oid = id.Id
+		}
+		return nil, storerrors.WrapNotFound(oid, errors.New(resp.GetMessage()))
+	}
+	return stateFromProto(resp.GetState(), true), nil
+}
+
+// GetProcessingState returns the current processing state for an object.
+func (c *client) GetProcessingState(ctx context.Context, id *ObjectID, opts ...RequestOption) (*ProcessingState, error) {
+	return c.processingStateRPC(ctx, c.sclient.GetProcessingState, id, opts...)
+}
+
+// EnsureProcessing republishes status and resumes incomplete processing.
+func (c *client) EnsureProcessing(ctx context.Context, id *ObjectID, opts ...RequestOption) (*ProcessingState, error) {
+	return c.processingStateRPC(ctx, c.sclient.EnsureProcessing, id, opts...)
+}
+
 // Get object from storage and return reader
 func (c *client) Get(ctx context.Context, id *ObjectID, opts ...RequestOption) (obj *Object, reader io.ReadCloser, err error) {
 	var (

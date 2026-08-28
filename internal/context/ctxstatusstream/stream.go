@@ -53,3 +53,53 @@ func Publish(ctx context.Context, event *ProcessingStatusEvent) error {
 	}
 	return pub.Publish(ctx, event)
 }
+
+// EventFromState builds a ProcessingStatusEvent from a ProcessingState snapshot.
+// Final is forced true when the state is already terminal.
+func EventFromState(state *models.ProcessingState, final bool) *ProcessingStatusEvent {
+	if state == nil {
+		return nil
+	}
+	if state.Status.IsTerminal() {
+		final = true
+	}
+	c := state.Counters()
+	errMsg := ""
+	if state.Status == models.ProcessingStatusFailed {
+		errMsg = firstFailedJobError(state)
+	}
+	return &ProcessingStatusEvent{
+		ObjectID:  state.ObjectID,
+		Status:    state.Status,
+		Progress:  state.Progress,
+		Total:     c.Total,
+		Completed: c.Succeeded,
+		Failed:    c.Failed,
+		Skipped:   c.Skipped,
+		Pending:   c.Pending,
+		Error:     errMsg,
+		Final:     final,
+	}
+}
+
+// PublishFromState publishes a status-stream event derived from state.
+// It is a no-op when no publisher is stored in ctx.
+func PublishFromState(ctx context.Context, state *models.ProcessingState, final bool) error {
+	event := EventFromState(state, final)
+	if event == nil {
+		return nil
+	}
+	return Publish(ctx, event)
+}
+
+func firstFailedJobError(state *models.ProcessingState) string {
+	if state == nil {
+		return ""
+	}
+	for _, j := range state.Jobs {
+		if j != nil && j.Status == models.JobStatusFailed && j.Error != "" {
+			return j.Error
+		}
+	}
+	return ""
+}

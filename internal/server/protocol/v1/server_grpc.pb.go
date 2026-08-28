@@ -29,6 +29,7 @@ const (
 	ServiceAPI_SetWorkflow_FullMethodName          = "/v1.ServiceAPI/SetWorkflow"
 	ServiceAPI_GetWorkflow_FullMethodName          = "/v1.ServiceAPI/GetWorkflow"
 	ServiceAPI_GetProcessingState_FullMethodName   = "/v1.ServiceAPI/GetProcessingState"
+	ServiceAPI_EnsureProcessing_FullMethodName     = "/v1.ServiceAPI/EnsureProcessing"
 	ServiceAPI_WatchProcessingState_FullMethodName = "/v1.ServiceAPI/WatchProcessingState"
 )
 
@@ -58,6 +59,10 @@ type ServiceAPIClient interface {
 	GetWorkflow(ctx context.Context, in *ManifestGroup, opts ...grpc.CallOption) (*WorkflowResponse, error)
 	// GetProcessingState returns the current processing state for an object.
 	GetProcessingState(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (*ProcessingStateResponse, error)
+	// EnsureProcessing republishes the current processing status to the status
+	// stream. If the object is not in a terminal state it enqueues further
+	// processing; if it is terminal the current (final) state is published.
+	EnsureProcessing(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (*ProcessingStateResponse, error)
 	// WatchProcessingState streams processing state updates for an object.
 	// The stream ends when the object reaches a terminal state.
 	WatchProcessingState(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ProcessingState], error)
@@ -183,6 +188,16 @@ func (c *serviceAPIClient) GetProcessingState(ctx context.Context, in *ObjectID,
 	return out, nil
 }
 
+func (c *serviceAPIClient) EnsureProcessing(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (*ProcessingStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProcessingStateResponse)
+	err := c.cc.Invoke(ctx, ServiceAPI_EnsureProcessing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *serviceAPIClient) WatchProcessingState(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ProcessingState], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &ServiceAPI_ServiceDesc.Streams[2], ServiceAPI_WatchProcessingState_FullMethodName, cOpts...)
@@ -228,6 +243,10 @@ type ServiceAPIServer interface {
 	GetWorkflow(context.Context, *ManifestGroup) (*WorkflowResponse, error)
 	// GetProcessingState returns the current processing state for an object.
 	GetProcessingState(context.Context, *ObjectID) (*ProcessingStateResponse, error)
+	// EnsureProcessing republishes the current processing status to the status
+	// stream. If the object is not in a terminal state it enqueues further
+	// processing; if it is terminal the current (final) state is published.
+	EnsureProcessing(context.Context, *ObjectID) (*ProcessingStateResponse, error)
 	// WatchProcessingState streams processing state updates for an object.
 	// The stream ends when the object reaches a terminal state.
 	WatchProcessingState(*ObjectID, grpc.ServerStreamingServer[ProcessingState]) error
@@ -270,6 +289,9 @@ func (UnimplementedServiceAPIServer) GetWorkflow(context.Context, *ManifestGroup
 }
 func (UnimplementedServiceAPIServer) GetProcessingState(context.Context, *ObjectID) (*ProcessingStateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProcessingState not implemented")
+}
+func (UnimplementedServiceAPIServer) EnsureProcessing(context.Context, *ObjectID) (*ProcessingStateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EnsureProcessing not implemented")
 }
 func (UnimplementedServiceAPIServer) WatchProcessingState(*ObjectID, grpc.ServerStreamingServer[ProcessingState]) error {
 	return status.Errorf(codes.Unimplemented, "method WatchProcessingState not implemented")
@@ -457,6 +479,24 @@ func _ServiceAPI_GetProcessingState_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ServiceAPI_EnsureProcessing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ObjectID)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceAPIServer).EnsureProcessing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServiceAPI_EnsureProcessing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceAPIServer).EnsureProcessing(ctx, req.(*ObjectID))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ServiceAPI_WatchProcessingState_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ObjectID)
 	if err := stream.RecvMsg(m); err != nil {
@@ -506,6 +546,10 @@ var ServiceAPI_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetProcessingState",
 			Handler:    _ServiceAPI_GetProcessingState_Handler,
+		},
+		{
+			MethodName: "EnsureProcessing",
+			Handler:    _ServiceAPI_EnsureProcessing_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

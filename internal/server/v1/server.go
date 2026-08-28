@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	nc "github.com/geniusrabbit/notificationcenter/v2"
 	"github.com/pkg/errors"
@@ -22,6 +23,7 @@ import (
 	"github.com/apfs-io/apfs/internal/storage"
 	"github.com/apfs-io/apfs/internal/storage/database"
 	"github.com/apfs-io/apfs/internal/storage/processor"
+	"github.com/apfs-io/apfs/internal/storage/procregistry"
 	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/internal/workflow"
 	"github.com/apfs-io/apfs/libs/storerrors"
@@ -38,6 +40,8 @@ type ServiceServer interface {
 
 	UploadObject(ctx context.Context, group, customID string,
 		overwrite bool, tags []string, obj io.Reader) (storio.Object, error)
+
+	StartStallWatchdog(ctx context.Context, interval time.Duration)
 }
 
 type server struct {
@@ -70,6 +74,9 @@ type server struct {
 	// Status stream for per-task progress events (optional)
 	statusStream nc.Publisher
 
+	// In-flight processing registry (memory or Redis via STORAGE_STATE_CONNECT)
+	inflight procregistry.Registry
+
 	// Update state accessor
 	updateState updateStateI
 }
@@ -92,6 +99,10 @@ func NewServer(ctx context.Context, connect, storageConnect, stateConnect string
 	if err != nil {
 		return nil, err
 	}
+	inflight, err := procregistry.New(stateConnect)
+	if err != nil {
+		return nil, errors.Wrap(err, "inflight registry")
+	}
 	pool := &sync.Pool{New: func() any {
 		return &bufferItem{buff: make([]byte, 10*1024)}
 	}}
@@ -111,6 +122,7 @@ func NewServer(ctx context.Context, connect, storageConnect, stateConnect string
 		bufferpool:           pool,
 		eventStream:          options.eventStream,
 		statusStream:         options.statusStream,
+		inflight:             inflight,
 		updateState:          options.updateState,
 		store:                store,
 		processor:            options._processor(driver, stateKV),
@@ -546,8 +558,19 @@ func (s *server) Receive(message nc.Message) error {
 
 	ctxlogger.Get(ctx).Debug("run processed object", fields...)
 
+	objectID := ""
+	if event.Object != nil {
+		objectID = event.Object.ObjectID()
+	}
+
 	// Preload object for event type
 	if event.Type == models.RefreshEventType || event.Type == models.UpdateEventType {
+		if objectID != "" && s.inflight != nil {
+			if !s.inflight.TryBegin(objectID) {
+				return message.Ack()
+			}
+			defer s.inflight.End(objectID)
+		}
 		cObject, err = s.store.Object(ctx, event.Object.ObjectID())
 		if err != nil {
 			isNotFound := storerrors.IsNotFound(err)
@@ -628,6 +651,7 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 		isNotFound := storerrors.IsNotFound(err)
 		ctxlogger.Get(ctx).Error("process",
 			append(fields, zap.Error(err), zap.Bool(`not_found`, isNotFound))...)
+		s.publishObjectStatus(ctx, cObject, false)
 		// send processed error event
 		if !isNotFound {
 			s.sendEvent(ctx, models.UpdateEventType, event.Object, err)
@@ -637,6 +661,7 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 	case isComplete:
 		if wf != nil && workflow.HasPendingArtifacts(wf, cObject.Meta()) {
 			ctxlogger.Get(ctx).Info("next step", append(fields, zap.String("reason", "pending artifacts"))...)
+			s.publishObjectStatus(ctx, cObject, false)
 			s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
 			break
 		}
@@ -644,6 +669,7 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 			state, _ := s.store.GetProcessingState(ctx, cObject.ID().String())
 			if state == nil || !state.Status.IsTerminal() || !state.Status.IsSuccess() {
 				ctxlogger.Get(ctx).Info("next step", append(fields, zap.String("reason", "processing state not terminal"))...)
+				s.publishObjectStatus(ctx, cObject, false)
 				s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
 				break
 			}
@@ -658,9 +684,11 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 			_ = event.Object.Workflow.SetValue(cObject.Workflow())
 			_ = event.Object.Meta.SetValue(cObject.Meta())
 		}
+		s.publishObjectStatus(ctx, cObject, true)
 		s.sendEvent(ctx, models.ProcessedEventType, event.Object, nil)
 	default:
 		ctxlogger.Get(ctx).Info("next step", fields...)
+		s.publishObjectStatus(ctx, cObject, false)
 		s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
 	}
 }
@@ -729,13 +757,7 @@ func (s *server) protoObjectFull(ctx context.Context, obj storio.Object, opts *p
 		}
 	}
 	if opts.GetWithState() {
-		state, _ := s.store.GetProcessingState(ctx, obj.ID().String())
-		if state == nil {
-			// No persisted state yet. Synthesize from object status + workflow
-			// definition so counters reflect the actual job count.
-			wf := s.store.ObjectWorkflow(ctx, obj)
-			state = objectStatusToProcessingState(obj, wf)
-		}
+		state := s.loadProcessingState(ctx, obj)
 		protoObj.State = protocol.ProcessingStateFromModel(state, opts.GetStateFull())
 	}
 	return protoObj, nil
@@ -867,6 +889,14 @@ func (s *server) sendEvent(ctx context.Context, etype models.EventType, obj *mod
 	if obj != nil {
 		objectID = obj.ObjectID()
 	}
+	if s.inflight != nil && objectID != "" {
+		switch etype {
+		case models.UpdateEventType, models.RefreshEventType:
+			_ = s.inflight.Add(ctx, objectID)
+		case models.ProcessedEventType, models.DeleteEventType:
+			_ = s.inflight.Remove(ctx, objectID)
+		}
+	}
 	ctxlogger.Get(ctx).Info("sendEvent",
 		zap.String("event_type", etype.String()),
 		zap.String("object_id", objectID))
@@ -875,4 +905,12 @@ func (s *server) sendEvent(ctx context.Context, etype models.EventType, obj *mod
 		Error:  emsg,
 		Object: obj,
 	}))
+}
+
+func (s *server) publishObjectStatus(ctx context.Context, obj storio.Object, final bool) {
+	if obj == nil {
+		return
+	}
+	state := s.loadProcessingState(ctx, obj)
+	_ = ctxstatusstream.PublishFromState(ctx, state, final)
 }

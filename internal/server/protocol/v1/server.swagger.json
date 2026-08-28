@@ -483,6 +483,46 @@
         ]
       }
     },
+    "/v1/state/{id}/ensure": {
+      "post": {
+        "summary": "EnsureProcessing republishes the current processing status to the status\nstream. If the object is not in a terminal state it enqueues further\nprocessing; if it is terminal the current (final) state is published.",
+        "operationId": "ServiceAPI_EnsureProcessing",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ProcessingStateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "pattern": ".+"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ServiceAPIEnsureProcessingBody"
+            }
+          }
+        ],
+        "tags": [
+          "ServiceAPI"
+        ]
+      }
+    },
     "/v1/workflow/{group}": {
       "get": {
         "summary": "GetWorkflow returns the v2 workflow manifest for a group/bucket.",
@@ -553,6 +593,22 @@
     }
   },
   "definitions": {
+    "ServiceAPIEnsureProcessingBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "The list of possible required files. Will be taked only first existing file"
+        },
+        "options": {
+          "$ref": "#/definitions/v1ObjectRequestOptions",
+          "title": "optional; nil = default (no extras)"
+        }
+      }
+    },
     "ServiceAPIRefreshBody": {
       "type": "object",
       "properties": {

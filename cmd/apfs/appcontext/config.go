@@ -70,6 +70,11 @@ type ProcessingConfig struct {
 	MaxRetries int `json:"max_retries" yaml:"max_retries" env:"MAX_RETRIES" default:"1"`
 
 	StatusStream EventstreamConfig `json:"status_stream" yaml:"status_stream" envPrefix:"STATUS_STREAM_"`
+
+	// StallCheckInterval is how long an object may stay in the inflight
+	// registry before the watchdog re-checks it (publish status + resume
+	// if not terminal). Zero disables the watchdog.
+	StallCheckInterval time.Duration `json:"stall_check_interval" yaml:"stall_check_interval" env:"STALL_CHECK_INTERVAL" default:"0"`
 }
 
 // WorkerConfig holds configuration specific to a worker (processor) instance.

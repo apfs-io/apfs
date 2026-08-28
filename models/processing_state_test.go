@@ -84,6 +84,15 @@ func TestProcessingState_ComputeStatus_Partial(t *testing.T) {
 	assert.Equal(t, ProcessingStatusPartial, ps.Status)
 }
 
+func TestProcessingState_ComputeStatus_FailedCritical(t *testing.T) {
+	ps := NewProcessingState("x", "2", []string{"a", "b"})
+	ps.Jobs["a"].Status = JobStatusFailed
+	ps.Jobs["a"].Critical = true
+	ps.Jobs["b"].Status = JobStatusSkipped
+	ps.ComputeStatus()
+	assert.Equal(t, ProcessingStatusFailed, ps.Status)
+}
+
 func TestProcessingState_ComputeStatus_PartialWithSkipped(t *testing.T) {
 	// Skipped counts as terminal; if no failures, it's completed, not partial.
 	ps := NewProcessingState("x", "2", []string{"a", "b"})

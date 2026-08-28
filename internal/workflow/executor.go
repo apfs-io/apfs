@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/apfs-io/apfs/internal/context/ctxlogger"
+	"github.com/apfs-io/apfs/internal/context/ctxstatusstream"
 	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/models"
 )
@@ -103,7 +104,11 @@ func (e *Executor) ExecuteJob(ctx context.Context, w *models.Workflow, objectID 
 		state.UpdatedAt = time.Now()
 		state.ComputeProgress()
 		state.ComputeStatus()
-		return e.storage.WriteState(ctx, id, state)
+		if err := e.storage.WriteState(ctx, id, state); err != nil {
+			return err
+		}
+		_ = ctxstatusstream.PublishFromState(ctx, state, state.Status.IsTerminal())
+		return nil
 	}
 
 	// Mark started
@@ -152,10 +157,10 @@ func (e *Executor) ExecuteJob(ctx context.Context, w *models.Workflow, objectID 
 				return fmt.Errorf("executor: retry job %q: %w", jobID, jobErr)
 			}
 			log.Error("job failed, max retries reached", zap.Error(jobErr))
-			js.MarkFailed(jobErr)
+			js.MarkFailedCritical(jobErr)
 		default: // FailurePolicyFail
 			log.Error("job failed (on-failure:fail)", zap.Error(jobErr))
-			js.MarkFailed(jobErr)
+			js.MarkFailedCritical(jobErr)
 			// Mark downstream jobs as skipped
 			dag, dagErr := BuildDAG(w)
 			if dagErr == nil {
@@ -181,7 +186,11 @@ func (e *Executor) ExecuteJob(ctx context.Context, w *models.Workflow, objectID 
 		now := time.Now()
 		state.FinishedAt = &now
 	}
-	return e.storage.WriteState(ctx, id, state)
+	if err := e.storage.WriteState(ctx, id, state); err != nil {
+		return err
+	}
+	_ = ctxstatusstream.PublishFromState(ctx, state, state.Status.IsTerminal())
+	return nil
 }
 
 // runSteps executes all steps in the job in order.

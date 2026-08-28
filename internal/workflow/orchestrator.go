@@ -3,7 +3,9 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/apfs-io/apfs/internal/context/ctxstatusstream"
 	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/models"
 )
@@ -28,6 +30,15 @@ func (e *Executor) ProcessObject(
 	maxJobs int,
 ) (complete bool, err error) {
 	if w == nil || len(w.Jobs) == 0 {
+		state := models.NewProcessingState(objectID, "", nil)
+		if w != nil {
+			state.ManifestVersion = w.Version
+		}
+		state.Status = models.ProcessingStatusCompleted
+		state.Progress = 1.0
+		now := time.Now()
+		state.FinishedAt = &now
+		_ = ctxstatusstream.PublishFromState(ctx, state, true)
 		return true, nil
 	}
 	if e == nil || e.registry == nil {
@@ -58,6 +69,7 @@ func (e *Executor) ProcessObject(
 		if len(ready) == 0 {
 			state.ComputeProgress()
 			state.ComputeStatus()
+			_ = ctxstatusstream.PublishFromState(ctx, state, state.Status.IsTerminal())
 			return state.Status.IsTerminal() && state.Status.IsSuccess() && !HasPendingArtifacts(w, loadMetaForCheck(ctx, e, id)), nil
 		}
 
@@ -86,6 +98,7 @@ func (e *Executor) ProcessObject(
 		return false, nil
 	}
 	meta, _ := e.storage.ReadMeta(ctx, id)
+	_ = ctxstatusstream.PublishFromState(ctx, state, state.Status.IsTerminal())
 	return state.Status.IsTerminal() && state.Status.IsSuccess() && !HasPendingArtifacts(w, meta), nil
 }
 
