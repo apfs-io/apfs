@@ -41,6 +41,10 @@ type ObjectManagerClient interface {
 	// EnsureProcessing republishes status to the processing stream and resumes
 	// incomplete pipelines. Terminal objects only republish the current state.
 	EnsureProcessing(ctx context.Context, id *ObjectID, opts ...RequestOption) (*ProcessingState, error)
+
+	// Preview returns display bytes and mime type for the object's main file.
+	// Images return the original; other types return an embedded SVG icon.
+	Preview(ctx context.Context, id *ObjectID, opts ...RequestOption) (*Preview, error)
 }
 
 // MetadataManagerClient interface represents interaction with metadata storage

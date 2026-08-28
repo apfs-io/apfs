@@ -53,6 +53,12 @@ func (g *Group) EnsureProcessing(ctx context.Context, id string, opts ...Request
 	return g.client.EnsureProcessing(ctx, &ObjectID{Id: id}, all...)
 }
 
+// Preview returns display bytes and mime type for the named object.
+func (g *Group) Preview(ctx context.Context, id string, opts ...RequestOption) (*Preview, error) {
+	all := append(opts, WithGroupOpt(g.name))
+	return g.client.Preview(ctx, &ObjectID{Id: id}, all...)
+}
+
 // Upload uploads data to the group and returns the resulting object.
 func (g *Group) Upload(ctx context.Context, data io.Reader, opts ...RequestOption) (*Object, error) {
 	all := append(opts, WithGroupOpt(g.name))

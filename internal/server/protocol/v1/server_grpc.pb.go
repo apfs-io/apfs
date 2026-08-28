@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	ServiceAPI_Head_FullMethodName                 = "/v1.ServiceAPI/Head"
 	ServiceAPI_Get_FullMethodName                  = "/v1.ServiceAPI/Get"
+	ServiceAPI_Preview_FullMethodName              = "/v1.ServiceAPI/Preview"
 	ServiceAPI_Refresh_FullMethodName              = "/v1.ServiceAPI/Refresh"
 	ServiceAPI_SetManifest_FullMethodName          = "/v1.ServiceAPI/SetManifest"
 	ServiceAPI_GetManifest_FullMethodName          = "/v1.ServiceAPI/GetManifest"
@@ -43,6 +44,9 @@ type ServiceAPIClient interface {
 	Head(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (*SimpleObjectResponse, error)
 	// Get object and data
 	Get(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ObjectResponse], error)
+	// Preview returns display bytes and mime type for the object's main file.
+	// Images return the original file; other types return an embedded SVG icon.
+	Preview(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (*PreviewResponse, error)
 	// Refresh object and reprocess
 	Refresh(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (*SimpleResponse, error)
 	// SetManifest of the group
@@ -104,6 +108,16 @@ func (c *serviceAPIClient) Get(ctx context.Context, in *ObjectID, opts ...grpc.C
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ServiceAPI_GetClient = grpc.ServerStreamingClient[ObjectResponse]
+
+func (c *serviceAPIClient) Preview(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (*PreviewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PreviewResponse)
+	err := c.cc.Invoke(ctx, ServiceAPI_Preview_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
 func (c *serviceAPIClient) Refresh(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (*SimpleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -227,6 +241,9 @@ type ServiceAPIServer interface {
 	Head(context.Context, *ObjectID) (*SimpleObjectResponse, error)
 	// Get object and data
 	Get(*ObjectID, grpc.ServerStreamingServer[ObjectResponse]) error
+	// Preview returns display bytes and mime type for the object's main file.
+	// Images return the original file; other types return an embedded SVG icon.
+	Preview(context.Context, *ObjectID) (*PreviewResponse, error)
 	// Refresh object and reprocess
 	Refresh(context.Context, *ObjectID) (*SimpleResponse, error)
 	// SetManifest of the group
@@ -265,6 +282,9 @@ func (UnimplementedServiceAPIServer) Head(context.Context, *ObjectID) (*SimpleOb
 }
 func (UnimplementedServiceAPIServer) Get(*ObjectID, grpc.ServerStreamingServer[ObjectResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method Get not implemented")
+}
+func (UnimplementedServiceAPIServer) Preview(context.Context, *ObjectID) (*PreviewResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Preview not implemented")
 }
 func (UnimplementedServiceAPIServer) Refresh(context.Context, *ObjectID) (*SimpleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Refresh not implemented")
@@ -345,6 +365,24 @@ func _ServiceAPI_Get_Handler(srv interface{}, stream grpc.ServerStream) error {
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ServiceAPI_GetServer = grpc.ServerStreamingServer[ObjectResponse]
+
+func _ServiceAPI_Preview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ObjectID)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceAPIServer).Preview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServiceAPI_Preview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceAPIServer).Preview(ctx, req.(*ObjectID))
+	}
+	return interceptor(ctx, in, info, handler)
+}
 
 func _ServiceAPI_Refresh_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ObjectID)
@@ -518,6 +556,10 @@ var ServiceAPI_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Head",
 			Handler:    _ServiceAPI_Head_Handler,
+		},
+		{
+			MethodName: "Preview",
+			Handler:    _ServiceAPI_Preview_Handler,
 		},
 		{
 			MethodName: "Refresh",

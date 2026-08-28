@@ -306,6 +306,70 @@
         ]
       }
     },
+    "/v1/preview/{id}": {
+      "get": {
+        "summary": "Preview returns display bytes and mime type for the object's main file.\nImages return the original file; other types return an embedded SVG icon.",
+        "operationId": "ServiceAPI_Preview",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PreviewResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "pattern": ".+"
+          },
+          {
+            "name": "name",
+            "description": "The list of possible required files. Will be taked only first existing file",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "options.withWorkflow",
+            "description": "include bucket workflow manifest",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "options.withState",
+            "description": "include processing state (counters only)",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "options.stateFull",
+            "description": "include full job details (requires with_state=true)",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "ServiceAPI"
+        ]
+      }
+    },
     "/v1/refresh/{id}": {
       "put": {
         "summary": "Refresh object and reprocess",
@@ -1057,6 +1121,24 @@
         },
         "message": {
           "type": "string"
+        }
+      }
+    },
+    "v1PreviewResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/v1ResponseStatusCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string",
+          "format": "byte"
         }
       }
     },

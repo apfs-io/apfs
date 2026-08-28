@@ -14,18 +14,19 @@ import (
 // All types here are plain Go types — no protobuf imports at this level.
 type (
 	// Identity types
-	ObjectID      = client.ObjectID
-	ObjectIDNames = client.ObjectIDNames
+	ObjectID       = client.ObjectID
+	ObjectIDNames  = client.ObjectIDNames
 	SimpleResponse = client.SimpleResponse
 
 	// Object and metadata types exposed from the client package
-	Object          = client.Object
-	Meta            = client.Meta
-	ItemMeta        = client.ItemMeta
-	ProcessingState = client.ProcessingState
+	Object             = client.Object
+	Meta               = client.Meta
+	ItemMeta           = client.ItemMeta
+	ProcessingState    = client.ProcessingState
+	Preview            = client.Preview
 	ProcessingCounters = client.ProcessingCounters
-	JobState        = client.JobState
-	StepState       = client.StepState
+	JobState           = client.JobState
+	StepState          = client.StepState
 
 	// Model types
 	ObjectType        = models.ObjectType

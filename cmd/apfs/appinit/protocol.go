@@ -50,6 +50,10 @@ func ProtocolAPIObject(
 			return nil, errors.Wrap(err, "connect to status stream: "+processingConf.StatusStream.Connect)
 		}
 		opts = append(opts, api.WithStatusStream(statusStream))
+		logger.Info("processing status stream enabled",
+			zap.String("url", processingConf.StatusStream.Connect))
+	} else {
+		logger.Info("processing status stream disabled")
 	}
 
 	srvLogic, err := api.NewServer(ctx,

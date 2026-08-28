@@ -893,8 +893,10 @@ func (s *server) sendEvent(ctx context.Context, etype models.EventType, obj *mod
 		switch etype {
 		case models.UpdateEventType, models.RefreshEventType:
 			_ = s.inflight.Add(ctx, objectID)
+			ctxlogger.Get(ctx).Debug("inflight add", zap.String("object_id", objectID))
 		case models.ProcessedEventType, models.DeleteEventType:
 			_ = s.inflight.Remove(ctx, objectID)
+			ctxlogger.Get(ctx).Debug("inflight remove", zap.String("object_id", objectID))
 		}
 	}
 	ctxlogger.Get(ctx).Info("sendEvent",

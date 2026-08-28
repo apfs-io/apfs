@@ -87,21 +87,30 @@ func (s *server) ensureProcessing(ctx context.Context, objectID string) (*models
 	}
 
 	state := s.loadProcessingState(ctx, sObject)
-	_ = ctxstatusstream.PublishFromState(ctx, state, state.Status.IsTerminal())
+	terminal := state.Status.IsTerminal()
+	ctxlogger.Get(ctx).Debug("ensure processing",
+		zap.String("object_id", objectID),
+		zap.String("apfs_status", state.Status.String()),
+		zap.Bool("terminal", terminal))
+	_ = ctxstatusstream.PublishFromState(ctx, state, terminal)
 
-	if state.Status.IsTerminal() {
+	if terminal {
 		if s.inflight != nil {
 			_ = s.inflight.Remove(ctx, objectID)
+			ctxlogger.Get(ctx).Debug("inflight remove", zap.String("object_id", objectID))
 		}
 		return state, nil
 	}
 
 	if s.inflight != nil {
 		_ = s.inflight.Add(ctx, objectID)
+		ctxlogger.Get(ctx).Debug("inflight add", zap.String("object_id", objectID))
 		if s.inflight.IsBusy(objectID) {
+			ctxlogger.Get(ctx).Debug("inflight busy skip", zap.String("object_id", objectID))
 			return state, nil
 		}
 	}
+	ctxlogger.Get(ctx).Debug("enqueue update", zap.String("object_id", objectID))
 	s.updateObjectState(ctx, objectID)
 	return state, nil
 }
@@ -110,6 +119,9 @@ func (s *server) ensureProcessing(ctx context.Context, objectID string) (*models
 // A zero interval disables the watchdog.
 func (s *server) StartStallWatchdog(ctx context.Context, interval time.Duration) {
 	if interval <= 0 || s.inflight == nil {
+		ctxlogger.Get(ctx).Info("stall watchdog disabled",
+			zap.Duration("interval", interval),
+			zap.Bool("inflight", s.inflight != nil))
 		return
 	}
 	go s.runStallWatchdog(ctx, interval)
@@ -137,6 +149,7 @@ func (s *server) tickStallWatchdog(ctx context.Context, interval time.Duration) 
 		ctxlogger.Get(ctx).Error("stall watchdog list inflight", zap.Error(err))
 		return
 	}
+	ctxlogger.Get(ctx).Debug("stall watchdog tick", zap.Int("count", len(ids)))
 	for _, id := range ids {
 		if _, err := s.ensureProcessing(ctx, id); err != nil && !storerrors.IsNotFound(err) {
 			ctxlogger.Get(ctx).Warn("stall watchdog ensure processing",

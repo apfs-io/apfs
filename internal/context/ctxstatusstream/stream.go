@@ -7,7 +7,9 @@ import (
 	"context"
 
 	nc "github.com/geniusrabbit/notificationcenter/v2"
+	"go.uber.org/zap"
 
+	"github.com/apfs-io/apfs/internal/context/ctxlogger"
 	"github.com/apfs-io/apfs/models"
 )
 
@@ -47,11 +49,26 @@ func WithPublisher(ctx context.Context, pub nc.Publisher) context.Context {
 // Publish sends event to the status stream. It is a no-op when no publisher
 // is stored in ctx (optional connection).
 func Publish(ctx context.Context, event *ProcessingStatusEvent) error {
-	pub := Get(ctx)
-	if pub == nil {
+	if event == nil {
 		return nil
 	}
-	return pub.Publish(ctx, event)
+	fields := []zap.Field{
+		zap.String("object_id", event.ObjectID),
+		zap.String("status", event.Status.String()),
+		zap.Bool("final", event.Final),
+		zap.Float64("progress", event.Progress),
+	}
+	pub := Get(ctx)
+	if pub == nil {
+		ctxlogger.Get(ctx).Debug("status event skipped: no publisher", fields...)
+		return nil
+	}
+	if err := pub.Publish(ctx, event); err != nil {
+		ctxlogger.Get(ctx).Error("status event publish", append(fields, zap.Error(err))...)
+		return err
+	}
+	ctxlogger.Get(ctx).Debug("status event published", fields...)
+	return nil
 }
 
 // EventFromState builds a ProcessingStatusEvent from a ProcessingState snapshot.

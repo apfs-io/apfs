@@ -384,6 +384,22 @@ fmt.Fprintln(w, "avatar stored:", obj.ID)
 
 ---
 
+## Object preview
+
+`Preview` returns display bytes for the **main** object only (no `?name=` subfile, no processing kick). Images (`image/*`, including SVG) return the original file and its stored content type; everything else returns an embedded SVG icon (`video`, `audio`, `html`, `pdf`, `archive`, or generic `file`).
+
+| Path | Response |
+| ---- | -------- |
+| gRPC `Preview` / gateway `GET /v1/preview/{id}` | JSON: `content_type` + `content` (bytes as base64). For programmatic clients, not `<img>`. |
+| `GET /preview/{id}` | Raw image body (`Content-Type` from meta, or `image/svg+xml` for icons). Use this in `<img src="http://localhost:8080/preview/default/2026/…/{hash}">`. |
+
+```go
+p, err := photos.Preview(ctx, obj.ID)
+// p.ContentType, p.Content
+```
+
+---
+
 ## Key patterns
 
 | Pattern                | How                                                                                                 |

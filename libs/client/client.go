@@ -144,6 +144,35 @@ func (c *client) EnsureProcessing(ctx context.Context, id *ObjectID, opts ...Req
 	return c.processingStateRPC(ctx, c.sclient.EnsureProcessing, id, opts...)
 }
 
+// Preview returns display bytes and mime type for the object's main file.
+func (c *client) Preview(ctx context.Context, id *ObjectID, opts ...RequestOption) (*Preview, error) {
+	var ro RequestOptions
+	for _, opt := range opts {
+		opt(&ro)
+	}
+	ro.prepareGroup(c.defaultGroup)
+
+	resp, err := c.sclient.Preview(prepareContext(ctx), toProtoObjectID(id, ro.group), ro.grpcOpts...)
+	if err != nil {
+		return nil, err
+	}
+	status := resp.GetStatus()
+	switch {
+	case status.IsFailed():
+		return nil, errors.New(resp.GetMessage())
+	case status.IsNotFound():
+		oid := ""
+		if id != nil {
+			oid = id.Id
+		}
+		return nil, storerrors.WrapNotFound(oid, errors.New(resp.GetMessage()))
+	}
+	return &Preview{
+		ContentType: resp.GetContentType(),
+		Content:     resp.GetContent(),
+	}, nil
+}
+
 // Get object from storage and return reader
 func (c *client) Get(ctx context.Context, id *ObjectID, opts ...RequestOption) (obj *Object, reader io.ReadCloser, err error) {
 	var (

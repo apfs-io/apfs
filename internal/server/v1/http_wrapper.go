@@ -184,6 +184,53 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
+// PreviewHTTPHandler streams a display image for the object's main file.
+// Images are returned as-is; other types get an embedded SVG icon.
+// Unlike GetHTTPHandler this does not start processing.
+func (s *ServerHTTPWrapper) PreviewHTTPHandler(w http.ResponseWriter, r *http.Request) {
+	var (
+		ctx = r.Context()
+		id  = chi.URLParam(r, "*")
+	)
+	if id == "" {
+		id = r.URL.Query().Get("id")
+	}
+
+	p, err := s.resolvePreview(ctx, id)
+	if err != nil {
+		if storerrors.IsNotFound(err) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		ctxlogger.Get(ctx).Error("preview object",
+			zap.String("object_id", id),
+			zap.Error(err))
+		errorResponse(w, err.Error())
+		return
+	}
+	defer p.Close()
+
+	w.Header().Set("Content-Type", p.ContentType)
+	if p.Reader == nil {
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Header().Set("Content-Length", gocast.Str(len(p.Body)))
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write(p.Body); err != nil {
+			ctxlogger.Get(ctx).Error("write preview icon",
+				zap.String("object_id", id),
+				zap.Error(err))
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := io.Copy(w, p.Reader); err != nil {
+		ctxlogger.Get(ctx).Error("write preview image",
+			zap.String("object_id", id),
+			zap.Error(err))
+	}
+}
+
 // GetProcessingStateHTTPHandler returns the processing state for an object.
 func (s *ServerHTTPWrapper) GetProcessingStateHTTPHandler(w http.ResponseWriter, r *http.Request) {
 	var (

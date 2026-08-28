@@ -86,6 +86,13 @@ message ObjectResponse {
   }
 }
 
+message PreviewResponse {
+  ResponseStatusCode  status        = 1;
+  string              message       = 2;
+  string              content_type  = 3;
+  bytes               content       = 4;
+}
+
 option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
   host: "localhost:9678";
   base_path: "/v1";
@@ -123,6 +130,14 @@ service ServiceAPI {
   rpc Get(ObjectID) returns (stream ObjectResponse) {
     option (google.api.http) = {
       get: "/v1/object/{id}"
+    };
+  };
+
+  // Preview returns display bytes and mime type for the object's main file.
+  // Images return the original file; other types return an embedded SVG icon.
+  rpc Preview(ObjectID) returns (PreviewResponse) {
+    option (google.api.http) = {
+      get: "/v1/preview/{id=**}"
     };
   };
 

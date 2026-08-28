@@ -165,6 +165,8 @@ func (s *GRPCServer) RunHTTP(ctx context.Context, address string) error {
 	mux.Handle("/*", gw)
 	mux.Get("/object", s.API.GetHTTPHandler)
 	mux.Get("/object/*", s.API.GetHTTPHandler)
+	mux.Get("/preview", s.API.PreviewHTTPHandler)
+	mux.Get("/preview/*", s.API.PreviewHTTPHandler)
 	mux.Post("/object", s.API.UploadHTTPHandler)
 	mux.Post("/object/{group}", s.API.UploadHTTPHandler)
 	mux.Handle("/swagger/", s.swaggerHandler())
