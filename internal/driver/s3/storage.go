@@ -142,9 +142,13 @@ func (c *Storage) Create(ctx context.Context, bucket string, id storio.ObjectID,
 		}
 	}
 
-	// Load bucket-level workflow
-	if err = c.loadManifest(ctx, object, true); err != nil && !isNotExist(err) {
-		return nil, err
+	// Load bucket-level workflow. A missing manifest is normal for a new
+	// group; clear the 404 so it is not returned as the Create error.
+	if err = c.loadManifest(ctx, object, true); err != nil {
+		if !isNotExist(err) {
+			return nil, err
+		}
+		err = nil
 	}
 
 	// Update meta tags information

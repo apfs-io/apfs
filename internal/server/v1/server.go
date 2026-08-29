@@ -464,7 +464,7 @@ func (s *server) Upload(stream protocol.ServiceAPI_UploadServer) (err error) {
 		})
 	}
 
-	s.sendEvent(ctx, models.UpdateEventType, object.ToModel(), err)
+	s.sendUploadEvent(ctx, object, err)
 	return err
 }
 
@@ -496,7 +496,7 @@ func (s *server) UploadObject(ctx context.Context, group, customID string, overw
 	if err == nil {
 		object, err = s.protoObject(nobj)
 	}
-	s.sendEvent(ctx, models.UpdateEventType, object.ToModel(), err)
+	s.sendUploadEvent(ctx, object, err)
 	return nobj, err
 }
 
@@ -878,6 +878,16 @@ func (s *server) updateObjectState(ctx context.Context, objectID string) {
 	ctxlogger.Get(ctx).Info(`Update object state`, zap.String(`object_id`, objectID),
 		zap.String(`action`, models.UpdateEventType.String()))
 	s.sendEvent(ctx, models.UpdateEventType, &models.Object{ID: objectID}, nil)
+}
+
+// sendUploadEvent publishes an update event only when a proto object exists.
+// Failed uploads leave object nil; publishing those made the processor fail
+// with an empty object ID.
+func (s *server) sendUploadEvent(ctx context.Context, object *protocol.Object, err error) {
+	if object == nil {
+		return
+	}
+	s.sendEvent(ctx, models.UpdateEventType, object.ToModel(), err)
 }
 
 func (s *server) sendEvent(ctx context.Context, etype models.EventType, obj *models.Object, err error) {
