@@ -38,6 +38,11 @@ func (e *Executor) ProcessObject(
 		state.Progress = 1.0
 		now := time.Now()
 		state.FinishedAt = &now
+		if e != nil && e.storage != nil {
+			if err := e.storage.WriteState(ctx, storio.ObjectIDType(objectID), state); err != nil {
+				return false, fmt.Errorf("process object: write empty workflow state: %w", err)
+			}
+		}
 		_ = ctxstatusstream.PublishFromState(ctx, state, true)
 		return true, nil
 	}

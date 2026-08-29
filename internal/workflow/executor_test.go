@@ -379,3 +379,19 @@ func TestProcessObject_HappyPath(t *testing.T) {
 	assert.NotNil(t, store.meta.ItemByName("small"))
 	assert.Equal(t, 2, runner.callCount)
 }
+
+func TestProcessObject_EmptyJobsWritesCompletedState(t *testing.T) {
+	store := newFakeStorage()
+	exec := NewExecutor(store, NewRunnerRegistry())
+	wf := &models.Workflow{Version: "2", Name: "default"}
+
+	complete, err := exec.ProcessObject(context.Background(), wf, "obj-empty", nil, 0)
+	require.NoError(t, err)
+	assert.True(t, complete)
+	require.NotNil(t, store.state)
+	assert.Equal(t, "obj-empty", store.state.ObjectID)
+	assert.Equal(t, "2", store.state.ManifestVersion)
+	assert.Equal(t, models.ProcessingStatusCompleted, store.state.Status)
+	assert.Equal(t, 1.0, store.state.Progress)
+	assert.NotNil(t, store.state.FinishedAt)
+}

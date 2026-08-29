@@ -667,7 +667,7 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 		}
 		if wf != nil && wf.Version == "2" {
 			state, _ := s.store.GetProcessingState(ctx, cObject.ID().String())
-			if state == nil || !state.Status.IsTerminal() || !state.Status.IsSuccess() {
+			if v2StateBlocksCompletion(state) {
 				ctxlogger.Get(ctx).Info("next step", append(fields, zap.String("reason", "processing state not terminal"))...)
 				s.publishObjectStatus(ctx, cObject, false)
 				s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
@@ -691,6 +691,14 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 		s.publishObjectStatus(ctx, cObject, false)
 		s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
 	}
+}
+
+// v2StateBlocksCompletion is true when a persisted v2 processing state exists
+// and is not a successful terminal status. A nil state after ProcessObject or
+// ProcessTasks reported complete is treated as done so jobless workflows do
+// not re-queue Update forever.
+func v2StateBlocksCompletion(state *models.ProcessingState) bool {
+	return state != nil && (!state.Status.IsTerminal() || !state.Status.IsSuccess())
 }
 
 func (s *server) removeObjectItems(ctx context.Context, cObject storio.Object,
