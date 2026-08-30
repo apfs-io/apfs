@@ -26,7 +26,7 @@ Example manifests live in [`deploy/workflows/`](../deploy/workflows/).
 
 ### Manual registration
 
-- **API:** `PUT /v1/workflow/{group}` (preferred) or `PUT /v1/manifest/{group}` (legacy)
+- **API:** `PUT /v1/workflow/{group}`
 - **Go client:** `client.Group("images").SetWorkflow(ctx, wf)`
 - **Filesystem driver:** copy YAML to `{storage_root}/{group}/manifest.yaml`
 

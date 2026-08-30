@@ -23,8 +23,6 @@ const (
 	ServiceAPI_Get_FullMethodName                  = "/v1.ServiceAPI/Get"
 	ServiceAPI_Preview_FullMethodName              = "/v1.ServiceAPI/Preview"
 	ServiceAPI_Refresh_FullMethodName              = "/v1.ServiceAPI/Refresh"
-	ServiceAPI_SetManifest_FullMethodName          = "/v1.ServiceAPI/SetManifest"
-	ServiceAPI_GetManifest_FullMethodName          = "/v1.ServiceAPI/GetManifest"
 	ServiceAPI_Upload_FullMethodName               = "/v1.ServiceAPI/Upload"
 	ServiceAPI_Delete_FullMethodName               = "/v1.ServiceAPI/Delete"
 	ServiceAPI_SetWorkflow_FullMethodName          = "/v1.ServiceAPI/SetWorkflow"
@@ -49,10 +47,6 @@ type ServiceAPIClient interface {
 	Preview(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (*PreviewResponse, error)
 	// Refresh object and reprocess
 	Refresh(ctx context.Context, in *ObjectID, opts ...grpc.CallOption) (*SimpleResponse, error)
-	// SetManifest of the group
-	SetManifest(ctx context.Context, in *DataManifest, opts ...grpc.CallOption) (*SimpleResponse, error)
-	// GetManifest of the group
-	GetManifest(ctx context.Context, in *ManifestGroup, opts ...grpc.CallOption) (*ManifestResponse, error)
 	// Upload new file as a stream
 	Upload(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[Data, SimpleObjectResponse], error)
 	// Delete file object or subitems
@@ -123,26 +117,6 @@ func (c *serviceAPIClient) Refresh(ctx context.Context, in *ObjectID, opts ...gr
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SimpleResponse)
 	err := c.cc.Invoke(ctx, ServiceAPI_Refresh_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *serviceAPIClient) SetManifest(ctx context.Context, in *DataManifest, opts ...grpc.CallOption) (*SimpleResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SimpleResponse)
-	err := c.cc.Invoke(ctx, ServiceAPI_SetManifest_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *serviceAPIClient) GetManifest(ctx context.Context, in *ManifestGroup, opts ...grpc.CallOption) (*ManifestResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ManifestResponse)
-	err := c.cc.Invoke(ctx, ServiceAPI_GetManifest_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -246,10 +220,6 @@ type ServiceAPIServer interface {
 	Preview(context.Context, *ObjectID) (*PreviewResponse, error)
 	// Refresh object and reprocess
 	Refresh(context.Context, *ObjectID) (*SimpleResponse, error)
-	// SetManifest of the group
-	SetManifest(context.Context, *DataManifest) (*SimpleResponse, error)
-	// GetManifest of the group
-	GetManifest(context.Context, *ManifestGroup) (*ManifestResponse, error)
 	// Upload new file as a stream
 	Upload(grpc.ClientStreamingServer[Data, SimpleObjectResponse]) error
 	// Delete file object or subitems
@@ -288,12 +258,6 @@ func (UnimplementedServiceAPIServer) Preview(context.Context, *ObjectID) (*Previ
 }
 func (UnimplementedServiceAPIServer) Refresh(context.Context, *ObjectID) (*SimpleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Refresh not implemented")
-}
-func (UnimplementedServiceAPIServer) SetManifest(context.Context, *DataManifest) (*SimpleResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SetManifest not implemented")
-}
-func (UnimplementedServiceAPIServer) GetManifest(context.Context, *ManifestGroup) (*ManifestResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetManifest not implemented")
 }
 func (UnimplementedServiceAPIServer) Upload(grpc.ClientStreamingServer[Data, SimpleObjectResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method Upload not implemented")
@@ -398,42 +362,6 @@ func _ServiceAPI_Refresh_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ServiceAPIServer).Refresh(ctx, req.(*ObjectID))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ServiceAPI_SetManifest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DataManifest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ServiceAPIServer).SetManifest(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ServiceAPI_SetManifest_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ServiceAPIServer).SetManifest(ctx, req.(*DataManifest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ServiceAPI_GetManifest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ManifestGroup)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ServiceAPIServer).GetManifest(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ServiceAPI_GetManifest_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ServiceAPIServer).GetManifest(ctx, req.(*ManifestGroup))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -564,14 +492,6 @@ var ServiceAPI_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Refresh",
 			Handler:    _ServiceAPI_Refresh_Handler,
-		},
-		{
-			MethodName: "SetManifest",
-			Handler:    _ServiceAPI_SetManifest_Handler,
-		},
-		{
-			MethodName: "GetManifest",
-			Handler:    _ServiceAPI_GetManifest_Handler,
 		},
 		{
 			MethodName: "Delete",

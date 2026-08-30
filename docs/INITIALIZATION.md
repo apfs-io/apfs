@@ -50,8 +50,7 @@ Run with `LOG_LEVEL=debug` to print the resolved configuration on startup.
 ## Workflow bootstrap
 
 Bucket-level workflows (manifests) can be applied automatically from a
-filesystem directory. This replaces the legacy `deploy/init/seed-workflows.sh`
-sidecar pattern.
+filesystem directory.
 
 ### Directory layout
 
@@ -126,7 +125,7 @@ After bootstrap, manifests are stored where the active driver expects them:
 | `fs://` | `{root}/{group}/manifest.yaml`   |
 | `s3://` | `{bucket}/{group}/manifest.json` |
 
-Bootstrap uses the same `SetWorkflow` path as the HTTP `PUT /v1/manifest/{group}`
+Bootstrap uses the same `SetWorkflow` path as the HTTP `PUT /v1/workflow/{group}`
 API.
 
 ---
@@ -179,7 +178,7 @@ left unchanged; only new groups are seeded.
 To roll out manifest updates, either:
 
 1. Set `WORKFLOWS_RECONFIGURE=true` and bump `version` in the manifest, or
-2. Update workflows via `PUT /v1/manifest/{group}` without restarting.
+2. Update workflows via `PUT /v1/workflow/{group}` without restarting.
 
 ### Bake workflows into the image
 
@@ -207,9 +206,8 @@ updates:
 
 | Method            | Tool                                                                |
 | ----------------- | ------------------------------------------------------------------- |
-| HTTP API          | `PUT /v1/manifest/{group}` — see [WORKFLOW.md](WORKFLOW.md)         |
+| HTTP API          | `PUT /v1/workflow/{group}` — see [WORKFLOW.md](WORKFLOW.md)         |
 | Helper script     | `deploy/init/upload_workflow.py`                                    |
-| Legacy S3 upload  | `deploy/init/seed-workflows.sh` (deprecated; same directory layout) |
 | Filesystem driver | Copy `manifest.yaml` into `{storage_root}/{group}/`                 |
 
 ---

@@ -20,7 +20,7 @@ var (
 // Input value interface
 type Input interface {
 	Action() *models.Action
-	Task() *models.ManifestTask
+	Target() string
 	Meta() *models.ItemMeta
 	ObjectReader() io.Reader
 }

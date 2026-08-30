@@ -20,7 +20,6 @@ import (
 	"github.com/apfs-io/apfs/internal/context/ctxlogger"
 	"github.com/apfs-io/apfs/internal/object"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor"
-	"github.com/apfs-io/apfs/internal/storage/processor"
 	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/internal/validation"
 	"github.com/apfs-io/apfs/models"
@@ -29,18 +28,9 @@ import (
 // Error list...
 var (
 	ErrStorageInvalidParameterType = errors.New("[storage] invalid parameter type")
-	ErrStorageNoConverters         = errors.New("[storage] no any converter registered")
 	ErrStorageCollectionIsRequired = errors.New("[storage] collection accessor is required")
-	ErrStorageObjectInProcessing   = errors.New("[storage] object in processing")
 	ErrStorageInvalidGroupName     = errors.New("[storage] invalid group name")
-	ErrStorageInvalidAction        = errors.New("[storage] invalid action")
 )
-
-// AllTasks defines task processing count
-const AllTasks = -1
-
-// AllStages defines stage processing count
-const AllStages = -1
 
 // Storage basic object
 type Storage struct {
@@ -294,7 +284,7 @@ func (s *Storage) ObjectWorkflow(ctx context.Context, obj storio.Object) *models
 func (s *Storage) MarkProcessingComplete(ctx context.Context, obj storio.Object) error {
 	object.TouchUpdatedAt(obj, time.Now())
 	s.mx.Lock()
-	if err := processor.SetProcessingStatus(ctx, s.processingStatus, obj, models.StatusOK); err != nil {
+	if err := setProcessingStatus(ctx, s.processingStatus, obj, models.StatusOK); err != nil {
 		s.mx.Unlock()
 		return err
 	}
@@ -305,5 +295,5 @@ func (s *Storage) MarkProcessingComplete(ctx context.Context, obj storio.Object)
 func (s *Storage) getProcessingStatus(ctx context.Context, cObject storio.Object) models.ObjectStatus {
 	s.mx.Lock()
 	defer s.mx.Unlock()
-	return processor.GetProcessingStatus(ctx, s.processingStatus, s, cObject)
+	return getProcessingStatus(ctx, s.processingStatus, s, cObject)
 }

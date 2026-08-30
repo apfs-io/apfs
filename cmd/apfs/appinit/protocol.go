@@ -32,14 +32,11 @@ func ProtocolAPIObject(
 	}
 
 	opts := []api.Option{
-		api.WithStageProcessingLimit(processingConf.StageLimit),
 		api.WithTaskProcessingLimit(processingConf.TaskLimit),
 		api.WithEventstream(events),
 		api.WithUpdateState(updateLocker(processingConf)),
-		api.WithStorageConverters(Converters(ctx, storageConf, logger)),
 		api.WithWorkflowExecutor(StepRunners(ctx, storageConf, logger)),
 		api.WithWorkerTags(workerTags),
-		api.WithRetries(processingConf.MaxRetries),
 		api.WithWorkflowsBootstrap(workflowsConf.Dir, workflowsConf.Reconfigure),
 	}
 

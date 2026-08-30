@@ -46,8 +46,8 @@ func (m *Object) ToModel() *models.Object {
 	if m.GetMeta() != nil {
 		_ = obj.Meta.SetValue(m.GetMeta().ToModel())
 	}
-	if m.GetManifest() != nil {
-		_ = obj.Workflow.SetValue(models.FromLegacyManifest(m.GetManifest().ToModel()))
+	if m.GetWorkflow() != nil {
+		_ = obj.Workflow.SetValue(WorkflowToModel(m.GetWorkflow()))
 	}
 	return obj
 }

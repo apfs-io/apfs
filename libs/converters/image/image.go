@@ -86,7 +86,7 @@ func (ic *Converter) Process(in converters.Input, out converters.Output) error {
 	}
 	var (
 		action         = in.Action()
-		contentType    = actionprocessors.ContentTypeFromExt(defStr(filepath.Ext(in.Task().Target), in.Meta().ObjectTypeExt()))
+		contentType    = actionprocessors.ContentTypeFromExt(defStr(filepath.Ext(in.Target()), in.Meta().ObjectTypeExt()))
 		quality        = int(action.ValueInt32(ActionParamJPEGQuality, 0))
 		imgReader, err = imagereader.Decode(in.ObjectReader(), contentType, quality)
 	)

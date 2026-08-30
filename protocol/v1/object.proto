@@ -7,7 +7,6 @@ option java_multiple_files = true;
 option java_outer_classname = "Object";
 option java_package = "com.apfs.protocol.v1";
 
-import "v1/manifest.proto";
 import "v1/meta.proto";
 import "v1/workflow.proto";
 import "v1/state.proto";
@@ -21,7 +20,8 @@ message Object {
   ObjectStatus  status          = 5;
   string        object_type     = 6;
   string        content_type    = 7;
-  Manifest      manifest        = 8;
+  reserved 8;
+  reserved "manifest";
   Meta          meta            = 9;
   uint32        size            = 10;
 

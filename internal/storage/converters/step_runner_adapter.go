@@ -8,11 +8,11 @@ import (
 	"github.com/apfs-io/apfs/models"
 )
 
-// ConverterStepRunner wraps a legacy Converter so it can be used as a
-// workflow.StepRunner by the v2 workflow Executor.
+// ConverterStepRunner wraps a Converter so it can be used as a
+// workflow.StepRunner by the workflow Executor.
 //
-// Mapping from WorkflowStep to legacy Action:
-//   - step.Uses → action.Name (the converter's ActionName)
+// Mapping from WorkflowStep to Action:
+//   - step.Uses → action.Name (slash form "image/resize" becomes "image.resize")
 //   - step.With  → action.Values (parameters forwarded verbatim)
 //
 // File output: if step.With["target"] is set, the produced io.Reader is
@@ -22,27 +22,42 @@ import (
 // promoted into StepOutput.Outputs so downstream jobs can reference it via
 // ${{ jobID.outputs.key }}.
 type ConverterStepRunner struct {
-	actionName string // e.g. "procedure", "shell"
+	actionName string // e.g. "image", "procedure"
 	conv       Converter
 }
 
 // NewStepRunner wraps conv as a workflow.StepRunner that handles steps whose
-// Uses field equals actionName or starts with actionName+"/".
+// Uses field equals actionName or starts with actionName+"/" or actionName+".".
 func NewStepRunner(actionName string, conv Converter) workflow.StepRunner {
 	return &ConverterStepRunner{actionName: actionName, conv: conv}
 }
 
 // CanRun returns true when step.Uses equals the wrapped action name or starts
-// with "<actionName>/".
+// with "<actionName>/" or "<actionName>.".
 func (r *ConverterStepRunner) CanRun(step *models.WorkflowStep) bool {
+	if step == nil {
+		return false
+	}
 	return step.Uses == r.actionName ||
-		strings.HasPrefix(step.Uses, r.actionName+"/")
+		strings.HasPrefix(step.Uses, r.actionName+"/") ||
+		strings.HasPrefix(step.Uses, r.actionName+".")
+}
+
+func (r *ConverterStepRunner) actionNameFor(step *models.WorkflowStep) string {
+	uses := step.Uses
+	if strings.HasPrefix(uses, r.actionName+"/") {
+		return r.actionName + "." + strings.TrimPrefix(uses, r.actionName+"/")
+	}
+	if uses == r.actionName {
+		return r.actionName
+	}
+	return uses
 }
 
 // Run executes the step by delegating to the wrapped Converter.
 func (r *ConverterStepRunner) Run(_ context.Context, step *models.WorkflowStep, in workflow.StepInput) (workflow.StepOutput, error) {
 	action := &models.Action{
-		Name:   r.actionName,
+		Name:   r.actionNameFor(step),
 		Values: step.With,
 	}
 
@@ -54,7 +69,8 @@ func (r *ConverterStepRunner) Run(_ context.Context, step *models.WorkflowStep, 
 	}
 	outMeta := &models.ItemMeta{}
 
-	convIn := NewInput(in.Reader, nil, action, inMeta)
+	target, _ := step.With["target"].(string)
+	convIn := NewInput(in.Reader, target, action, inMeta)
 	convOut := NewOutput(outMeta)
 
 	if err := r.conv.Process(convIn, convOut); err != nil {
@@ -71,7 +87,7 @@ func (r *ConverterStepRunner) Run(_ context.Context, step *models.WorkflowStep, 
 	// Wire file output.
 	if reader := convOut.ObjectReader(); reader != nil {
 		so.Writer = reader
-		if target, ok := step.With["target"].(string); ok && target != "" {
+		if target != "" {
 			so.TargetPath = target
 			outMeta.UpdateName(target)
 		}

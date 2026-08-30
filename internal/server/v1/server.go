@@ -22,7 +22,6 @@ import (
 	protocol "github.com/apfs-io/apfs/internal/server/protocol/v1"
 	"github.com/apfs-io/apfs/internal/storage"
 	"github.com/apfs-io/apfs/internal/storage/database"
-	"github.com/apfs-io/apfs/internal/storage/processor"
 	"github.com/apfs-io/apfs/internal/storage/procregistry"
 	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/internal/workflow"
@@ -47,9 +46,6 @@ type ServiceServer interface {
 type server struct {
 	protocol.UnimplementedServiceAPIServer
 
-	// Amount of stages processed per one iteration
-	stageProcessingLimit int
-
 	// Task Processing Limit per one iteration
 	taskProcessingLimit int
 
@@ -59,10 +55,7 @@ type server struct {
 	// Storage object
 	store *storage.Storage
 
-	// Processor object
-	processor *processor.Processor
-
-	// v2 workflow executor
+	// Workflow executor (always present; jobless workflows complete immediately)
 	wfExecutor *workflow.Executor
 
 	// Worker tags for workflow job affinity
@@ -112,22 +105,17 @@ func NewServer(ctx context.Context, connect, storageConnect, stateConnect string
 			return nil, errors.Wrap(err, "workflows bootstrap")
 		}
 	}
-	var wfExecutor *workflow.Executor
-	if options.wfRegistry != nil {
-		wfExecutor = workflow.NewExecutor(storage.NewWorkflowStorage(store), options.wfRegistry)
-	}
+	wfExecutor := workflow.NewExecutor(storage.NewWorkflowStorage(store), options.wfRegistry)
 	return &server{
-		stageProcessingLimit: options.stageProcessingLimit,
-		taskProcessingLimit:  options.taskProcessingLimit,
-		bufferpool:           pool,
-		eventStream:          options.eventStream,
-		statusStream:         options.statusStream,
-		inflight:             inflight,
-		updateState:          options.updateState,
-		store:                store,
-		processor:            options._processor(driver, stateKV),
-		wfExecutor:           wfExecutor,
-		workerTags:           options.workerTags,
+		taskProcessingLimit: options.taskProcessingLimit,
+		bufferpool:          pool,
+		eventStream:         options.eventStream,
+		statusStream:        options.statusStream,
+		inflight:            inflight,
+		updateState:         options.updateState,
+		store:               store,
+		wfExecutor:          wfExecutor,
+		workerTags:          options.workerTags,
 	}, nil
 }
 
@@ -288,73 +276,6 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 	}
 
 	return nil
-}
-
-// SetManifest of the group which will be applied for entities of the `group`
-// - {storage-domain}/{group}/manifest.json
-//   - {storage-domain}/{group}/{object-codename}/manifest.json - reference to `{storage-domain}/{group}/manifest.json`
-func (s *server) SetManifest(ctx context.Context, manifest *protocol.DataManifest) (_ *protocol.SimpleResponse, err error) {
-	ctxlogger.Get(ctx).Info("Set Manifest",
-		zap.String("manifest_group", manifest.GetGroup()),
-		zap.Any("manifest", manifest.Manifest),
-	)
-
-	// Convert manifest from proto to workflow model and save
-	wf := models.FromLegacyManifest(manifest.Manifest.ToModel())
-	err = s.store.SetWorkflow(ctx, manifest.GetGroup(), wf)
-	if err != nil {
-		ctxlogger.Get(ctx).Error("Set Manifest",
-			zap.String("manifest_group", manifest.GetGroup()),
-			zap.Error(err))
-		return &protocol.SimpleResponse{
-			Status:  protocol.ResponseStatusCode_FAILED,
-			Message: fmt.Sprintf("Manifest [%s] setup error: %s", manifest.GetGroup(), err.Error()),
-		}, err
-	}
-
-	return &protocol.SimpleResponse{
-		Status:  protocol.ResponseStatusCode_OK,
-		Message: fmt.Sprintf("Manifest [%s] was setuped", manifest.GetGroup()),
-	}, nil
-}
-
-// GetManifest from the group
-func (s *server) GetManifest(ctx context.Context, group *protocol.ManifestGroup) (_ *protocol.ManifestResponse, err error) {
-	ctxlogger.Get(ctx).Info("Get Manifest",
-		zap.String("manifest_group", group.GetGroup()))
-
-	defer func() {
-		if err != nil {
-			ctxlogger.Get(ctx).Error("Get Manifest",
-				zap.String("manifest_group", group.GetGroup()),
-				zap.Error(err))
-		}
-	}()
-
-	wf, err := s.store.GetWorkflow(ctx, group.GetGroup())
-	if err != nil {
-		status := protocol.ResponseStatusCode_FAILED
-		if storerrors.IsNotFound(err) {
-			status = protocol.ResponseStatusCode_NOT_FOUND
-		}
-		return &protocol.ManifestResponse{
-			Status:  status,
-			Message: fmt.Sprintf("Manifest [%s] get error: %s", group.GetGroup(), err.Error()),
-		}, err
-	}
-
-	manifestProto, err := protocol.ManifestFromModel(wf.ToManifest())
-	if err != nil {
-		return &protocol.ManifestResponse{
-			Status:  protocol.ResponseStatusCode_FAILED,
-			Message: fmt.Sprintf("Manifest [%s] converting error: %s", group.GetGroup(), err.Error()),
-		}, err
-	}
-
-	return &protocol.ManifestResponse{
-		Status:   protocol.ResponseStatusCode_OK,
-		Manifest: manifestProto,
-	}, nil
 }
 
 // SetWorkflow stores a v2 workflow manifest for a group/bucket.
@@ -690,39 +611,17 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 	}
 	// Remove redundant extra objects
 	_ = s.removeObjectItems(ctx, cObject, items, fields...)
-	// Process next task actions. The executor is selected by jobs + registry,
-	// not by the workflow `version` string (that field is an object-freshness
-	// revision compared to Meta.ManifestVersion).
-	usedExecutor := useWorkflowExecutor(wf, s.wfExecutor)
-	if usedExecutor {
-		isComplete, err = s.wfExecutor.ProcessObject(ctx, wf, cObject.ID().String(), s.workerTags, s.taskProcessingLimit)
-		if err == nil {
-			if reloaded, reloadErr := s.store.Object(ctx, cObject.ID()); reloadErr == nil {
-				cObject = reloaded
-			}
-		}
-	} else {
-		isComplete, err = s.processor.ProcessTasks(ctx, cObject,
-			s.taskProcessingLimit, s.taskProcessingLimit)
-		// v1 converters cannot run procedure/docker jobs. If every pending
-		// target is still missing, treat it as a terminal failure instead of
-		// re-queueing on HasPendingArtifacts (that loop never converges).
-		if err == nil && isComplete && wf != nil && workflow.HasPendingArtifacts(wf, cObject.Meta()) {
-			err = processor.ErrNoSuitableConverter
-			isComplete = false
+	// Always run the workflow executor. Jobless workflows complete immediately
+	// (ProcessObject empty jobs). The workflow `version` string is an
+	// object-freshness revision compared to Meta.ManifestVersion, not an
+	// engine selector.
+	isComplete, err = s.wfExecutor.ProcessObject(ctx, wf, cObject.ID().String(), s.workerTags, s.taskProcessingLimit)
+	if err == nil {
+		if reloaded, reloadErr := s.store.Object(ctx, cObject.ID()); reloadErr == nil {
+			cObject = reloaded
 		}
 	}
 	switch {
-	case errors.Is(err, processor.ErrNoSuitableConverter):
-		ctxlogger.Get(ctx).Error("process",
-			append(fields, zap.Error(err), zap.Bool("unrunnable", true))...)
-		if event.Object != nil {
-			event.Object.Status = models.StatusError
-			_ = event.Object.Workflow.SetValue(cObject.Workflow())
-			_ = event.Object.Meta.SetValue(cObject.Meta())
-		}
-		s.publishObjectStatus(ctx, cObject, true)
-		s.sendEvent(ctx, models.ProcessedEventType, event.Object, err)
 	case err != nil:
 		isNotFound := storerrors.IsNotFound(err)
 		ctxlogger.Get(ctx).Error("process",
@@ -735,20 +634,18 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 			s.sendEvent(ctx, models.DeleteEventType, event.Object, err)
 		}
 	case isComplete:
-		if usedExecutor && wf != nil && workflow.HasPendingArtifacts(wf, cObject.Meta()) {
+		if wf != nil && workflow.HasPendingArtifacts(wf, cObject.Meta()) {
 			ctxlogger.Get(ctx).Info("next step", append(fields, zap.String("reason", "pending artifacts"))...)
 			s.publishObjectStatus(ctx, cObject, false)
 			s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
 			break
 		}
-		if usedExecutor {
-			state, _ := s.store.GetProcessingState(ctx, cObject.ID().String())
-			if v2StateBlocksCompletion(state) {
-				ctxlogger.Get(ctx).Info("next step", append(fields, zap.String("reason", "processing state not terminal"))...)
-				s.publishObjectStatus(ctx, cObject, false)
-				s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
-				break
-			}
+		state, _ := s.store.GetProcessingState(ctx, cObject.ID().String())
+		if v2StateBlocksCompletion(state) {
+			ctxlogger.Get(ctx).Info("next step", append(fields, zap.String("reason", "processing state not terminal"))...)
+			s.publishObjectStatus(ctx, cObject, false)
+			s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
+			break
 		}
 		ctxlogger.Get(ctx).Info("process complete", fields...)
 		if err2 := s.store.MarkProcessingComplete(ctx, cObject); err2 != nil {
@@ -769,16 +666,10 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 	}
 }
 
-// useWorkflowExecutor reports whether the v2 job executor should run this
-// workflow. The version string is a freshness revision, not an engine selector.
-func useWorkflowExecutor(wf *models.Workflow, exec *workflow.Executor) bool {
-	return wf != nil && len(wf.Jobs) > 0 && exec != nil
-}
-
-// v2StateBlocksCompletion is true when a persisted v2 processing state exists
-// and is not a successful terminal status. A nil state after ProcessObject or
-// ProcessTasks reported complete is treated as done so jobless workflows do
-// not re-queue Update forever.
+// v2StateBlocksCompletion is true when a persisted processing state exists
+// and is not a successful terminal status. A nil state after ProcessObject
+// reported complete is treated as done so jobless workflows do not re-queue
+// Update forever.
 func v2StateBlocksCompletion(state *models.ProcessingState) bool {
 	return state != nil && (!state.Status.IsTerminal() || !state.Status.IsSuccess())
 }
@@ -804,12 +695,6 @@ func (s *server) removeObjectItems(ctx context.Context, cObject storio.Object,
 }
 
 func (s *server) protoObject(obj storio.Object) (_ *protocol.Object, err error) {
-	var manifest *protocol.Manifest
-	if wf := obj.Workflow(); wf != nil && !wf.IsEmpty() {
-		if manifest, err = protocol.ManifestFromModel(wf.ToManifest()); err != nil {
-			return nil, err
-		}
-	}
 	createdAt, updatedAt := object.Timestamps(obj)
 	return &protocol.Object{
 		Id:     obj.ID().String(),
@@ -824,7 +709,6 @@ func (s *server) protoObject(obj storio.Object) (_ *protocol.Object, err error) 
 
 		ObjectType:  string(obj.MetaOrNew().Main.Type),
 		ContentType: obj.MetaOrNew().Main.ContentType,
-		Manifest:    manifest,
 		Meta:        protocol.MetaFromModel(obj.MetaOrNew()),
 		Size:        uint32(obj.MetaOrNew().Main.Size),
 

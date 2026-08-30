@@ -96,9 +96,8 @@ func TestParseWorkflowJSON(t *testing.T) {
 }
 
 func TestParseWorkflowLegacyJSON(t *testing.T) {
-	// v1-format JSON (stages/tasks) is now parsed as a raw Workflow.
-	// The parser no longer auto-converts legacy manifests; callers that need
-	// v1 support should use models.FromLegacyManifest explicitly.
+	// v1-format JSON (stages/tasks) is parsed as a raw Workflow.
+	// The parser does not convert legacy manifests.
 	legacyJSON := `{
 		"version": "1",
 		"stages": []

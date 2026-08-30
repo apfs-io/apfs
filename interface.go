@@ -29,16 +29,13 @@ type (
 	StepState          = client.StepState
 
 	// Model types
-	ObjectType        = models.ObjectType
-	Workflow          = models.Workflow
-	WorkflowJob       = models.WorkflowJob
-	WorkflowStep      = models.WorkflowStep
-	WorkflowValidate  = models.WorkflowValidate
-	Manifest          = models.Manifest
-	ManifestTaskStage = models.ManifestTaskStage
-	ManifestTask      = models.ManifestTask
-	Action            = models.Action
-	Client            = client.Client
+	ObjectType       = models.ObjectType
+	Workflow         = models.Workflow
+	WorkflowJob      = models.WorkflowJob
+	WorkflowStep     = models.WorkflowStep
+	WorkflowValidate = models.WorkflowValidate
+	Action           = models.Action
+	Client           = client.Client
 )
 
 // List of constants.

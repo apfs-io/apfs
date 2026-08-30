@@ -92,74 +92,6 @@
         ]
       }
     },
-    "/v1/manifest/{group}": {
-      "get": {
-        "summary": "GetManifest of the group",
-        "operationId": "ServiceAPI_GetManifest",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1ManifestResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "group",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "ServiceAPI"
-        ]
-      },
-      "put": {
-        "summary": "SetManifest of the group",
-        "operationId": "ServiceAPI_SetManifest",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1SimpleResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "group",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/ServiceAPISetManifestBody"
-            }
-          }
-        ],
-        "tags": [
-          "ServiceAPI"
-        ]
-      }
-    },
     "/v1/object": {
       "post": {
         "summary": "Upload new file as a stream",
@@ -689,14 +621,6 @@
         }
       }
     },
-    "ServiceAPISetManifestBody": {
-      "type": "object",
-      "properties": {
-        "manifest": {
-          "$ref": "#/definitions/v1Manifest"
-        }
-      }
-    },
     "ServiceAPISetWorkflowBody": {
       "type": "object",
       "properties": {
@@ -733,19 +657,6 @@
           }
         }
       }
-    },
-    "v1Action": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "valuesJson": {
-          "type": "string",
-          "title": "values_json holds a JSON-encoded map[string]any of the action parameters.\nExample: {\"name\":\"image-resize-w\",\"width\":\"1200\",\"target\":\"large.jpg\"}"
-        }
-      },
-      "description": "Action which must be applied to source.\nParameter values are carried as a JSON-encoded string (values_json) so that\nthe REST/JSON representation stays clean and free of \"@type\" annotations."
     },
     "v1Data": {
       "type": "object",
@@ -912,87 +823,6 @@
       "default": "JOB_PENDING",
       "title": "JobStatus enum"
     },
-    "v1Manifest": {
-      "type": "object",
-      "properties": {
-        "version": {
-          "type": "string"
-        },
-        "contentTypes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "stages": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/v1ManifestTaskStage"
-          }
-        }
-      },
-      "title": "Manifest model object"
-    },
-    "v1ManifestResponse": {
-      "type": "object",
-      "properties": {
-        "status": {
-          "$ref": "#/definitions/v1ResponseStatusCode"
-        },
-        "message": {
-          "type": "string"
-        },
-        "manifest": {
-          "$ref": "#/definitions/v1Manifest"
-        }
-      }
-    },
-    "v1ManifestTask": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "source": {
-          "type": "string",
-          "title": "'' -\u003e @ = original file"
-        },
-        "target": {
-          "type": "string",
-          "title": "Name of file"
-        },
-        "type": {
-          "type": "string",
-          "title": "Target type"
-        },
-        "actions": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/v1Action"
-          },
-          "title": "Applied to source before save to target"
-        }
-      },
-      "title": "ManifestTask file processing"
-    },
-    "v1ManifestTaskStage": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "tasks": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/v1ManifestTask"
-          }
-        }
-      },
-      "title": "ManifestTaskStage model object"
-    },
     "v1Meta": {
       "type": "object",
       "properties": {
@@ -1054,9 +884,6 @@
         },
         "contentType": {
           "type": "string"
-        },
-        "manifest": {
-          "$ref": "#/definitions/v1Manifest"
         },
         "meta": {
           "$ref": "#/definitions/v1Meta"

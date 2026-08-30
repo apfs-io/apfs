@@ -13,7 +13,6 @@ deploy/
 │   ├── docker-compose.yml   # MinIO, Redis, NATS, APFS server, testapp
 │   └── testapp.dockerfile
 ├── init/
-│   ├── seed-workflows.sh    # Legacy manual S3 upload helper (deprecated)
 │   └── upload_workflow.py   # HTTP upload helper for a single group
 ├── procedures/              # plugeproc .eproc manifests + scripts
 │   ├── *.eproc.yaml
@@ -199,7 +198,7 @@ cp deploy/workflows/images/manifest.yaml /data/storage/images/manifest.yaml
 # Convert YAML to JSON for S3-backed storage
 curl -X PUT -H 'Content-Type: application/json' \
   --data-binary "@<(yq -o=json deploy/workflows/images/manifest.yaml)" \
-  "http://localhost:18080/v1/manifest/images"
+  "http://localhost:18080/v1/workflow/images"
 ```
 
 The server stores the workflow internally regardless of the legacy manifest wire format.

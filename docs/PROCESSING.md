@@ -307,9 +307,9 @@ for name, job := range state.Jobs {
 
 ## APFS server-side stream publishing
 
-APFS publishes events via `ctxstatusstream.Publish` from within the processor
-after every task and at pipeline completion (v1 `ProcessTasks` and v2
-`ExecuteJob` / `ProcessObject`). Configure the stream publisher:
+APFS publishes events via `ctxstatusstream.Publish` from within the workflow
+executor after every job and at pipeline completion (`ExecuteJob` /
+`ProcessObject`). Configure the stream publisher:
 
 ```yaml
 processing:

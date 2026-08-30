@@ -6,7 +6,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/apfs-io/apfs/cmd/apfs/appcontext"
-	"github.com/apfs-io/apfs/internal/storage/converters"
 	"github.com/apfs-io/apfs/internal/workflow"
 	"github.com/apfs-io/apfs/libs/converters/image"
 	"github.com/apfs-io/apfs/libs/converters/proc"
@@ -29,31 +28,8 @@ func ProcStore(ctx context.Context, conf *appcontext.StorageConfig, logger *zap.
 	return store
 }
 
-// Converters builds the list of converters.Converter instances used by the
-// internal processor pipeline. Only converters with no StepRunner equivalent
-// (currently: image) are registered here. Procedure/shell/exec/docker steps
-// are handled exclusively by the workflow engine via StepRunners().
-func Converters(ctx context.Context, conf *appcontext.StorageConfig, logger *zap.Logger) []converters.Converter {
-	convs := []converters.Converter{}
-	if len(conf.Converters) == 0 {
-		conf.Converters = allDefaultConvs
-	}
-	for _, convName := range conf.Converters {
-		switch convName {
-		case "image":
-			convs = append(convs, image.NewDefaultConverter())
-		case "procedure", "shell", "exec", "docker":
-			// Handled by the workflow StepRunner (see StepRunners). No
-			// legacy converter bridge is needed.
-		default:
-			logger.Fatal("undefined converter", zap.String("name", convName))
-		}
-	}
-	return convs
-}
-
 // StepRunners builds a workflow.RunnerRegistry populated from the converter
-// config. This registry is used by the v2 workflow Executor to dispatch YAML
+// config. This registry is used by the workflow Executor to dispatch YAML
 // workflow steps.
 func StepRunners(ctx context.Context, conf *appcontext.StorageConfig, logger *zap.Logger) *workflow.RunnerRegistry {
 	reg := workflow.NewRunnerRegistry()

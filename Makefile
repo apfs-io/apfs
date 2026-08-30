@@ -143,7 +143,7 @@ test-workflow:
 	python3 deploy/init/upload_workflow.py images deploy/workflows/images/manifest.yaml
 
 test-get-workflow:
-	curl -X GET -s "http://localhost:18080/v1/manifest/images" | jq '.'
+	curl -X GET -s "http://localhost:18080/v1/workflow/images" | jq '.'
 
 .PHONY: help
 help:

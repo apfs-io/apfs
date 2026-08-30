@@ -2,9 +2,7 @@ package v1
 
 import (
 	"github.com/apfs-io/apfs/internal/storage"
-	"github.com/apfs-io/apfs/internal/storage/converters"
 	"github.com/apfs-io/apfs/internal/storage/kvaccessor"
-	"github.com/apfs-io/apfs/internal/storage/processor"
 	"github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/internal/workflow"
 
@@ -16,20 +14,11 @@ type Option func(*Options)
 
 // Options of the server
 type Options struct {
-	// Amount of stages processed per one iteration
-	stageProcessingLimit int
-
-	// Task Processing limit
+	// Task Processing limit (max workflow jobs per Update event)
 	taskProcessingLimit int
-
-	// Max amount of attempts of the task processing
-	maxRetries int
 
 	// Storage object
 	store *storage.Storage
-
-	// Converter drivers
-	convs []converters.Converter
 
 	// Event stream object chanel
 	eventStream nc.Publisher
@@ -40,7 +29,7 @@ type Options struct {
 	// Update state accessor
 	updateState updateStateI
 
-	// v2 workflow runner registry (optional)
+	// Workflow runner registry (optional; jobless workflows still complete)
 	wfRegistry *workflow.RunnerRegistry
 
 	// Worker tags for workflow job affinity
@@ -62,28 +51,6 @@ func (opts *Options) _storage(database storage.DB, driver storio.StorageAccessor
 	return opts.store
 }
 
-func (opts *Options) _processor(driver storio.StorageAccessor, stateKV kvaccessor.KVAccessor) *processor.Processor {
-	proc, err := processor.NewProcessor(
-		processor.WithStorage(opts.store),
-		processor.WithDriver(driver),
-		processor.WithProcessingStatus(stateKV),
-		processor.WithConverters(opts.convs...),
-		processor.WithStorage(opts.store),
-		processor.WithMaxRetries(opts.maxRetries),
-	)
-	if err != nil {
-		panic(err)
-	}
-	return proc
-}
-
-// WithStageProcessingLimit custom option
-func WithStageProcessingLimit(limit int) Option {
-	return func(opts *Options) {
-		opts.stageProcessingLimit = limit
-	}
-}
-
 // WithTaskProcessingLimit custom option
 func WithTaskProcessingLimit(limit int) Option {
 	return func(opts *Options) {
@@ -95,13 +62,6 @@ func WithTaskProcessingLimit(limit int) Option {
 func WithStorage(store *storage.Storage) Option {
 	return func(opts *Options) {
 		opts.store = store
-	}
-}
-
-// WithStorageConverters custom option
-func WithStorageConverters(convs []converters.Converter) Option {
-	return func(opts *Options) {
-		opts.convs = convs
 	}
 }
 
@@ -126,14 +86,7 @@ func WithUpdateState(updateState updateStateI) Option {
 	}
 }
 
-// WithRetries count of attempts
-func WithRetries(maxRetries int) Option {
-	return func(opts *Options) {
-		opts.maxRetries = maxRetries
-	}
-}
-
-// WithWorkflowExecutor registers v2 workflow step runners for the event pipeline.
+// WithWorkflowExecutor registers workflow step runners for the event pipeline.
 func WithWorkflowExecutor(registry *workflow.RunnerRegistry) Option {
 	return func(opts *Options) {
 		opts.wfRegistry = registry

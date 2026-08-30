@@ -129,8 +129,8 @@ Possible top-level statuses: `pending`, `running`, `completed`, `partial` (some 
 | `GET`    | `/v1/head/{id}`        | Retrieve object metadata.               |
 | `GET`    | `/v1/object/{id}`      | Retrieve object and data stream.        |
 | `PUT`    | `/v1/refresh/{id}`     | Trigger re-processing of an object.     |
-| `PUT`    | `/v1/manifest/{group}` | Set the workflow for a bucket.          |
-| `GET`    | `/v1/manifest/{group}` | Retrieve the workflow for a bucket.     |
+| `PUT`    | `/v1/workflow/{group}` | Set the workflow for a bucket.          |
+| `GET`    | `/v1/workflow/{group}` | Retrieve the workflow for a bucket.     |
 | `POST`   | `/v1/object`           | Upload a new file.                      |
 | `DELETE` | `/v1/object/{id}`      | Delete an object or specific sub-files. |
 

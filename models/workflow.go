@@ -11,11 +11,7 @@ import (
 )
 
 // Workflow is the top-level manifest describing how uploaded objects are
-// validated and processed. It replaces the legacy Manifest type and uses a
-// GitHub-Actions-inspired YAML/JSON schema (version "2").
-//
-// Backward-compatible v1 manifests (Stages/Tasks/Actions) can be converted
-// via FromLegacyManifest.
+// validated and processed. The schema is GitHub-Actions-inspired YAML/JSON.
 type Workflow struct {
 	Version     string `json:"version,omitempty"     yaml:"version,omitempty"`
 	Name        string `json:"name,omitempty"        yaml:"name,omitempty"`
@@ -256,109 +252,6 @@ func (p FailurePolicy) String() string {
 	default:
 		return "fail"
 	}
-}
-
-// FromLegacyManifest converts a v1 Manifest (Stages/Tasks/Actions) into a v2
-// Workflow so that existing stored manifests continue to work after the upgrade.
-func FromLegacyManifest(m *Manifest) *Workflow {
-	if m == nil {
-		return nil
-	}
-	w := &Workflow{
-		Version:      "2",
-		ContentTypes: m.ContentTypes,
-		Jobs:         map[string]*WorkflowJob{},
-	}
-
-	var prevStageJobs []string
-	for _, stage := range m.GetStages() {
-		var stageJobIDs []string
-		for _, task := range stage.Tasks {
-			jobID := task.ID
-			if jobID == "" {
-				jobID = task.Target
-			}
-			steps := make([]*WorkflowStep, 0, len(task.Actions))
-			for _, act := range task.Actions {
-				step := &WorkflowStep{
-					Name: act.Name,
-					Uses: act.Name,
-					With: act.Values,
-				}
-				if task.Target != "" {
-					if step.With == nil {
-						step.With = map[string]any{}
-					}
-					step.With["target"] = task.Target
-				}
-				steps = append(steps, step)
-			}
-			job := &WorkflowJob{
-				Needs: append([]string(nil), prevStageJobs...),
-				Steps: steps,
-			}
-			if task.Required {
-				job.OnFailure = "fail"
-			} else {
-				job.OnFailure = "continue"
-			}
-			if task.Source != "" && !IsOriginal(task.Source) {
-				for _, dep := range prevStageJobs {
-					if dep == task.Source {
-						break
-					}
-				}
-				job.Needs = append(job.Needs, task.Source)
-			}
-			w.Jobs[jobID] = job
-			stageJobIDs = append(stageJobIDs, jobID)
-		}
-		prevStageJobs = stageJobIDs
-	}
-	return w
-}
-
-// ToManifest converts the Workflow to a v1 Manifest representation.
-// Used for protocol-layer responses that still return *Manifest.
-func (w *Workflow) ToManifest() *Manifest {
-	if w == nil {
-		return &Manifest{}
-	}
-	m := &Manifest{
-		Version:      w.Version,
-		ContentTypes: w.ContentTypes,
-	}
-	stage := &ManifestTaskStage{Name: "workflow"}
-	for _, jobID := range w.JobIDs() {
-		job := w.Jobs[jobID]
-		if job == nil {
-			continue
-		}
-		task := &ManifestTask{
-			ID:       jobID,
-			Required: job.OnFailure == "" || string(job.OnFailure) == "fail",
-		}
-		for _, step := range job.Steps {
-			task.Actions = append(task.Actions, &Action{
-				Name:   step.Uses,
-				Values: step.With,
-			})
-			if target, ok := step.With["target"].(string); ok && target != "" {
-				task.Target = target
-			}
-			if src, ok := step.With["source"].(string); ok && src != "" {
-				task.Source = src
-			}
-		}
-		if task.Source == "" {
-			task.Source = "@"
-		}
-		stage.Tasks = append(stage.Tasks, task)
-	}
-	if len(stage.Tasks) > 0 {
-		m.Stages = []*ManifestTaskStage{stage}
-	}
-	return m.PrepareInfo()
 }
 
 // MarshalJSON implements json.Marshaler so that Workflow serialises cleanly.

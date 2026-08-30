@@ -17,7 +17,7 @@ func (ActionProcessorBase64) Name() string { return ActionBase64 }
 func (ActionProcessorBase64) Process(in converters.Input, out converters.Output, action *models.Action, imgReader ImageReader) error {
 	var (
 		quality          = int(action.ValueInt32(ActionParamJPEGQuality, 0))
-		finalContentType = ContentTypeFromExt(defStr(filepath.Ext(in.Task().Target), in.Meta().ObjectTypeExt()))
+		finalContentType = ContentTypeFromExt(defStr(filepath.Ext(in.Target()), in.Meta().ObjectTypeExt()))
 		b64ContentType   = action.ValueString(ActionParamB64Format, finalContentType)
 		target           = action.ValueString(ActionParamMetaField, "b64data")
 		b64ImageReader   = imagereader.NewImageReader(imgReader.Image(), b64ContentType, quality)
