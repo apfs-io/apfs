@@ -92,10 +92,14 @@ from storage and decides:
 A group is **not configured** when storage returns an empty workflow (no jobs
 and no `validate` block).
 
-The `version` field in the manifest is a user-defined deployment version
-(dotted numeric strings are compared: `2` < `2.1` < `3`). It is separate from
-the v2 schema identifier (`version: "2"` in examples denotes the YAML schema,
-but the same field drives upgrade detection when you bump it).
+The `version` field is an **object-freshness revision**, not a protocol or YAML
+schema identifier. It is compared to each object's `Meta.ManifestVersion`.
+Bump `version` when the workflow contents change so stored objects are
+reprocessed (dotted numeric strings: `2` < `2.1` < `3`). Bootstrap
+(`WORKFLOWS_RECONFIGURE=true`) publishes the incoming workflow only when its
+`version` is **strictly greater** than the stored group revision; skip when the
+stored revision is the same or newer. The processing executor runs whenever the
+workflow has jobs — it does not require `version` to be the string `"2"`.
 
 ### Environment variables
 

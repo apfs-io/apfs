@@ -357,6 +357,62 @@ func (s *server) GetManifest(ctx context.Context, group *protocol.ManifestGroup)
 	}, nil
 }
 
+// SetWorkflow stores a v2 workflow manifest for a group/bucket.
+func (s *server) SetWorkflow(ctx context.Context, req *protocol.DataWorkflow) (*protocol.SimpleResponse, error) {
+	group := req.GetGroup()
+	ctxlogger.Get(ctx).Info("Set Workflow",
+		zap.String("workflow_group", group),
+		zap.Any("workflow", req.GetWorkflow()))
+
+	wf := protocol.WorkflowToModel(req.GetWorkflow())
+	err := s.store.SetWorkflow(ctx, group, wf)
+	if err != nil {
+		ctxlogger.Get(ctx).Error("Set Workflow",
+			zap.String("workflow_group", group),
+			zap.Error(err))
+		return &protocol.SimpleResponse{
+			Status:  protocol.ResponseStatusCode_FAILED,
+			Message: fmt.Sprintf("Workflow [%s] setup error: %s", group, err.Error()),
+		}, err
+	}
+
+	return &protocol.SimpleResponse{
+		Status:  protocol.ResponseStatusCode_OK,
+		Message: fmt.Sprintf("Workflow [%s] was setuped", group),
+	}, nil
+}
+
+// GetWorkflow returns the v2 workflow manifest for a group/bucket.
+func (s *server) GetWorkflow(ctx context.Context, group *protocol.ManifestGroup) (_ *protocol.WorkflowResponse, err error) {
+	ctxlogger.Get(ctx).Info("Get Workflow",
+		zap.String("workflow_group", group.GetGroup()))
+
+	defer func() {
+		if err != nil {
+			ctxlogger.Get(ctx).Error("Get Workflow",
+				zap.String("workflow_group", group.GetGroup()),
+				zap.Error(err))
+		}
+	}()
+
+	wf, err := s.store.GetWorkflow(ctx, group.GetGroup())
+	if err != nil {
+		status := protocol.ResponseStatusCode_FAILED
+		if storerrors.IsNotFound(err) {
+			status = protocol.ResponseStatusCode_NOT_FOUND
+		}
+		return &protocol.WorkflowResponse{
+			Status:  status,
+			Message: fmt.Sprintf("Workflow [%s] get error: %s", group.GetGroup(), err.Error()),
+		}, err
+	}
+
+	return &protocol.WorkflowResponse{
+		Status:   protocol.ResponseStatusCode_OK,
+		Workflow: protocol.WorkflowFromModel(wf),
+	}, nil
+}
+
 // Upload new object from the stream
 func (s *server) Upload(stream protocol.ServiceAPI_UploadServer) (err error) {
 	var (
@@ -634,8 +690,11 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 	}
 	// Remove redundant extra objects
 	_ = s.removeObjectItems(ctx, cObject, items, fields...)
-	// Process next task actions
-	if wf != nil && wf.Version == "2" && len(wf.Jobs) > 0 && s.wfExecutor != nil {
+	// Process next task actions. The executor is selected by jobs + registry,
+	// not by the workflow `version` string (that field is an object-freshness
+	// revision compared to Meta.ManifestVersion).
+	usedExecutor := useWorkflowExecutor(wf, s.wfExecutor)
+	if usedExecutor {
 		isComplete, err = s.wfExecutor.ProcessObject(ctx, wf, cObject.ID().String(), s.workerTags, s.taskProcessingLimit)
 		if err == nil {
 			if reloaded, reloadErr := s.store.Object(ctx, cObject.ID()); reloadErr == nil {
@@ -645,8 +704,25 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 	} else {
 		isComplete, err = s.processor.ProcessTasks(ctx, cObject,
 			s.taskProcessingLimit, s.taskProcessingLimit)
+		// v1 converters cannot run procedure/docker jobs. If every pending
+		// target is still missing, treat it as a terminal failure instead of
+		// re-queueing on HasPendingArtifacts (that loop never converges).
+		if err == nil && isComplete && wf != nil && workflow.HasPendingArtifacts(wf, cObject.Meta()) {
+			err = processor.ErrNoSuitableConverter
+			isComplete = false
+		}
 	}
 	switch {
+	case errors.Is(err, processor.ErrNoSuitableConverter):
+		ctxlogger.Get(ctx).Error("process",
+			append(fields, zap.Error(err), zap.Bool("unrunnable", true))...)
+		if event.Object != nil {
+			event.Object.Status = models.StatusError
+			_ = event.Object.Workflow.SetValue(cObject.Workflow())
+			_ = event.Object.Meta.SetValue(cObject.Meta())
+		}
+		s.publishObjectStatus(ctx, cObject, true)
+		s.sendEvent(ctx, models.ProcessedEventType, event.Object, err)
 	case err != nil:
 		isNotFound := storerrors.IsNotFound(err)
 		ctxlogger.Get(ctx).Error("process",
@@ -659,13 +735,13 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 			s.sendEvent(ctx, models.DeleteEventType, event.Object, err)
 		}
 	case isComplete:
-		if wf != nil && workflow.HasPendingArtifacts(wf, cObject.Meta()) {
+		if usedExecutor && wf != nil && workflow.HasPendingArtifacts(wf, cObject.Meta()) {
 			ctxlogger.Get(ctx).Info("next step", append(fields, zap.String("reason", "pending artifacts"))...)
 			s.publishObjectStatus(ctx, cObject, false)
 			s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
 			break
 		}
-		if wf != nil && wf.Version == "2" {
+		if usedExecutor {
 			state, _ := s.store.GetProcessingState(ctx, cObject.ID().String())
 			if v2StateBlocksCompletion(state) {
 				ctxlogger.Get(ctx).Info("next step", append(fields, zap.String("reason", "processing state not terminal"))...)
@@ -691,6 +767,12 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 		s.publishObjectStatus(ctx, cObject, false)
 		s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
 	}
+}
+
+// useWorkflowExecutor reports whether the v2 job executor should run this
+// workflow. The version string is a freshness revision, not an engine selector.
+func useWorkflowExecutor(wf *models.Workflow, exec *workflow.Executor) bool {
+	return wf != nil && len(wf.Jobs) > 0 && exec != nil
 }
 
 // v2StateBlocksCompletion is true when a persisted v2 processing state exists

@@ -26,7 +26,7 @@ Example manifests live in [`deploy/workflows/`](../deploy/workflows/).
 
 ### Manual registration
 
-- **API:** `PUT /v1/manifest/{group}` with JSON body
+- **API:** `PUT /v1/workflow/{group}` (preferred) or `PUT /v1/manifest/{group}` (legacy)
 - **Go client:** `client.Group("images").SetWorkflow(ctx, wf)`
 - **Filesystem driver:** copy YAML to `{storage_root}/{group}/manifest.yaml`
 
@@ -35,7 +35,7 @@ Example manifests live in [`deploy/workflows/`](../deploy/workflows/).
 ## Top-level keys
 
 ```yaml
-version: "2" # required; identifies the v2 schema
+version: "2" # object-freshness revision vs Meta.ManifestVersion; bump to reprocess
 name: "Image pipeline" # optional human-readable label
 description: | # optional multi-line description
   Resize uploaded images to three sizes and generate a blurred preview.

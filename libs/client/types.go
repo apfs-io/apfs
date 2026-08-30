@@ -38,26 +38,28 @@ type ObjectType = models.ObjectType
 
 // ─── Mapping helpers (package-private) ───────────────────────────────────────
 
+// applyGroupPrefix prepends group/ when id is a bare object name.
+// IDs that already contain a slash are treated as fully-qualified (group/path)
+// and left unchanged — including when group is "default".
+func applyGroupPrefix(id, group string) string {
+	if group == "" || id == "" || strings.Contains(id, "/") {
+		return id
+	}
+	return group + "/" + strings.TrimLeft(id, "/")
+}
+
 // toProtoObjectID converts a client ObjectID to a protocol ObjectID.
 func toProtoObjectID(id *ObjectID, group string) *protocol.ObjectID {
-	fullID := id.Id
-	if group != "" && !strings.HasPrefix(fullID, group+"/") {
-		fullID = group + "/" + strings.TrimLeft(fullID, "/")
-	}
 	return &protocol.ObjectID{
-		Id:   fullID,
+		Id:   applyGroupPrefix(id.Id, group),
 		Name: append([]string{}, id.Name...),
 	}
 }
 
 // toProtoObjectIDNames converts a client ObjectIDNames to a protocol ObjectIDNames.
 func toProtoObjectIDNames(id *ObjectIDNames, group string) *protocol.ObjectIDNames {
-	fullID := id.Id
-	if group != "" && !strings.HasPrefix(fullID, group+"/") {
-		fullID = group + "/" + strings.TrimLeft(fullID, "/")
-	}
 	return &protocol.ObjectIDNames{
-		Id:    fullID,
+		Id:    applyGroupPrefix(id.Id, group),
 		Names: append([]string{}, id.Names...),
 	}
 }
@@ -65,22 +67,24 @@ func toProtoObjectIDNames(id *ObjectIDNames, group string) *protocol.ObjectIDNam
 // PrepareObjectID is a convenience helper for callers that construct ObjectIDs
 // manually and need the group prefix applied.
 func PrepareObjectID(id *ObjectID, group string) *ObjectID {
-	if group != "" && !strings.HasPrefix(id.Id, group+"/") {
-		return &ObjectID{
-			Id:   group + "/" + id.Id,
-			Name: append([]string{}, id.Name...),
-		}
+	prefixed := applyGroupPrefix(id.Id, group)
+	if prefixed == id.Id {
+		return id
 	}
-	return id
+	return &ObjectID{
+		Id:   prefixed,
+		Name: append([]string{}, id.Name...),
+	}
 }
 
 // PrepareObjectIDNames applies the group prefix to an ObjectIDNames if needed.
 func PrepareObjectIDNames(id *ObjectIDNames, group string) *ObjectIDNames {
-	if group != "" && !strings.HasPrefix(id.Id, group+"/") {
-		return &ObjectIDNames{
-			Id:    group + "/" + id.Id,
-			Names: append([]string{}, id.Names...),
-		}
+	prefixed := applyGroupPrefix(id.Id, group)
+	if prefixed == id.Id {
+		return id
 	}
-	return id
+	return &ObjectIDNames{
+		Id:    prefixed,
+		Names: append([]string{}, id.Names...),
+	}
 }

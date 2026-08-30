@@ -60,7 +60,9 @@ func WorkflowFromModel(w *models.Workflow) *Workflow {
 			pj.Steps = append(pj.Steps, &WorkflowStep{
 				Name:     step.Name,
 				Uses:     step.Uses,
+				Run:      step.Run,
 				WithJson: string(withJSON),
+				Docker:   workflowStepDockerFromModel(step.Docker),
 			})
 		}
 		pw.Jobs = append(pw.Jobs, pj)
@@ -122,13 +124,41 @@ func WorkflowToModel(p *Workflow) *models.Workflow {
 				var withMap map[string]any
 				_ = json.Unmarshal([]byte(ps.GetWithJson()), &withMap)
 				job.Steps = append(job.Steps, &models.WorkflowStep{
-					Name: ps.GetName(),
-					Uses: ps.GetUses(),
-					With: withMap,
+					Name:   ps.GetName(),
+					Uses:   ps.GetUses(),
+					Run:    ps.GetRun(),
+					With:   withMap,
+					Docker: workflowStepDockerToModel(ps.GetDocker()),
 				})
 			}
 			w.Jobs[pj.GetId()] = job
 		}
 	}
 	return w
+}
+
+func workflowStepDockerFromModel(d *models.WorkflowStepDocker) *WorkflowStepDocker {
+	if d == nil {
+		return nil
+	}
+	return &WorkflowStepDocker{
+		Image:           d.Image,
+		PullImage:       d.PullImage,
+		RetainContainer: d.RetainContainer,
+		RemoveAfterDone: d.RemoveAfterDone,
+		ContainerName:   d.ContainerName,
+	}
+}
+
+func workflowStepDockerToModel(d *WorkflowStepDocker) *models.WorkflowStepDocker {
+	if d == nil {
+		return nil
+	}
+	return &models.WorkflowStepDocker{
+		Image:           d.GetImage(),
+		PullImage:       d.GetPullImage(),
+		RetainContainer: d.GetRetainContainer(),
+		RemoveAfterDone: d.GetRemoveAfterDone(),
+		ContainerName:   d.GetContainerName(),
+	}
 }

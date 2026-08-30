@@ -341,6 +341,95 @@ func TestRunnerRegistry_FindAndRegister(t *testing.T) {
 	assert.Nil(t, reg.Find(step))
 }
 
+func TestProcessObject_Version3SetsManifestVersion(t *testing.T) {
+	store := newFakeStorage()
+	store.meta = &models.Meta{Main: models.ItemMeta{Name: "orig.jpg", Type: models.TypeImage}}
+	runner := &fakeRunner{
+		usesPrefix: "procedure",
+		output: StepOutput{
+			Writer:     strings.NewReader("thumb-data"),
+			TargetPath: "thumb.jpg",
+			ItemMeta:   &models.ItemMeta{},
+		},
+	}
+	reg := NewRunnerRegistry()
+	reg.Register(runner)
+
+	wf := &models.Workflow{
+		Version: "3",
+		Jobs: map[string]*models.WorkflowJob{
+			"thumb": {
+				Steps: []*models.WorkflowStep{
+					{Uses: "procedure", With: map[string]any{"target": "thumb.jpg"}},
+				},
+			},
+		},
+	}
+	exec := NewExecutor(store, reg)
+	complete, err := exec.ProcessObject(context.Background(), wf, "obj-1", []string{"image"}, 0)
+	require.NoError(t, err)
+	assert.True(t, complete)
+	assert.Equal(t, "3", store.meta.ManifestVersion)
+	assert.Equal(t, "3", store.state.ManifestVersion)
+	assert.Equal(t, 1, runner.callCount)
+
+	complete, err = exec.ProcessObject(context.Background(), wf, "obj-1", []string{"image"}, 0)
+	require.NoError(t, err)
+	assert.True(t, complete)
+	assert.Equal(t, 1, runner.callCount, "same revision must not re-run jobs")
+}
+
+func TestProcessObject_VersionMismatchReprocesses(t *testing.T) {
+	store := newFakeStorage()
+	store.meta = &models.Meta{
+		ManifestVersion: "2",
+		Main:            models.ItemMeta{Name: "orig.jpg", Type: models.TypeImage},
+	}
+	runner := &fakeRunner{
+		usesPrefix: "procedure",
+		output: StepOutput{
+			Writer:     strings.NewReader("thumb-data"),
+			TargetPath: "thumb.jpg",
+			ItemMeta:   &models.ItemMeta{},
+		},
+	}
+	reg := NewRunnerRegistry()
+	reg.Register(runner)
+
+	wf2 := &models.Workflow{
+		Version: "2",
+		Jobs: map[string]*models.WorkflowJob{
+			"thumb": {
+				Steps: []*models.WorkflowStep{
+					{Uses: "procedure", With: map[string]any{"target": "thumb.jpg"}},
+				},
+			},
+		},
+	}
+	exec := NewExecutor(store, reg)
+	complete, err := exec.ProcessObject(context.Background(), wf2, "obj-1", []string{"image"}, 0)
+	require.NoError(t, err)
+	assert.True(t, complete)
+	assert.Equal(t, "2", store.meta.ManifestVersion)
+	assert.Equal(t, 1, runner.callCount)
+
+	wf3 := &models.Workflow{
+		Version: "3",
+		Jobs:    wf2.Jobs,
+	}
+	complete, err = exec.ProcessObject(context.Background(), wf3, "obj-1", []string{"image"}, 0)
+	require.NoError(t, err)
+	assert.True(t, complete)
+	assert.Equal(t, "3", store.meta.ManifestVersion)
+	assert.Equal(t, "3", store.state.ManifestVersion)
+	assert.Equal(t, 2, runner.callCount, "revision bump must re-run jobs once")
+
+	complete, err = exec.ProcessObject(context.Background(), wf3, "obj-1", []string{"image"}, 0)
+	require.NoError(t, err)
+	assert.True(t, complete)
+	assert.Equal(t, 2, runner.callCount, "matching revision must not loop")
+}
+
 func TestProcessObject_HappyPath(t *testing.T) {
 	store := newFakeStorage()
 	store.meta = &models.Meta{Main: models.ItemMeta{Name: "prim.jfif", Type: models.TypeImage}}

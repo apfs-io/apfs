@@ -68,6 +68,12 @@ func (e *Executor) ProcessObject(
 			if err := e.storage.WriteState(ctx, id, state); err != nil {
 				return false, fmt.Errorf("process object: init state: %w", err)
 			}
+		} else if state.ManifestVersion != w.Version {
+			// Workflow revision bumped: re-run jobs so artifacts catch up.
+			state = models.NewProcessingState(objectID, w.Version, w.JobIDs())
+			if err := e.storage.WriteState(ctx, id, state); err != nil {
+				return false, fmt.Errorf("process object: reset stale revision: %w", err)
+			}
 		}
 
 		ready := dag.ReadyJobs(state, workerTags)

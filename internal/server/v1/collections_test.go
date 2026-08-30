@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	protocol "github.com/apfs-io/apfs/internal/server/protocol/v1"
+	"github.com/apfs-io/apfs/internal/workflow"
 	"github.com/apfs-io/apfs/models"
 )
 
@@ -31,6 +32,23 @@ func TestSendUploadEventSkipsNilObject(t *testing.T) {
 
 	s.sendUploadEvent(context.Background(), &protocol.Object{Id: "abc"}, nil)
 	assert.Equal(t, 1, published)
+}
+
+func TestUseWorkflowExecutor(t *testing.T) {
+	exec := workflow.NewExecutor(nil, nil)
+	jobs := map[string]*models.WorkflowJob{
+		"thumb": {Steps: []*models.WorkflowStep{{Name: "Thumbnail", Uses: "procedure"}}},
+	}
+
+	assert.True(t, useWorkflowExecutor(&models.Workflow{Version: "3", Jobs: jobs}, exec),
+		"version 3 with jobs must use the executor, not v1 ProcessTasks")
+	assert.True(t, useWorkflowExecutor(&models.Workflow{Version: "2", Jobs: jobs}, exec))
+	assert.True(t, useWorkflowExecutor(&models.Workflow{Version: "3.1", Jobs: jobs}, exec))
+	assert.False(t, useWorkflowExecutor(&models.Workflow{Version: "3", Jobs: jobs}, nil),
+		"no executor → fall back to v1")
+	assert.False(t, useWorkflowExecutor(&models.Workflow{Version: "3"}, exec),
+		"jobless workflow stays on v1")
+	assert.False(t, useWorkflowExecutor(nil, exec))
 }
 
 func TestV2StateBlocksCompletion(t *testing.T) {

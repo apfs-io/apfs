@@ -9,11 +9,22 @@ option java_package = "com.apfs.protocol.v1";
 
 import "v1/common.proto";
 
+// WorkflowStepDocker holds Docker-specific configuration for a step.
+message WorkflowStepDocker {
+  string image              = 1;
+  bool   pull_image         = 2;
+  bool   retain_container   = 3;
+  bool   remove_after_done  = 4;
+  string container_name     = 5;
+}
+
 // WorkflowStep is a single action within a WorkflowJob.
 message WorkflowStep {
   string              name      = 1;
   string              uses      = 2;
   string              with_json = 3; // JSON-encoded map[string]any
+  string              run       = 4; // inline script (shell/exec/procedure)
+  WorkflowStepDocker  docker    = 5;
 }
 
 // WorkflowJob is a node in the processing DAG.

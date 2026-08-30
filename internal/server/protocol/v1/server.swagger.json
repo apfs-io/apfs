@@ -1415,9 +1415,37 @@
         "withJson": {
           "type": "string",
           "title": "JSON-encoded map[string]any"
+        },
+        "run": {
+          "type": "string",
+          "title": "inline script (shell/exec/procedure)"
+        },
+        "docker": {
+          "$ref": "#/definitions/v1WorkflowStepDocker"
         }
       },
       "description": "WorkflowStep is a single action within a WorkflowJob."
+    },
+    "v1WorkflowStepDocker": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "pullImage": {
+          "type": "boolean"
+        },
+        "retainContainer": {
+          "type": "boolean"
+        },
+        "removeAfterDone": {
+          "type": "boolean"
+        },
+        "containerName": {
+          "type": "string"
+        }
+      },
+      "description": "WorkflowStepDocker holds Docker-specific configuration for a step."
     },
     "v1WorkflowValidate": {
       "type": "object",

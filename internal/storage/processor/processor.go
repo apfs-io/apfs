@@ -27,6 +27,10 @@ var (
 	ErrStorageNoConverters       = errors.New("[processor] no converter registered")
 	ErrStorageObjectInProcessing = errors.New("[processor] object in processing")
 	ErrStorageInvalidAction      = errors.New("[processor] invalid action")
+	// ErrNoSuitableConverter is returned when every pending task was skipped
+	// because no converter matched (e.g. procedure jobs on the v1 processor).
+	// Callers must treat this as terminal — re-queueing cannot make progress.
+	ErrNoSuitableConverter = errors.New("[processor] no suitable converter")
 )
 
 // Processor orchestrates manifest-driven task processing.
@@ -109,11 +113,12 @@ func (s *Processor) ProcessTasks(ctx context.Context, obj any, maxTasks, maxStag
 
 	// Counter tracking for status stream progress events.
 	var (
-		objectID  = cObject.ID().String()
-		total     = manifest.TaskCount()
-		completed int
-		skipped   int
-		taskErr   error // captured by the defer for the final publish
+		objectID   = cObject.ID().String()
+		total      = manifest.TaskCount()
+		completed  int
+		skipped    int
+		unrunnable int
+		taskErr    error // captured by the defer for the final publish
 	)
 
 	defer func() {
@@ -159,6 +164,9 @@ PROCESSING_LOOP:
 					zap.String(`object_path`, cObject.Path()),
 					zap.String("reason", "no suitable converter"))
 				skipped++
+				if task.Target != "" && meta.ItemByName(task.Target) == nil {
+					unrunnable++
+				}
 				continue
 			}
 			if err := s.executeTask(ctx, cObject, manifest, task); err != nil {
@@ -199,6 +207,12 @@ PROCESSING_LOOP:
 		if maxStages--; maxStages == 0 {
 			break
 		}
+	}
+
+	if unrunnable > 0 && completed == 0 {
+		err = ErrNoSuitableConverter
+		taskErr = err
+		return false, err
 	}
 
 	// All manifest targets produced?

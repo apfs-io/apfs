@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/demdxx/gocast/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -53,16 +52,27 @@ func Connect(ctx context.Context, address string, opts ...grpc.DialOption) (Clie
 		return nil, err
 	}
 
-	// Create client instance and set default group
+	// Create client instance and set default group.
+	// An empty URL path (e.g. apfs://host:8081) leaves defaultGroup empty so
+	// fully-qualified object IDs are not prefixed with "default/".
 	return &client{
-		conn:    conn,
-		sclient: protocol.NewServiceAPIClient(conn),
-		defaultGroup: gocast.Or(
-			url.Query().Get("group"),
-			strings.TrimLeft(url.Path, "/"),
-			"default",
-		),
+		conn:         conn,
+		sclient:      protocol.NewServiceAPIClient(conn),
+		defaultGroup: defaultGroupFromURL(url),
 	}, nil
+}
+
+// defaultGroupFromURL returns the optional default group from a Connect URL.
+// Query ?group= wins; otherwise the URL path is used. An empty path does not
+// fall back to "default".
+func defaultGroupFromURL(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	if g := strings.TrimSpace(u.Query().Get("group")); g != "" {
+		return g
+	}
+	return strings.Trim(u.Path, "/")
 }
 
 // Head returns object info
@@ -323,18 +333,14 @@ func (c *client) SetWorkflow(ctx context.Context, w *models.Workflow, opts ...Re
 	if w == nil {
 		return nil
 	}
-	protoManifest, err := protocol.ManifestFromModel(w.ToManifest())
-	if err != nil {
-		return err
-	}
 	var ro RequestOptions
 	for _, opt := range opts {
 		opt(&ro)
 	}
 	ro.prepareGroup(c.defaultGroup)
-	status, err := c.sclient.SetManifest(ctx, &protocol.DataManifest{
+	status, err := c.sclient.SetWorkflow(ctx, &protocol.DataWorkflow{
 		Group:    ro.group,
-		Manifest: protoManifest,
+		Workflow: protocol.WorkflowFromModel(w),
 	}, ro.grpcOpts...)
 	if err == nil && !status.GetStatus().IsOK() {
 		err = errors.New(status.GetMessage())
@@ -349,7 +355,7 @@ func (c *client) GetWorkflow(ctx context.Context, opts ...RequestOption) (*model
 		opt(&ro)
 	}
 	ro.prepareGroup(c.defaultGroup)
-	response, err := c.sclient.GetManifest(ctx, &protocol.ManifestGroup{
+	response, err := c.sclient.GetWorkflow(ctx, &protocol.ManifestGroup{
 		Group: ro.group,
 	}, ro.grpcOpts...)
 	if err != nil {
@@ -358,7 +364,7 @@ func (c *client) GetWorkflow(ctx context.Context, opts ...RequestOption) (*model
 	if !response.GetStatus().IsOK() {
 		return nil, errors.New(response.GetMessage())
 	}
-	return models.FromLegacyManifest(response.GetManifest().ToModel()), nil
+	return protocol.WorkflowToModel(response.GetWorkflow()), nil
 }
 
 // WithGroup returns client with group name by default
