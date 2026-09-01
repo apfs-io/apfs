@@ -81,12 +81,40 @@ func TestCreateMissingGroupManifest(t *testing.T) {
 	assert.NotEmpty(t, object.Path())
 }
 
+func TestNewStorageAssumeBucketExists(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = io.WriteString(w, `<?xml version="1.0" encoding="UTF-8"?>
+<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>`)
+	}))
+	t.Cleanup(srv.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := NewStorage(
+		ctx,
+		WithMainBucket("reva1"),
+		WithRegion("auto"),
+		WithEndpoint(srv.URL),
+		WithInsecure(true),
+		WithS3Credentials("test", "testtest"),
+		WithEnsureBucket(false),
+	)
+	require.NoError(t, err, "ensure=false must skip HeadBucket/ListBuckets")
+}
+
 func fakeS3NoManifest(w http.ResponseWriter, r *http.Request) {
 	path := strings.Trim(r.URL.Path, "/")
 	w.Header().Set("Content-Type", "application/xml")
 
 	switch r.Method {
-	case http.MethodGet, http.MethodHead:
+	case http.MethodHead:
+		// HeadBucket is HEAD /{bucket}; object HEAD uses /{bucket}/{key}.
+		w.WriteHeader(http.StatusOK)
+		return
+	case http.MethodGet:
 		if path == "" {
 			_, _ = io.WriteString(w, `<?xml version="1.0" encoding="UTF-8"?>
 <ListAllMyBucketsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">

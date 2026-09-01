@@ -25,6 +25,7 @@ type optionConfig struct {
 	insecure       bool
 	mainBucketName string
 	genpattern     string
+	ensureBucket   bool
 }
 
 // Options configuration type
@@ -43,6 +44,16 @@ func WithFilepathGenerator(pattern string) Options {
 func WithMainBucket(bucketName string) Options {
 	return func(conf *optionConfig) error {
 		conf.mainBucketName = strings.Trim(bucketName, "/ ")
+		return nil
+	}
+}
+
+// WithEnsureBucket controls whether NewStorage HeadBucket/CreateBucket the
+// main bucket. Default is true. False assumes the bucket already exists
+// (R2 object tokens cannot ListBuckets).
+func WithEnsureBucket(ensure bool) Options {
+	return func(conf *optionConfig) error {
+		conf.ensureBucket = ensure
 		return nil
 	}
 }

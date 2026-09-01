@@ -38,6 +38,7 @@ func ProtocolAPIObject(
 		api.WithWorkflowExecutor(StepRunners(ctx, storageConf, logger)),
 		api.WithWorkerTags(workerTags),
 		api.WithWorkflowsBootstrap(workflowsConf.Dir, workflowsConf.Reconfigure),
+		api.WithEnsureBucket(storageConf.EnsureBucket),
 	}
 
 	// Connect the optional status stream for per-task progress events.

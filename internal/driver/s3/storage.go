@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/url"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -61,7 +60,8 @@ type Storage struct {
 // NewStorage object returns storage according to options
 func NewStorage(ctx context.Context, options ...Options) (*Storage, error) {
 	optConfig := optionConfig{
-		config: aws.NewConfig(),
+		config:       aws.NewConfig(),
+		ensureBucket: true,
 	}
 
 	for _, opt := range options {
@@ -85,8 +85,12 @@ func NewStorage(ctx context.Context, options ...Options) (*Storage, error) {
 		return valid && !exists
 	})
 	if store.bucketName != "" {
-		if err := store.createBucketIfNotExists(ctx, store.bucketName); err != nil {
-			return nil, err
+		if optConfig.ensureBucket {
+			if err := store.createBucketIfNotExists(ctx, store.bucketName); err != nil {
+				return nil, err
+			}
+		} else {
+			store.realBuckets[store.bucketName] = true
 		}
 	}
 	return store, nil
@@ -388,6 +392,7 @@ func (c *Storage) _ID2Object(ctx context.Context, id storio.ObjectID) (storio.Ob
 }
 
 // Create the bucket if it doesn't exist yet.
+// Uses HeadBucket (object-scoped tokens) instead of account-level ListBuckets.
 func (c *Storage) createBucketIfNotExists(ctx context.Context, bucketName string) error {
 	if c.isBucketCreated(bucketName) {
 		return nil
@@ -395,24 +400,28 @@ func (c *Storage) createBucketIfNotExists(ctx context.Context, bucketName string
 
 	c.mx.Lock()
 	defer c.mx.Unlock()
+	if c.realBuckets[bucketName] {
+		return nil
+	}
 
-	listBucketsOutput, err := c.c.ListBuckets(ctx, &awss3.ListBucketsInput{})
-	if err != nil {
+	_, err := c.c.HeadBucket(ctx, &awss3.HeadBucketInput{
+		Bucket: aws.String(bucketName),
+	})
+	if err == nil {
+		c.realBuckets[bucketName] = true
+		return nil
+	}
+	if !isNotExist(err) {
 		return err
 	}
 
-	ownsBucket := slices.ContainsFunc(listBucketsOutput.Buckets,
-		func(b awss3types.Bucket) bool { return *b.Name == bucketName })
-
-	if !ownsBucket {
-		_, err = c.c.CreateBucket(ctx, &awss3.CreateBucketInput{
-			Bucket: aws.String(bucketName),
-		})
+	_, err = c.c.CreateBucket(ctx, &awss3.CreateBucketInput{
+		Bucket: aws.String(bucketName),
+	})
+	if err != nil {
+		return err
 	}
-
-	if err == nil {
-		c.realBuckets[bucketName] = true
-	}
+	c.realBuckets[bucketName] = true
 	return nil
 }
 

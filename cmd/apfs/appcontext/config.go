@@ -29,6 +29,11 @@ type StorageConfig struct {
 	// Connect to the storage of files fs:///dir/path s3://host:9000/assets?access=${S3_ACCESS_KEY}&secret=${S3_SECRET_KEY}&region=default&insecure=true
 	Connect string `json:"connect" yaml:"connect" env:"CONNECT"`
 
+	// EnsureBucket probes (HeadBucket) and creates the S3 bucket from
+	// STORAGE_CONNECT if missing. Set false when the bucket already exists
+	// and the token cannot ListBuckets (e.g. Cloudflare R2 object tokens).
+	EnsureBucket bool `json:"ensure_bucket" yaml:"ensure_bucket" env:"ENSURE_BUCKET" default:"true"`
+
 	// Metaintformation storage cache
 	MetadbConnect string `json:"meta_dbconnect" yaml:"meta_dbconnect" env:"METADB_CONNECT"`
 	StateConnect  string `json:"state_connect" yaml:"state_connect" env:"STATE_CONNECT"`

@@ -15,14 +15,18 @@ import (
 )
 
 // newStorage creates the new accessor collection object
-func newStorage(ctx context.Context, connect string) (storio.StorageAccessor, error) {
+func newStorage(ctx context.Context, connect string, ensureBucket *bool) (storio.StorageAccessor, error) {
 	var (
 		i      = strings.Index(connect, "://")
 		driver = connect[:i]
 	)
 	switch driver {
 	case "s3":
-		return s3.NewStorage(ctx, s3.WithS3FromURL(connect))
+		opts := []s3.Options{s3.WithS3FromURL(connect)}
+		if ensureBucket != nil {
+			opts = append(opts, s3.WithEnsureBucket(*ensureBucket))
+		}
+		return s3.NewStorage(ctx, opts...)
 	case "disk", "file", "fs":
 		return fs.NewStorage(connect[i+3:])
 	}

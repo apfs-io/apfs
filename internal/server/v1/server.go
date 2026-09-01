@@ -84,7 +84,7 @@ func NewServer(ctx context.Context, connect, storageConnect, stateConnect string
 	if err != nil {
 		return nil, err
 	}
-	driver, err := newStorage(ctx, storageConnect)
+	driver, err := newStorage(ctx, storageConnect, options.ensureBucket)
 	if err != nil {
 		return nil, err
 	}

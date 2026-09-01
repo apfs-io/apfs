@@ -38,6 +38,9 @@ type Options struct {
 	// Workflows bootstrap from filesystem on startup
 	workflowsDir         string
 	workflowsReconfigure bool
+
+	// ensureBucket nil = S3 driver default (true).
+	ensureBucket *bool
 }
 
 func (opts *Options) _storage(database storage.DB, driver storio.StorageAccessor, stateKV kvaccessor.KVAccessor) *storage.Storage {
@@ -105,5 +108,13 @@ func WithWorkflowsBootstrap(dir string, reconfigure bool) Option {
 	return func(opts *Options) {
 		opts.workflowsDir = dir
 		opts.workflowsReconfigure = reconfigure
+	}
+}
+
+// WithEnsureBucket controls S3 HeadBucket/CreateBucket of the DSN bucket.
+func WithEnsureBucket(ensure bool) Option {
+	return func(opts *Options) {
+		v := ensure
+		opts.ensureBucket = &v
 	}
 }

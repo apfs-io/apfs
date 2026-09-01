@@ -149,6 +149,7 @@ disabled and a warning is logged. Production images copy `deploy/procedures` to
 | Variable             | Default           | Description                                                            |
 | -------------------- | ----------------- | ---------------------------------------------------------------------- |
 | `STORAGE_CONVERTERS` | `image,procedure` | Comma-separated list: `image`, `procedure`, `shell`, `exec`, `docker`. |
+| `STORAGE_ENSURE_BUCKET` | `true` | S3: `HeadBucket` + `CreateBucket` if missing. Set `false` when the DSN bucket already exists and the token cannot `ListBuckets` (Cloudflare R2 Object Read & Write). |
 | `WORKER_TAGS`        | _(empty)_         | Worker capability tags matched against job `runs-on:` values.          |
 
 Both are resolved during step-runner registration, before workflow bootstrap.
@@ -167,6 +168,7 @@ services:
       WORKFLOWS_DIR: /workflows
       WORKFLOWS_RECONFIGURE: "false"
       STORAGE_CONNECT: s3://minio:9000/assets?access=…&secret=…&insecure=true
+      # STORAGE_ENSURE_BUCKET: "false"  # R2: assume bucket exists
     volumes:
       - ./my-workflows:/workflows:ro
 ```
