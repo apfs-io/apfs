@@ -4,6 +4,14 @@ import "github.com/apfs-io/apfs/models"
 
 // MetaItemFromModel creates new MetaItem from model
 func MetaItemFromModel(metaItem *models.ItemMeta) *ItemMeta {
+	if metaItem == nil {
+		return nil
+	}
+	attrs := metaItem.ExtJSON()
+	path := metaItem.Path
+	if path == "" {
+		path = metaItem.Fullname()
+	}
 	return &ItemMeta{
 		Name:    metaItem.Name,
 		NameExt: metaItem.NameExt,
@@ -17,14 +25,21 @@ func MetaItemFromModel(metaItem *models.ItemMeta) *ItemMeta {
 		Duration:    int64(metaItem.Duration),
 		Bitrate:     metaItem.Bitrate,
 		Codec:       metaItem.Codec,
-		ExtJson:     metaItem.ExtJSON(),
+		ExtJson:     attrs,
 
 		UpdatedAt: metaItem.UpdatedAt.UnixNano(),
+
+		Path:           path,
+		Role:           metaItem.Role,
+		AttributesJson: attrs,
 	}
 }
 
 // ToModel from protobuf object
 func (m *ItemMeta) ToModel() *models.ItemMeta {
+	if m == nil {
+		return nil
+	}
 	meta := &models.ItemMeta{
 		Name:        m.Name,
 		NameExt:     m.NameExt,
@@ -37,7 +52,18 @@ func (m *ItemMeta) ToModel() *models.ItemMeta {
 		Duration:    int(m.Duration),
 		Bitrate:     m.Bitrate,
 		Codec:       m.Codec,
+		Path:        m.Path,
+		Role:        m.Role,
 	}
-	_ = meta.FromExtJSON([]byte(m.GetExtJson()))
+	if meta.Path == "" {
+		meta.Path = meta.Fullname()
+	}
+	src := m.GetAttributesJson()
+	if src == "" {
+		src = m.GetExtJson()
+	}
+	if src != "" {
+		_ = meta.FromExtJSON([]byte(src))
+	}
 	return meta
 }

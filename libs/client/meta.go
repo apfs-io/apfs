@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	protocol "github.com/apfs-io/apfs/internal/server/protocol/v1"
@@ -12,6 +13,7 @@ import (
 // It is a client-friendly projection of the internal models.ItemMeta type.
 type ItemMeta struct {
 	Name        string
+	NameExt     string
 	Path        string
 	Role        string
 	ContentType string
@@ -24,6 +26,17 @@ type ItemMeta struct {
 	Codec       string
 	Attributes  map[string]any
 	UpdatedAt   time.Time
+}
+
+// Fullname returns the filename with extension (e.g. "prim.jpg").
+func (m ItemMeta) Fullname() string {
+	if strings.HasSuffix(m.Name, "."+m.NameExt) && m.NameExt != "" {
+		return m.Name
+	}
+	if m.NameExt == "" {
+		return m.Name
+	}
+	return m.Name + "." + m.NameExt
 }
 
 // Meta holds the full metadata for an object and its produced artifacts.
@@ -62,6 +75,7 @@ func itemMetaFromProto(p *protocol.ItemMeta) ItemMeta {
 	}
 	item := ItemMeta{
 		Name:        p.GetName(),
+		NameExt:     p.GetNameExt(),
 		Path:        p.GetPath(),
 		Role:        p.GetRole(),
 		ContentType: p.GetContentType(),
@@ -73,6 +87,9 @@ func itemMetaFromProto(p *protocol.ItemMeta) ItemMeta {
 		Bitrate:     p.GetBitrate(),
 		Codec:       p.GetCodec(),
 		UpdatedAt:   time.Unix(0, p.GetUpdatedAt()),
+	}
+	if item.Path == "" {
+		item.Path = item.Fullname()
 	}
 	src := p.GetAttributesJson()
 	if src == "" {

@@ -25,7 +25,7 @@ ENV WORKFLOWS_DIR=/workflows
 
 RUN mkdir -p /tmp/data/
 ADD deploy/procedures /procedures
-ADD deploy/workflows /workflows
+ADD deploy/workflow-examples /workflows
 ADD .build/${TARGETPLATFORM}/apfs /apfs
 
 ENTRYPOINT [ "/apfs" ]

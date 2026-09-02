@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -11,6 +12,7 @@ import (
 	"github.com/apfs-io/apfs/models"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_trimExt(t *testing.T) {
@@ -60,11 +62,40 @@ func Test_CollectFileInfo(t *testing.T) {
 	filePath := filepath.Join(fileName, "../../../testdata/cat.jpg")
 	meta, err := CollectFileInfo(nil, filePath, "")
 	if assert.NoError(t, err) {
+		assert.Equal(t, "cat", meta.Name)
 		assert.Equal(t, "jpg", meta.NameExt)
+		assert.Equal(t, "cat.jpg", meta.Path)
 		assert.Equal(t, int64(27878), meta.Size)
 		assert.Equal(t, models.ObjectType("image"), meta.Type)
 		assert.Equal(t, "image/jpeg", meta.ContentType)
 		assert.Equal(t, 320, meta.Width)
 		assert.Equal(t, 419, meta.Height)
+	}
+}
+
+func TestCollectReadSeekerInfo_NonImageSetsNameAndPath(t *testing.T) {
+	cases := []struct {
+		path        string
+		contentType string
+		wantName    string
+		wantExt     string
+		wantPath    string
+		wantType    models.ObjectType
+	}{
+		{"prim.mp4", "video/mp4", "prim", "mp4", "prim.mp4", models.TypeVideo},
+		{"prim.mp3", "audio/mpeg", "prim", "mp3", "prim.mp3", models.TypeAudio},
+		{"prim.html", "text/html", "prim", "html", "prim.html", models.TypeOther},
+	}
+	for _, tc := range cases {
+		t.Run(tc.contentType, func(t *testing.T) {
+			meta, err := CollectReadSeekerInfo(nil, bytes.NewReader([]byte("dummy-media")), tc.path, tc.contentType)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantName, meta.Name)
+			assert.Equal(t, tc.wantExt, meta.NameExt)
+			assert.Equal(t, tc.wantPath, meta.Path)
+			assert.Equal(t, tc.wantType, meta.Type)
+			assert.Equal(t, tc.contentType, meta.ContentType)
+			assert.Equal(t, int64(len("dummy-media")), meta.Size)
+		})
 	}
 }

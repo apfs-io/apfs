@@ -67,13 +67,16 @@ func CollectReadSeekerInfo(meta *models.ItemMeta, reader io.ReadSeeker, fileFull
 		width, height, err = imageSizeByReader(reader)
 	}
 
-	meta.Name = basename
+	meta.Name = trimExt(basename)
 	meta.NameExt = strings.ToLower(strings.TrimLeft(fileExt, "."))
 	meta.Type = objectType
 	meta.ContentType = contentType
 	meta.HashID = hashID
 	meta.Width = width
 	meta.Height = height
+	if meta.Path == "" {
+		meta.Path = meta.Fullname()
+	}
 
 	return meta, err
 }
