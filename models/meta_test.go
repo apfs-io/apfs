@@ -21,6 +21,17 @@ func TestMetaItemByName(t *testing.T) {
 	assert.Equal(t, "thumbs/1.jpg", meta.ItemByName("thumbs/1.jpg").Path)
 }
 
+func TestMetaItemByName_MatchesFullnameWhenPathStale(t *testing.T) {
+	meta := Meta{
+		Items: []*ItemMeta{
+			{Name: "w320", NameExt: "jpg", Path: "prim.png"},
+		},
+	}
+	got := meta.ItemByName("w320.jpg")
+	assert.NotNil(t, got)
+	assert.Equal(t, "w320", got.Name)
+}
+
 func TestMetaSetItem(t *testing.T) {
 	meta := Meta{}
 	item := &ItemMeta{Name: "preview", NameExt: "jpg", Path: "preview.jpg"}
@@ -82,7 +93,7 @@ func TestMetaAttributes(t *testing.T) {
 func TestMetaIsConsistent(t *testing.T) {
 	keep := true
 	w := &Workflow{
-		Version: "2",
+		Version:      "2",
 		KeepOriginal: &keep,
 		Jobs: map[string]*WorkflowJob{
 			"thumb": {
@@ -106,7 +117,7 @@ func TestMetaMissingJobTargets(t *testing.T) {
 	w := &Workflow{
 		Version: "2",
 		Jobs: map[string]*WorkflowJob{
-			"card": {Steps: []*WorkflowStep{{Uses: "procedure/x", With: map[string]any{"target": "card"}}}},
+			"card":  {Steps: []*WorkflowStep{{Uses: "procedure/x", With: map[string]any{"target": "card"}}}},
 			"small": {Steps: []*WorkflowStep{{Uses: "procedure/x", With: map[string]any{"target": "small"}}}},
 		},
 	}

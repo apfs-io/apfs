@@ -51,3 +51,24 @@ func TestV2StateBlocksCompletion(t *testing.T) {
 	failed := &models.ProcessingState{Status: models.ProcessingStatusFailed}
 	assert.True(t, v2StateBlocksCompletion(failed))
 }
+
+func TestProcessFollowupAfter_TerminalDoesNotRequeue(t *testing.T) {
+	partial := &models.ProcessingState{Status: models.ProcessingStatusPartial}
+	completed := &models.ProcessingState{Status: models.ProcessingStatusCompleted}
+	failed := &models.ProcessingState{Status: models.ProcessingStatusFailed}
+	running := &models.ProcessingState{Status: models.ProcessingStatusRunning}
+
+	assert.Equal(t, processMarkComplete, processFollowupAfter(true, partial),
+		"complete + partial (pending artifacts after reload) must mark done, not Update")
+	assert.Equal(t, processMarkComplete, processFollowupAfter(false, partial),
+		"incomplete + partial must not livelock on next-step Update")
+	assert.Equal(t, processMarkComplete, processFollowupAfter(true, completed))
+	assert.Equal(t, processMarkComplete, processFollowupAfter(true, nil),
+		"jobless complete with nil state")
+	assert.Equal(t, processStopFailed, processFollowupAfter(false, failed))
+	assert.Equal(t, processStopFailed, processFollowupAfter(true, failed))
+	assert.Equal(t, processRequeueUpdate, processFollowupAfter(false, running))
+	assert.Equal(t, processRequeueUpdate, processFollowupAfter(false, nil))
+	assert.Equal(t, processRequeueUpdate, processFollowupAfter(true, running),
+		"complete claimed but state still running → keep Update")
+}

@@ -55,11 +55,19 @@ func (m *Meta) ItemByName(name string) *ItemMeta {
 	}
 	sourceName := SourceFilename(name, m.Main.ObjectTypeExt())
 	for i, item := range m.Items {
-		if item.Name == name || item.Name == sourceName || item.Path == name {
+		if itemMatchesName(item, name, sourceName) {
 			return m.Items[i]
 		}
 	}
 	return nil
+}
+
+func itemMatchesName(item *ItemMeta, name, sourceName string) bool {
+	if item == nil {
+		return false
+	}
+	return item.Name == name || item.Name == sourceName ||
+		item.Path == name || item.Fullname() == name || item.EffectivePath() == name
 }
 
 // SetItem upserts item into Items by name. If an item with the same name
@@ -80,7 +88,7 @@ func (m *Meta) RemoveItemByName(name string) bool {
 	}
 	sourceName := SourceFilename(name, m.Main.ObjectTypeExt())
 	for i, it := range m.Items {
-		if it.Name == name || it.Name == sourceName || it.Path == name {
+		if itemMatchesName(it, name, sourceName) {
 			m.Items = slices.Delete(m.Items, i, i+1)
 			return true
 		}

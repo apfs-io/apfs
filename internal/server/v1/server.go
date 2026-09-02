@@ -621,49 +621,85 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 			cObject = reloaded
 		}
 	}
-	switch {
-	case err != nil:
+	if err != nil {
 		isNotFound := storerrors.IsNotFound(err)
 		ctxlogger.Get(ctx).Error("process",
 			append(fields, zap.Error(err), zap.Bool(`not_found`, isNotFound))...)
 		s.publishObjectStatus(ctx, cObject, false)
-		// send processed error event
 		if !isNotFound {
 			s.sendEvent(ctx, models.UpdateEventType, event.Object, err)
 		} else {
 			s.sendEvent(ctx, models.DeleteEventType, event.Object, err)
 		}
-	case isComplete:
-		if wf != nil && workflow.HasPendingArtifacts(wf, cObject.Meta()) {
-			ctxlogger.Get(ctx).Info("next step", append(fields, zap.String("reason", "pending artifacts"))...)
-			s.publishObjectStatus(ctx, cObject, false)
-			s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
-			break
+		return
+	}
+
+	state, _ := s.store.GetProcessingState(ctx, cObject.ID().String())
+	pendingArtifacts := wf != nil && workflow.HasPendingArtifacts(wf, cObject.Meta())
+	switch processFollowupAfter(isComplete, state) {
+	case processMarkComplete:
+		if pendingArtifacts {
+			ctxlogger.Get(ctx).Warn("pending artifacts after terminal status", fields...)
 		}
-		state, _ := s.store.GetProcessingState(ctx, cObject.ID().String())
-		if v2StateBlocksCompletion(state) {
-			ctxlogger.Get(ctx).Info("next step", append(fields, zap.String("reason", "processing state not terminal"))...)
-			s.publishObjectStatus(ctx, cObject, false)
-			s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
-			break
-		}
-		ctxlogger.Get(ctx).Info("process complete", fields...)
-		if err2 := s.store.MarkProcessingComplete(ctx, cObject); err2 != nil {
-			ctxlogger.Get(ctx).Error("mark processing complete",
-				append(fields, zap.Error(err2))...)
-		}
-		if event.Object != nil {
-			event.Object.Status = models.StatusOK
-			_ = event.Object.Workflow.SetValue(cObject.Workflow())
-			_ = event.Object.Meta.SetValue(cObject.Meta())
-		}
+		s.markObjectProcessed(ctx, event, cObject, fields)
+	case processStopFailed:
+		ctxlogger.Get(ctx).Info("process failed, not re-queueing", fields...)
 		s.publishObjectStatus(ctx, cObject, true)
-		s.sendEvent(ctx, models.ProcessedEventType, event.Object, nil)
+		s.inflightRemove(ctx, cObject)
 	default:
 		ctxlogger.Get(ctx).Info("next step", fields...)
 		s.publishObjectStatus(ctx, cObject, false)
 		s.sendEvent(ctx, models.UpdateEventType, event.Object, nil)
 	}
+}
+
+func (s *server) markObjectProcessed(ctx context.Context, event *models.Event, cObject storio.Object, fields []zapcore.Field) {
+	ctxlogger.Get(ctx).Info("process complete", fields...)
+	if err := s.store.MarkProcessingComplete(ctx, cObject); err != nil {
+		ctxlogger.Get(ctx).Error("mark processing complete",
+			append(fields, zap.Error(err))...)
+	}
+	if event.Object != nil {
+		event.Object.Status = models.StatusOK
+		_ = event.Object.Workflow.SetValue(cObject.Workflow())
+		_ = event.Object.Meta.SetValue(cObject.Meta())
+	}
+	s.publishObjectStatus(ctx, cObject, true)
+	s.sendEvent(ctx, models.ProcessedEventType, event.Object, nil)
+}
+
+func (s *server) inflightRemove(ctx context.Context, cObject storio.Object) {
+	if s.inflight == nil || cObject == nil {
+		return
+	}
+	objectID := cObject.ID().String()
+	_ = s.inflight.Remove(ctx, objectID)
+	ctxlogger.Get(ctx).Debug("inflight remove", zap.String("object_id", objectID))
+}
+
+type processFollowup int
+
+const (
+	processRequeueUpdate processFollowup = iota
+	processMarkComplete
+	processStopFailed
+)
+
+// processFollowupAfter decides whether to re-queue Update, mark the object
+// complete, or stop after a failed terminal state. A terminal status
+// (partial / completed / failed) must never sendEvent(Update) — that was
+// the pending-artifacts livelock.
+func processFollowupAfter(isComplete bool, state *models.ProcessingState) processFollowup {
+	if state != nil && state.Status.IsTerminal() {
+		if state.Status.IsSuccess() {
+			return processMarkComplete
+		}
+		return processStopFailed
+	}
+	if isComplete && !v2StateBlocksCompletion(state) {
+		return processMarkComplete
+	}
+	return processRequeueUpdate
 }
 
 // v2StateBlocksCompletion is true when a persisted processing state exists

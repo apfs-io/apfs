@@ -74,8 +74,12 @@ func CollectReadSeekerInfo(meta *models.ItemMeta, reader io.ReadSeeker, fileFull
 	meta.HashID = hashID
 	meta.Width = width
 	meta.Height = height
+	fullname := meta.Fullname()
 	if meta.Path == "" {
-		meta.Path = meta.Fullname()
+		meta.Path = fullname
+	} else if !strings.Contains(meta.Path, "/") && filepath.Base(meta.Path) != fullname {
+		// Stale Path copied from Main (e.g. prim.png on a w320.jpg artifact).
+		meta.Path = fullname
 	}
 
 	return meta, err
