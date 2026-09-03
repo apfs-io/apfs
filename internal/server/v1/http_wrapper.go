@@ -138,9 +138,7 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	// If object is not completed or have extra objects then initiate new update task
-	if !sObject.Meta().IsConsistent(s.store.ObjectWorkflow(ctx, sObject)) && s.updateState.TryBeginUpdate(id) {
-		s.updateObjectState(ctx, sObject.ID().String())
-	}
+	s.maybeEnqueueUpdateFromHead(ctx, sObject)
 
 	var data io.ReadCloser
 	if !headOnly {

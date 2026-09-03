@@ -139,9 +139,7 @@ func (s *server) Head(ctx context.Context, obj *protocol.ObjectID) (*protocol.Si
 	}
 
 	// If object is not completed or have extra objects then initiate new update task
-	if !sObject.Meta().IsConsistent(s.store.ObjectWorkflow(ctx, sObject)) && s.updateState.TryBeginUpdate(obj.GetId()) {
-		s.updateObjectState(ctx, sObject.ID().String())
-	}
+	s.maybeEnqueueUpdateFromHead(ctx, sObject)
 
 	object, err := s.protoObjectFull(ctx, sObject, obj.GetOptions())
 	if err != nil {
@@ -196,9 +194,7 @@ func (s *server) Get(obj *protocol.ObjectID, stream protocol.ServiceAPI_GetServe
 	}
 
 	// If object is not completed or have extra objects then initiate new update task
-	if !sObject.Meta().IsConsistent(s.store.ObjectWorkflow(ctx, sObject)) && s.updateState.TryBeginUpdate(obj.GetId()) {
-		s.updateObjectState(ctx, sObject.ID().String())
-	}
+	s.maybeEnqueueUpdateFromHead(ctx, sObject)
 
 	var (
 		data    io.ReadCloser
@@ -604,9 +600,10 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 	}
 
 	wf := s.store.ObjectWorkflow(ctx, cObject)
+	priorState, _ := s.store.GetProcessingState(ctx, cObject.ID().String())
 	if event.Type == models.RefreshEventType {
 		items = cObject.Meta().Items
-	} else {
+	} else if shouldDeleteExcessOnUpdate(wf, priorState) {
 		items = cObject.Meta().ExcessItems(wf)
 	}
 	// Remove redundant extra objects
@@ -708,6 +705,50 @@ func processFollowupAfter(isComplete bool, state *models.ProcessingState) proces
 // Update forever.
 func v2StateBlocksCompletion(state *models.ProcessingState) bool {
 	return state != nil && (!state.Status.IsTerminal() || !state.Status.IsSuccess())
+}
+
+func (s *server) maybeEnqueueUpdateFromHead(ctx context.Context, obj storio.Object) {
+	if obj == nil || s.updateState == nil || s.store == nil {
+		return
+	}
+	wf := s.store.ObjectWorkflow(ctx, obj)
+	consistent := obj.Meta().IsConsistent(wf)
+	state, _ := s.store.GetProcessingState(ctx, obj.ID().String())
+	if !shouldEnqueueUpdateFromHead(consistent, state) {
+		return
+	}
+	if s.updateState.TryBeginUpdate(obj.ID().String()) {
+		s.updateObjectState(ctx, obj.ID().String())
+	}
+}
+
+// shouldEnqueueUpdateFromHead is true when meta is inconsistent with the
+// workflow and processing is not already successfully terminal. Refresh is
+// the explicit reprocess path after complete.
+func shouldEnqueueUpdateFromHead(consistent bool, state *models.ProcessingState) bool {
+	if consistent {
+		return false
+	}
+	if state != nil && state.Status.IsTerminal() && state.Status.IsSuccess() {
+		return false
+	}
+	return true
+}
+
+// shouldDeleteExcessOnUpdate reports whether Update should strip artifacts
+// that are not workflow targets. Skip after successful terminal processing
+// unless the workflow revision changed (jobs will be reset and re-run).
+func shouldDeleteExcessOnUpdate(wf *models.Workflow, state *models.ProcessingState) bool {
+	if state == nil {
+		return true
+	}
+	if wf != nil && state.ManifestVersion != "" && state.ManifestVersion != wf.Version {
+		return true
+	}
+	if state.Status.IsTerminal() && state.Status.IsSuccess() {
+		return false
+	}
+	return true
 }
 
 func (s *server) removeObjectItems(ctx context.Context, cObject storio.Object,

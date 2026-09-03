@@ -83,6 +83,7 @@ func TestWorkflow_HasTarget(t *testing.T) {
 	}
 
 	assert.True(t, wf.HasTarget("thumb.jpg"))
+	assert.True(t, wf.HasTarget("thumb"))
 	assert.True(t, wf.HasTarget("blur.jpg"))
 	assert.False(t, wf.HasTarget("nope.jpg"))
 	assert.False(t, (*Workflow)(nil).HasTarget("thumb.jpg"))

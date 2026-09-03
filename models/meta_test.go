@@ -115,6 +115,28 @@ func TestMetaExcessItems(t *testing.T) {
 	assert.Equal(t, "orphan", excess[0].Name)
 }
 
+func TestMetaExcessItems_NameVsTargetFullname(t *testing.T) {
+	w := &Workflow{
+		Version: "5",
+		Jobs: map[string]*WorkflowJob{
+			"large": {
+				Steps: []*WorkflowStep{
+					{Uses: "procedure", With: map[string]any{"target": "large.jpg"}},
+				},
+			},
+		},
+	}
+	meta := Meta{
+		ManifestVersion: "5",
+		Items: []*ItemMeta{
+			{Name: "large", NameExt: "jpg", Path: "large.jpg"},
+		},
+	}
+	assert.Empty(t, meta.ExcessItems(w))
+	assert.Empty(t, meta.MissingJobTargets(w))
+	assert.True(t, meta.IsConsistent(w))
+}
+
 func TestMetaAttributes(t *testing.T) {
 	meta := Meta{}
 	meta.SetAttribute("dominant_color", "#ff0000")

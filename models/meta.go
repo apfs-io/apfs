@@ -113,24 +113,33 @@ func (m *Meta) ExcessItems(w *Workflow) []*ItemMeta {
 	}
 	excess := make([]*ItemMeta, 0)
 	for _, item := range m.Items {
-		found := false
-		for _, job := range w.Jobs {
-			for _, step := range job.Steps {
-				target, _ := step.With["target"].(string)
-				if target != "" && (target == item.Name || target == item.Path || target == item.Fullname()) {
-					found = true
-					break
-				}
-			}
-			if found {
-				break
-			}
-		}
-		if !found {
+		if !m.itemIsWorkflowTarget(w, item) {
 			excess = append(excess, item)
 		}
 	}
 	return excess
+}
+
+func (m *Meta) itemIsWorkflowTarget(w *Workflow, item *ItemMeta) bool {
+	if w == nil || item == nil {
+		return false
+	}
+	for _, job := range w.Jobs {
+		if job == nil {
+			continue
+		}
+		for _, step := range job.Steps {
+			target := step.Target()
+			if target == "" {
+				continue
+			}
+			src := SourceFilename(target, m.Main.ObjectTypeExt())
+			if itemMatchesName(item, target, src) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // MissingJobTargets returns job IDs whose declared step targets are absent from Items.
@@ -144,7 +153,7 @@ func (m *Meta) MissingJobTargets(w *Workflow) []string {
 			continue
 		}
 		for _, step := range job.Steps {
-			target, _ := step.With["target"].(string)
+			target := step.Target()
 			if target == "" {
 				continue
 			}

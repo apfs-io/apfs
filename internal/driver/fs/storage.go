@@ -300,6 +300,18 @@ func (c *Storage) UpdateMeta(ctx context.Context, id storio.ObjectID, name strin
 	return c.saveObjectMeta(ctx, obj, name, meta)
 }
 
+// PersistMeta writes the object's full Meta record to meta.json.
+func (c *Storage) PersistMeta(ctx context.Context, id storio.ObjectID, meta *models.Meta) error {
+	obj, err := c._ID2Object(ctx, id)
+	if err != nil {
+		return err
+	}
+	if meta != nil {
+		*obj.MetaOrNew() = *meta
+	}
+	return c.saveMeta(obj)
+}
+
 // Remove file from directory by name without extension of file
 func (c *Storage) Remove(ctx context.Context, id storio.ObjectID, names ...string) error {
 	if !isValidID(id) {

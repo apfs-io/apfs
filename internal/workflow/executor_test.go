@@ -91,6 +91,10 @@ func (r *fakeRunner) Run(_ context.Context, step *models.WorkflowStep, _ StepInp
 		}
 	}
 	out := r.output
+	if out.ItemMeta != nil {
+		cp := *out.ItemMeta
+		out.ItemMeta = &cp
+	}
 	if target, ok := step.With["target"].(string); ok && target != "" {
 		out.TargetPath = target
 		if out.ItemMeta == nil {

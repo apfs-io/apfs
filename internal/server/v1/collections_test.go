@@ -72,3 +72,32 @@ func TestProcessFollowupAfter_TerminalDoesNotRequeue(t *testing.T) {
 	assert.Equal(t, processRequeueUpdate, processFollowupAfter(true, running),
 		"complete claimed but state still running → keep Update")
 }
+
+func TestShouldEnqueueUpdateFromHead(t *testing.T) {
+	completed := &models.ProcessingState{Status: models.ProcessingStatusCompleted}
+	partial := &models.ProcessingState{Status: models.ProcessingStatusPartial}
+	running := &models.ProcessingState{Status: models.ProcessingStatusRunning}
+
+	assert.False(t, shouldEnqueueUpdateFromHead(true, nil))
+	assert.False(t, shouldEnqueueUpdateFromHead(true, running))
+	assert.False(t, shouldEnqueueUpdateFromHead(false, completed),
+		"inconsistent meta after successful complete must not re-queue")
+	assert.False(t, shouldEnqueueUpdateFromHead(false, partial))
+	assert.True(t, shouldEnqueueUpdateFromHead(false, running))
+	assert.True(t, shouldEnqueueUpdateFromHead(false, nil))
+}
+
+func TestShouldDeleteExcessOnUpdate(t *testing.T) {
+	wf := &models.Workflow{Version: "5"}
+	completed := &models.ProcessingState{Status: models.ProcessingStatusCompleted, ManifestVersion: "5"}
+	partial := &models.ProcessingState{Status: models.ProcessingStatusPartial, ManifestVersion: "5"}
+	running := &models.ProcessingState{Status: models.ProcessingStatusRunning, ManifestVersion: "5"}
+	stale := &models.ProcessingState{Status: models.ProcessingStatusCompleted, ManifestVersion: "4"}
+
+	assert.True(t, shouldDeleteExcessOnUpdate(wf, nil))
+	assert.True(t, shouldDeleteExcessOnUpdate(wf, running))
+	assert.False(t, shouldDeleteExcessOnUpdate(wf, completed))
+	assert.False(t, shouldDeleteExcessOnUpdate(wf, partial))
+	assert.True(t, shouldDeleteExcessOnUpdate(wf, stale),
+		"manifest revision bump still strips leftovers")
+}

@@ -99,13 +99,19 @@ func (s *Storage) ReadMeta(ctx context.Context, id storio.ObjectID) (*models.Met
 }
 
 // WriteMeta persists updated Meta for an object (used by the workflow executor).
+// The record is written to disk (meta.json) and to the object DB cache so Head
+// and ReadMeta observe the same Items and ManifestVersion.
 func (s *Storage) WriteMeta(ctx context.Context, id storio.ObjectID, meta *models.Meta) error {
+	if meta == nil {
+		return nil
+	}
 	obj, err := s.driver.Open(ctx, id)
 	if err != nil {
 		return err
 	}
-	if obj.Meta() != nil {
-		*obj.MetaOrNew() = *meta
+	*obj.MetaOrNew() = *meta
+	if err := s.driver.PersistMeta(ctx, id, meta); err != nil {
+		return err
 	}
 	return s.UpdateObjectInfo(ctx, obj)
 }

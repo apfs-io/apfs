@@ -33,6 +33,9 @@ type ObjectAccessor interface {
 	// touching its content.
 	UpdateMeta(ctx context.Context, id ObjectID, name string, meta *models.ItemMeta) error
 
+	// PersistMeta writes the object's full Meta record (meta.json).
+	PersistMeta(ctx context.Context, id ObjectID, meta *models.Meta) error
+
 	// Clean removes all derived subfiles from the object, leaving only the
 	// original file and the meta/state records.
 	Clean(ctx context.Context, id ObjectID) error

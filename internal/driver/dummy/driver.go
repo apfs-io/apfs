@@ -44,6 +44,11 @@ func (d *Storage) UpdateMeta(ctx context.Context, id storio.ObjectID, name strin
 	return nil
 }
 
+// PersistMeta implements ObjectAccessor.
+func (d *Storage) PersistMeta(ctx context.Context, id storio.ObjectID, meta *models.Meta) error {
+	return nil
+}
+
 // Clean implements ObjectAccessor.
 func (d *Storage) Clean(ctx context.Context, id storio.ObjectID) error {
 	return nil

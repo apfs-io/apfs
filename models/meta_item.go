@@ -85,6 +85,8 @@ func (m *ItemMeta) ObjectTypeExt() string {
 }
 
 // UpdateName sets Name and NameExt from a filename or path.
+// A flat Path that no longer matches Fullname (e.g. prim.png copied from Main
+// onto a large.jpg artifact) is replaced; directory Paths are left intact.
 func (m *ItemMeta) UpdateName(name string) {
 	if name == "" {
 		return
@@ -93,7 +95,12 @@ func (m *ItemMeta) UpdateName(name string) {
 	ext := strings.TrimPrefix(filepath.Ext(base), ".")
 	m.Name = strings.TrimSuffix(base, filepath.Ext(base))
 	m.NameExt = ext
+	fullname := m.Fullname()
 	if m.Path == "" {
+		m.Path = name
+		return
+	}
+	if !strings.Contains(m.Path, "/") && filepath.Base(m.Path) != fullname {
 		m.Path = name
 	}
 }

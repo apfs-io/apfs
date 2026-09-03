@@ -177,6 +177,121 @@ func TestStorageProcess(t *testing.T) {
 	_ = os.RemoveAll(filepath.Join(testStorePath, imagesBucket))
 }
 
+func TestStorageWriteMetaRoundTrip(t *testing.T) {
+	const bucket = "images-meta"
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
+	defer cancel()
+	defer func() { _ = os.RemoveAll(filepath.Join(testStorePath, bucket)) }()
+
+	obj, err := storage.UploadFile(ctx, bucket,
+		filepath.Join(testStorePath, "bucket/file/prim.jpg"))
+	if !assert.NoError(t, err, "upload") {
+		return
+	}
+
+	meta := obj.MetaOrNew()
+	meta.ManifestVersion = "5"
+	derived := &models.ItemMeta{}
+	derived.UpdateName("w320.jpg")
+	derived.Width = 320
+	meta.SetItem(derived)
+
+	err = storage.WriteMeta(ctx, obj.ID(), meta)
+	if !assert.NoError(t, err, "WriteMeta") {
+		return
+	}
+
+	fromDisk, err := storage.ReadMeta(ctx, obj.ID())
+	if !assert.NoError(t, err, "ReadMeta") {
+		return
+	}
+	assert.Equal(t, "5", fromDisk.ManifestVersion)
+	if item := fromDisk.ItemByName("w320.jpg"); assert.NotNil(t, item) {
+		assert.Equal(t, "w320", item.Name)
+		assert.Equal(t, 320, item.Width)
+	}
+
+	fromObj, err := storage.Object(ctx, obj.ID().String())
+	if !assert.NoError(t, err, "Object") {
+		return
+	}
+	assert.Equal(t, "5", fromObj.Meta().ManifestVersion)
+	assert.NotNil(t, fromObj.Meta().ItemByName("w320.jpg"))
+
+	assert.NoError(t, storage.Delete(ctx, obj))
+}
+
+func TestStorageProcess_KeepsDerivedItems(t *testing.T) {
+	const bucket = "images-keep"
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*15)
+	defer cancel()
+	defer func() { _ = os.RemoveAll(filepath.Join(testStorePath, bucket)) }()
+
+	wf := &models.Workflow{
+		Version: "5",
+		Jobs: map[string]*models.WorkflowJob{
+			"small": {
+				OnFailure: "fail",
+				Steps: pipelineSteps("@", "w320.jpg",
+					image.NewActionResize(50, 50, "linear"),
+				),
+			},
+			"medium": {
+				OnFailure: "fail",
+				Steps: pipelineSteps("@", "w640.jpg",
+					image.NewActionResize(80, 80, "linear"),
+				),
+			},
+			"large": {
+				OnFailure: "fail",
+				Steps: pipelineSteps("@", "large.jpg",
+					image.NewActionResize(100, 100, "linear"),
+				),
+			},
+		},
+	}
+	if !assert.NoError(t, storage.SetWorkflow(ctx, bucket, wf)) {
+		return
+	}
+
+	obj, err := storage.UploadFile(ctx, bucket,
+		filepath.Join(testStorePath, "bucket/file/prim.jpg"))
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	complete, err := wfExec.ProcessObject(ctx, storage.ObjectWorkflow(ctx, obj), obj.ID().String(), nil, 0)
+	if !assert.NoError(t, err) || !assert.True(t, complete) {
+		return
+	}
+
+	loaded, err := storage.Object(ctx, obj.ID().String())
+	if !assert.NoError(t, err) {
+		return
+	}
+	meta := loaded.Meta()
+	assert.Equal(t, "5", meta.ManifestVersion)
+	for _, name := range []string{"w320.jpg", "w640.jpg", "large.jpg"} {
+		assert.NotNil(t, meta.ItemByName(name), "expected derived item %s", name)
+	}
+
+	again, err := storage.Object(ctx, obj.ID().String())
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.Equal(t, 3, len(again.Meta().Items))
+	assert.True(t, again.Meta().IsConsistent(wf))
+
+	state, err := storage.GetProcessingState(ctx, obj.ID().String())
+	if assert.NoError(t, err) && assert.NotNil(t, state) {
+		assert.True(t, state.Status.IsTerminal())
+		assert.True(t, state.Status.IsSuccess())
+		assert.Equal(t, "5", state.ManifestVersion)
+	}
+
+	assert.NoError(t, storage.Delete(ctx, obj))
+}
+
 func pipelineSteps(source, target string, actions ...*models.Action) []*models.WorkflowStep {
 	steps := make([]*models.WorkflowStep, 0, len(actions))
 	for i, a := range actions {

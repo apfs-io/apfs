@@ -188,6 +188,15 @@ type WorkflowStep struct {
 	Docker *WorkflowStepDocker `json:"docker,omitempty" yaml:"docker,omitempty"`
 }
 
+// Target returns the step's "target" with-param as a string, or "".
+func (s *WorkflowStep) Target() string {
+	if s == nil || s.With == nil {
+		return ""
+	}
+	t, _ := s.With["target"].(string)
+	return t
+}
+
 // WorkflowStepDocker holds Docker-specific configuration for a step whose
 // Uses field is "docker" (or when a docker: block is present on any step).
 type WorkflowStepDocker struct {
@@ -266,9 +275,10 @@ func (w *Workflow) MarshalYAML() ([]byte, error) {
 }
 
 // HasTarget returns true when any job step in the workflow declares the given
-// filename as its "target" output parameter.
+// filename as its "target" output parameter. Name, Path, and Fullname forms
+// all match (e.g. "large" and "large.jpg" for target "large.jpg").
 func (w *Workflow) HasTarget(name string) bool {
-	if w == nil {
+	if w == nil || name == "" {
 		return false
 	}
 	for _, job := range w.Jobs {
@@ -276,7 +286,17 @@ func (w *Workflow) HasTarget(name string) bool {
 			continue
 		}
 		for _, step := range job.Steps {
-			if target, ok := step.With["target"].(string); ok && target == name {
+			target := step.Target()
+			if target == "" {
+				continue
+			}
+			if target == name {
+				return true
+			}
+			item := ItemMeta{}
+			item.UpdateName(target)
+			src := SourceFilename(name, item.NameExt)
+			if itemMatchesName(&item, name, src) {
 				return true
 			}
 		}

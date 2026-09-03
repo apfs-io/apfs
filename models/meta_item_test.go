@@ -46,6 +46,22 @@ func TestItemMetaUpdateName(t *testing.T) {
 	assert.Equal(t, "thumbs/1.jpg", item.Path)
 }
 
+func TestItemMetaUpdateName_OverwritesStaleFlatPath(t *testing.T) {
+	item := ItemMeta{Name: "prim", NameExt: "png", Path: "prim.png"}
+	item.UpdateName("large.jpg")
+	assert.Equal(t, "large", item.Name)
+	assert.Equal(t, "jpg", item.NameExt)
+	assert.Equal(t, "large.jpg", item.Path)
+}
+
+func TestItemMetaUpdateName_KeepsDirectoryPath(t *testing.T) {
+	item := ItemMeta{Name: "1", NameExt: "jpg", Path: "thumbs/1.jpg"}
+	item.UpdateName("1.jpg")
+	assert.Equal(t, "1", item.Name)
+	assert.Equal(t, "jpg", item.NameExt)
+	assert.Equal(t, "thumbs/1.jpg", item.Path)
+}
+
 func TestItemMetaEffectivePath(t *testing.T) {
 	item := ItemMeta{Name: "main", NameExt: "mp4"}
 	assert.Equal(t, "main.mp4", item.EffectivePath())
