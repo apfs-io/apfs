@@ -159,7 +159,7 @@ steps:
 | ------ | ------ | -------- | --------------------------------------------------------------------------------- |
 | `name` | string | no       | Descriptive label for logs and state.                                             |
 | `uses` | string | yes      | Action identifier dispatched to a registered `StepRunner`.                        |
-| `with` | map    | no       | Parameters forwarded to the runner. `target` is the conventional output filename. |
+| `with` | map    | no       | Parameters forwarded to the runner. `target` is the conventional output filename. Omitted `source` reads the original unless `target` already exists from a prior step in the same job. |
 
 ---
 

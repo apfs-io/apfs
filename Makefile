@@ -1,7 +1,7 @@
 include .env
 export
 
-IMAGE_NAME=github.com/apfs-io/apfs
+IMAGE_NAME=ghcr.io/apfs-io/apfs
 DOCKER_CONTAINER_IMAGE=${IMAGE_NAME}:latest
 DOCKER_CONTAINER_TESTAPP_IMAGE=${IMAGE_NAME}-testapp:latest
 
@@ -91,7 +91,7 @@ build-docker-dev: build
 .PHONY: build-docker-dev-im
 build-docker-dev-im: build
 	echo "Build develop docker image with imagemagick"
-	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker build -t ${IMAGE_NAME}:ubuntu-imagemagick -f deploy/production/ubuntu-imagemagick.dockerfile .
+	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker build -t ${IMAGE_NAME}:ubuntu-imagemagick-latest -f deploy/production/ubuntu-imagemagick.dockerfile .
 
 .PHONY: build-docker-testapp
 build-docker-testapp: build-testapp

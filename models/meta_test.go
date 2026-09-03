@@ -45,6 +45,38 @@ func TestMetaSetItem(t *testing.T) {
 	assert.Equal(t, int64(1024), meta.Items[0].Size)
 }
 
+func TestMetaSetItem_SameBasenameDifferentExt(t *testing.T) {
+	meta := Meta{}
+	png := &ItemMeta{Name: "blur", NameExt: "png", Path: "blur.png", Size: 10}
+	jpeg := &ItemMeta{Name: "blur", NameExt: "jpeg", Path: "blur.jpeg", Size: 20}
+
+	meta.SetItem(png)
+	meta.SetItem(jpeg)
+	assert.Equal(t, 2, len(meta.Items))
+	assert.NotNil(t, meta.ItemByName("blur.png"))
+	assert.NotNil(t, meta.ItemByName("blur.jpeg"))
+	assert.Equal(t, int64(10), meta.ItemByName("blur.png").Size)
+	assert.Equal(t, int64(20), meta.ItemByName("blur.jpeg").Size)
+
+	meta.SetItem(&ItemMeta{Name: "blur", NameExt: "png", Path: "blur.png", Size: 99})
+	assert.Equal(t, 2, len(meta.Items))
+	assert.Equal(t, int64(99), meta.ItemByName("blur.png").Size)
+	assert.Equal(t, int64(20), meta.ItemByName("blur.jpeg").Size)
+}
+
+func TestMetaSetItem_OriginalUpdatesMain(t *testing.T) {
+	meta := Meta{}
+	meta.SetItem(&ItemMeta{Name: "prim", NameExt: "jfif", Path: "prim.jfif", Size: 100})
+	assert.Equal(t, "prim", meta.Main.Name)
+	assert.Equal(t, "jfif", meta.Main.NameExt)
+	assert.Equal(t, int64(100), meta.Main.Size)
+	assert.Empty(t, meta.Items)
+
+	meta.SetItem(&ItemMeta{Name: "prim", NameExt: "jfif", Path: "prim.jfif", Size: 200})
+	assert.Equal(t, int64(200), meta.Main.Size)
+	assert.Empty(t, meta.Items)
+}
+
 func TestMetaRemoveItemByName(t *testing.T) {
 	meta := Meta{
 		Items: []*ItemMeta{

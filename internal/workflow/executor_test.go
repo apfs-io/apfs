@@ -24,6 +24,7 @@ type fakeStorage struct {
 	writeErr  error
 	written   map[string][]byte // path → content
 	source    []byte
+	readNames []string
 	writeMeta []*models.ItemMeta
 }
 
@@ -59,7 +60,8 @@ func (f *fakeStorage) WriteFile(_ context.Context, _ storio.ObjectID, path strin
 	return f.writeErr
 }
 
-func (f *fakeStorage) ReadFile(_ context.Context, _ storio.ObjectID, _ string) (io.ReadCloser, error) {
+func (f *fakeStorage) ReadFile(_ context.Context, _ storio.ObjectID, name string) (io.ReadCloser, error) {
+	f.readNames = append(f.readNames, name)
 	if f.readErr != nil {
 		return nil, f.readErr
 	}
@@ -213,6 +215,87 @@ func TestExecuteJob_MissingJobInWorkflow(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
+func TestStepSourceName(t *testing.T) {
+	large := &models.ItemMeta{}
+	large.UpdateName("large.jpg")
+	meta := &models.Meta{Items: []*models.ItemMeta{large}}
+
+	tests := []struct {
+		name string
+		step *models.WorkflowStep
+		meta *models.Meta
+		want string
+	}{
+		{
+			name: "nil step",
+			want: models.OriginalFilename,
+		},
+		{
+			name: "first step omitted source",
+			step: &models.WorkflowStep{With: map[string]any{"target": "large.jpg"}},
+			want: models.OriginalFilename,
+		},
+		{
+			name: "follow-up omitted source uses existing target",
+			step: &models.WorkflowStep{With: map[string]any{"target": "large.jpg"}},
+			meta: meta,
+			want: "large.jpg",
+		},
+		{
+			name: "explicit source",
+			step: &models.WorkflowStep{With: map[string]any{"source": "large.jpg", "target": "clean.jpg"}},
+			meta: meta,
+			want: "large.jpg",
+		},
+		{
+			name: "explicit source missing item",
+			step: &models.WorkflowStep{With: map[string]any{"source": "missing.jpg"}},
+			want: "missing.jpg",
+		},
+		{
+			name: "original source stays prim",
+			step: &models.WorkflowStep{With: map[string]any{"source": "prim", "target": "large.jpg"}},
+			meta: meta,
+			want: models.OriginalFilename,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, stepSourceName(tt.step, tt.meta))
+		})
+	}
+}
+
+func TestExecuteJob_ChainsSourceToExistingTarget(t *testing.T) {
+	store := newFakeStorage()
+	runner := &fakeRunner{
+		usesPrefix: "procedure",
+		output: StepOutput{
+			Writer:   strings.NewReader("artifact"),
+			ItemMeta: &models.ItemMeta{},
+		},
+	}
+	reg := NewRunnerRegistry()
+	reg.Register(runner)
+
+	wf := &models.Workflow{
+		Version: "2",
+		Jobs: map[string]*models.WorkflowJob{
+			"large": {
+				Steps: []*models.WorkflowStep{
+					{Name: "resize", Uses: "procedure", With: map[string]any{"target": "large.jpg"}},
+					{Name: "strip", Uses: "procedure", With: map[string]any{"target": "large.jpg"}},
+				},
+			},
+		},
+	}
+	exec := NewExecutor(store, reg)
+	err := exec.ExecuteJob(context.Background(), wf, "obj-1", "large", nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{models.OriginalFilename, "large.jpg"}, store.readNames)
+	assert.Equal(t, models.JobStatusCompleted, store.state.Jobs["large"].Status)
+}
+
 func TestExecuteJob_OnFailureContinue(t *testing.T) {
 	store := newFakeStorage()
 	runner := &fakeRunner{
@@ -231,6 +314,47 @@ func TestExecuteJob_OnFailureContinue(t *testing.T) {
 	assert.Equal(t, models.JobStatusFailed, store.state.Jobs["thumbnail"].Status)
 	// A single failed job with on-failure:continue → partial overall
 	assert.Equal(t, models.ProcessingStatusPartial, store.state.Status)
+	assert.Nil(t, store.meta, "no artifacts written → skip WriteMeta")
+}
+
+func TestExecuteJob_OnFailureContinueWritesMeta(t *testing.T) {
+	store := newFakeStorage()
+	resize := &fakeRunner{
+		usesPrefix: "procedure/resize",
+		output: StepOutput{
+			Writer:   strings.NewReader("resized"),
+			ItemMeta: &models.ItemMeta{},
+		},
+	}
+	strip := &fakeRunner{
+		usesPrefix: "procedure/strip",
+		err:        errors.New("strip failed"),
+	}
+	reg := NewRunnerRegistry()
+	reg.Register(resize)
+	reg.Register(strip)
+
+	wf := &models.Workflow{
+		Version: "2",
+		Jobs: map[string]*models.WorkflowJob{
+			"large": {
+				OnFailure: "continue",
+				Steps: []*models.WorkflowStep{
+					{Name: "resize", Uses: "procedure/resize", With: map[string]any{"target": "large.jpg"}},
+					{Name: "strip", Uses: "procedure/strip", With: map[string]any{"target": "large.jpg"}},
+				},
+			},
+		},
+	}
+	exec := NewExecutor(store, reg)
+	err := exec.ExecuteJob(context.Background(), wf, "obj-1", "large", nil)
+	require.NoError(t, err)
+	assert.Equal(t, models.JobStatusFailed, store.state.Jobs["large"].Status)
+	assert.Equal(t, models.ProcessingStatusPartial, store.state.Status)
+	require.NotNil(t, store.meta)
+	assert.Equal(t, "2", store.meta.ManifestVersion)
+	require.NotNil(t, store.meta.ItemByName("large.jpg"))
+	assert.Equal(t, []byte("resized"), store.written["large.jpg"])
 }
 
 func TestExecuteJob_OnFailureFail_DownstreamSkipped(t *testing.T) {

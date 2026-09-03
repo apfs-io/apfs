@@ -1,3 +1,6 @@
 #!/usr/bin/env bash
 
-magick mogrify -strip $1 -interlace Plane -auto-orient $2
+# Two-file convert (not mogrify): plugeproc pre-creates $2 as an empty
+# extensionless temp. mogrify treats every leftover arg as an in-place image
+# and fails with "no decode delegate for this image format ''".
+convert "$1" -strip -interlace Plane -auto-orient "$2"

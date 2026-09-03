@@ -70,14 +70,23 @@ func itemMatchesName(item *ItemMeta, name, sourceName string) bool {
 		item.Path == name || item.Fullname() == name || item.EffectivePath() == name
 }
 
-// SetItem upserts item into Items by name. If an item with the same name
-// already exists it is overwritten.
+// SetItem upserts item into Items by unique file identity (Path / Fullname),
+// not basename Name. Same basename with different extensions (blur.png vs
+// blur.jpeg) are distinct artifacts.
 func (m *Meta) SetItem(item *ItemMeta) {
-	if old := m.ItemByName(item.Name); old != nil {
-		*old = *item
-	} else {
-		m.Items = append(m.Items, item)
+	if m == nil || item == nil {
+		return
 	}
+	key := item.EffectivePath()
+	if key == "" {
+		m.Items = append(m.Items, item)
+		return
+	}
+	if old := m.ItemByName(key); old != nil {
+		*old = *item
+		return
+	}
+	m.Items = append(m.Items, item)
 }
 
 // RemoveItemByName removes the item with the given name or path from Items.

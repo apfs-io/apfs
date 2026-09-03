@@ -5,7 +5,7 @@
 #
 # Procedures (deploy/procedures/):
 #   image-resize-w   — resize to max width via ImageMagick
-#   image-strip-meta — strip EXIF via ImageMagick mogrify
+#   image-strip-meta — strip EXIF via ImageMagick convert
 #
 # Bucket/group: avatars
 

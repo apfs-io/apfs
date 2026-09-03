@@ -30,7 +30,7 @@
 //	    uses: shell
 //	    with: { target: clean.jpg }
 //	    run: |
-//	      magick mogrify -strip "{{inputFile}}" -interlace Plane "{{outputFile}}"
+//	      convert "{{inputFile}}" -strip -interlace Plane -auto-orient "{{outputFile}}"
 //
 // Named procedure step (loaded from the store):
 //

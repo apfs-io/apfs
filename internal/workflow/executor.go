@@ -146,6 +146,9 @@ func (e *Executor) ExecuteJob(ctx context.Context, w *models.Workflow, objectID 
 		case models.FailurePolicyContinue:
 			log.Warn("job failed (on-failure:continue)", zap.Error(jobErr))
 			js.MarkFailed(jobErr)
+			if len(meta.Items) > 0 {
+				writeJobMeta(ctx, e.storage, id, w, meta, log)
+			}
 		case models.FailurePolicyRetry:
 			maxRetries := fp.MaxRetries()
 			if js.Attempts < maxRetries {
@@ -173,10 +176,7 @@ func (e *Executor) ExecuteJob(ctx context.Context, w *models.Workflow, objectID 
 		}
 	} else {
 		js.MarkCompleted(js.Outputs)
-		meta.ManifestVersion = w.Version
-		if err := e.storage.WriteMeta(ctx, id, meta); err != nil {
-			log.Warn("write meta after job complete", zap.Error(err))
-		}
+		writeJobMeta(ctx, e.storage, id, w, meta, log)
 	}
 
 	state.UpdatedAt = time.Now()
@@ -282,14 +282,42 @@ func collectOutputs(state *models.ProcessingState) map[string]map[string]any {
 	return out
 }
 
+func writeJobMeta(ctx context.Context, storage ExecutorStorage, id storio.ObjectID, w *models.Workflow, meta *models.Meta, log *zap.Logger) {
+	meta.ManifestVersion = w.Version
+	if err := storage.WriteMeta(ctx, id, meta); err != nil {
+		log.Warn("write meta after job", zap.Error(err))
+	}
+}
+
 func stepSourceName(step *models.WorkflowStep, meta *models.Meta) string {
-	if step != nil {
-		if src, ok := step.With["source"].(string); ok && src != "" && !models.IsOriginal(src) {
-			if item := meta.ItemByName(src); item != nil && item.Fullname() != "" {
-				return item.Fullname()
-			}
-			return src
+	if step == nil {
+		return models.OriginalFilename
+	}
+	if src, ok := step.With["source"].(string); ok && src != "" {
+		if models.IsOriginal(src) {
+			return models.OriginalFilename
+		}
+		if item := itemFullname(meta, src); item != "" {
+			return item
+		}
+		return src
+	}
+	// Same-job follow-up: omitted source + existing target → read that
+	// artifact instead of the original (resize then strip-exif on large.jpg).
+	if target, ok := step.With["target"].(string); ok && target != "" && !models.IsOriginal(target) {
+		if item := itemFullname(meta, target); item != "" {
+			return item
 		}
 	}
 	return models.OriginalFilename
+}
+
+func itemFullname(meta *models.Meta, name string) string {
+	if meta == nil {
+		return ""
+	}
+	if item := meta.ItemByName(name); item != nil && item.Fullname() != "" {
+		return item.Fullname()
+	}
+	return ""
 }

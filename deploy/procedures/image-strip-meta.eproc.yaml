@@ -12,7 +12,8 @@
 #         target: clean.jpg
 #
 # The input image bytes are written to a temp file ({{inputFile}}),
-# and the cleaned image is written to a second temp file ({{out}}).
+# and convert writes the cleaned image to a second temp file ({{out}}).
+# Do not use mogrify: {{out}} is an empty extensionless placeholder.
 
 driver: exec
 
