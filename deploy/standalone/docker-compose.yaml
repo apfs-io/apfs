@@ -1,0 +1,29 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./data/redis:/data
+
+  apfs:
+    image: ${APFS_IMAGE:-ghcr.io/apfs-io/apfs:ubuntu-imagemagick-latest}
+    restart: unless-stopped
+    depends_on:
+      - redis
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    env_file:
+      - apfs.env
+    volumes:
+      - ./data/storage:/data/storage
+      - ./data/meta:/data/meta
+      - ./workflows:/workflows:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s

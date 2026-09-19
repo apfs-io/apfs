@@ -1,7 +1,7 @@
 # Deploy
 
-Deployment assets for APFS: Docker images, local development stack, workflow
-examples, and external procedure manifests.
+Deployment assets for APFS: Docker images, local development stack, standalone
+Ubuntu install, workflow examples, and external procedure manifests.
 
 ## Layout
 
@@ -26,11 +26,36 @@ deploy/
 │   ├── debian.dockerfile
 │   ├── ubuntu.dockerfile
 │   └── ubuntu-imagemagick.dockerfile
+├── standalone/              # Ubuntu systemd + Docker Compose (APFS + Redis)
+│   ├── install.sh
+│   ├── docker-compose.yaml
+│   ├── apfs.env
+│   └── apfs.service
 └── workflows/               # v2 workflow examples (per-group directories)
     ├── images/manifest.yaml
     ├── analysis/manifest.yaml
     ├── avatars/manifest.yaml
     └── videos/manifest.yaml
+```
+
+## Standalone Ubuntu (systemd + Docker)
+
+Install APFS and Redis under `/opt/apfs` and enable a systemd unit (symlink
+to `/opt/apfs/apfs.service`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/apfs-io/apfs/main/deploy/standalone/install.sh | sudo bash
+```
+
+The installer installs Docker Engine + Compose, downloads the latest
+`docker-compose.yaml` / `apfs.env` / `apfs.service` from this repository, and
+runs `systemctl enable --now apfs`. Existing `/opt/apfs/apfs.env` is kept on
+re-run. Override image or paths with `APFS_IMAGE`, `APFS_REF`, `APFS_PREFIX`.
+
+If `ghcr.io/apfs-io/apfs` is private:
+
+```bash
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u USERNAME --password-stdin
 ```
 
 ## Workflow bootstrap on startup

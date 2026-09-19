@@ -85,7 +85,12 @@ for the full startup sequence, environment variables, and upgrade rules.
 ```bash
 # Local stack (workflows mounted from deploy/workflows)
 make build-docker-dev && make run
+
+# Ubuntu server: Docker + Redis + systemd under /opt/apfs
+curl -fsSL https://raw.githubusercontent.com/apfs-io/apfs/main/deploy/standalone/install.sh | sudo bash
 ```
+
+See [deploy/README.md](deploy/README.md) for standalone options (`APFS_IMAGE`, `APFS_PREFIX`).
 
 ## Event streams
 
