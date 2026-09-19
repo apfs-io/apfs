@@ -18,6 +18,7 @@
 - **Complex objects** — a single upload may produce many derived files (`thumb.jpg`, `720p.mp4`, …).
 - **gRPC + REST gateway** — Protocol Buffers API with an auto-generated REST facade.
 - **Pluggable storage drivers** — local filesystem and S3-compatible backends out of the box.
+- **Pluggable event streams** — NATS, Kafka, or Redis pub/sub for object events and processing status.
 
 ## Quick Start
 
@@ -86,6 +87,22 @@ for the full startup sequence, environment variables, and upgrade rules.
 make build-docker-dev && make run
 ```
 
+## Event streams
+
+Object lifecycle events and optional processing-status updates are published over a
+pluggable pub/sub backend. Set `EVENTSTREAM_CONNECT` and, if needed,
+`PROCESSING_STATUS_STREAM_CONNECT` to one of:
+
+| Scheme     | Example                                                              |
+| ---------- | -------------------------------------------------------------------- |
+| `nats://`  | `nats://nats:4222/apfs?topics=events`                                |
+| `kafka://` | `kafka://broker1:9092,broker2:9092/group?topics=events`              |
+| `redis://` | `redis://localhost:6379/0?topics=events`                             |
+| `rediss://` | `rediss://user:pass@localhost:6379/0?topics=events` (TLS)            |
+
+Channels come from the `topics` query parameter. See [docs/PROCESSING.md](docs/PROCESSING.md)
+for status-stream subscription from a client.
+
 ## API Overview
 
 ### Services
@@ -143,6 +160,7 @@ The API is defined with `proto3` in [`protocol/v1/`](protocol/v1/). A REST gatew
 | Document                                                     | Description                                                   |
 | ------------------------------------------------------------ | ------------------------------------------------------------- |
 | [docs/INITIALIZATION.md](docs/INITIALIZATION.md)             | Service startup, workflow bootstrap, Docker deployment        |
+| [docs/PROCESSING.md](docs/PROCESSING.md)                     | Processing status lifecycle and event-stream subscription     |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md)                         | Full v2 workflow YAML schema reference                        |
 | [docs/USE_CASES.md](docs/USE_CASES.md)                       | End-to-end examples: image gallery, video, documents, avatars |
 | [deploy/README.md](deploy/README.md)                         | Docker images, compose stack, example manifests               |

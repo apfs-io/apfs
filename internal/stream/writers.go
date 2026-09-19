@@ -9,6 +9,7 @@ import (
 	nc "github.com/geniusrabbit/notificationcenter/v2"
 	"github.com/geniusrabbit/notificationcenter/v2/kafka"
 	"github.com/geniusrabbit/notificationcenter/v2/nats"
+	"github.com/geniusrabbit/notificationcenter/v2/redis"
 	natsio "github.com/nats-io/nats.go"
 )
 
@@ -26,6 +27,9 @@ func NewWriter(ctx context.Context, urlStr string) (nc.Publisher, error) {
 	case strings.HasPrefix(urlStr, "kafka://"):
 		// kafka://broker1:9092,broker2:9092/group?client_id={service_name}&topics={topic_name1},{topic_name2}
 		return kafka.NewPublisher(ctx, kafka.WithKafkaURL(urlStr))
+	case strings.HasPrefix(urlStr, "redis://"), strings.HasPrefix(urlStr, "rediss://"):
+		// redis://host:6379/0?topics={topic1},{topic2}
+		return redis.NewPublisher(redis.WithRedisURL(urlStr))
 	}
 	return nil, ErrUndefinedStreamScheme
 }
