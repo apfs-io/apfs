@@ -41,4 +41,11 @@ func TestOptions(t *testing.T) {
 			t.Errorf("expected tags to have 2 elements, got %v", o.tags)
 		}
 	})
+	t.Run("WithNoCache", func(t *testing.T) {
+		o := &RequestOptions{}
+		WithNoCache()(o)
+		if !o.noCache {
+			t.Error("expected noCache to be true")
+		}
+	})
 }

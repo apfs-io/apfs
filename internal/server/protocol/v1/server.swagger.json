@@ -85,6 +85,13 @@
             "in": "query",
             "required": false,
             "type": "boolean"
+          },
+          {
+            "name": "nocache",
+            "description": "skip metadb, reload meta.json and refresh cache",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -191,6 +198,13 @@
             "in": "query",
             "required": false,
             "type": "boolean"
+          },
+          {
+            "name": "nocache",
+            "description": "skip metadb, reload meta.json and refresh cache",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -292,6 +306,13 @@
           {
             "name": "options.stateFull",
             "description": "include full job details (requires with_state=true)",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "nocache",
+            "description": "skip metadb, reload meta.json and refresh cache",
             "in": "query",
             "required": false,
             "type": "boolean"
@@ -408,6 +429,13 @@
             "in": "query",
             "required": false,
             "type": "boolean"
+          },
+          {
+            "name": "nocache",
+            "description": "skip metadb, reload meta.json and refresh cache",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -469,6 +497,13 @@
           {
             "name": "options.stateFull",
             "description": "include full job details (requires with_state=true)",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "nocache",
+            "description": "skip metadb, reload meta.json and refresh cache",
             "in": "query",
             "required": false,
             "type": "boolean"
@@ -602,6 +637,10 @@
         "options": {
           "$ref": "#/definitions/v1ObjectRequestOptions",
           "title": "optional; nil = default (no extras)"
+        },
+        "nocache": {
+          "type": "boolean",
+          "title": "skip metadb, reload meta.json and refresh cache"
         }
       }
     },
@@ -618,6 +657,10 @@
         "options": {
           "$ref": "#/definitions/v1ObjectRequestOptions",
           "title": "optional; nil = default (no extras)"
+        },
+        "nocache": {
+          "type": "boolean",
+          "title": "skip metadb, reload meta.json and refresh cache"
         }
       }
     },

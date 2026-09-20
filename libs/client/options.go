@@ -14,6 +14,7 @@ type RequestOptions struct {
 	includeWorkflow  bool // include bucket workflow manifest
 	includeState     bool // include processing state (counters only)
 	includeStateFull bool // include full job details (requires includeState=true)
+	noCache          bool // skip metadb, reload meta.json and refresh cache
 }
 
 func (o *RequestOptions) prepareGroup(defaultGroup string) {
@@ -80,4 +81,10 @@ func WithFullState() RequestOption {
 		o.includeState = true
 		o.includeStateFull = true
 	}
+}
+
+// WithNoCache skips the object metadb cache, reloads meta.json from storage,
+// and writes the fresh snapshot back into the cache.
+func WithNoCache() RequestOption {
+	return func(o *RequestOptions) { o.noCache = true }
 }

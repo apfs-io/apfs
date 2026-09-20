@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -290,6 +291,98 @@ func TestStorageProcess_KeepsDerivedItems(t *testing.T) {
 	}
 
 	assert.NoError(t, storage.Delete(ctx, obj))
+}
+
+func TestStorageObjectReloadUpdatesCache(t *testing.T) {
+	const bucket = "images-nocache"
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
+	defer cancel()
+	defer func() { _ = os.RemoveAll(filepath.Join(testStorePath, bucket)) }()
+
+	st := NewStorage(
+		WithDatabase(&memDB{m: map[string]*models.Object{}}),
+		WithDriver(fsdriver),
+		WithProcessingStatus(&memory.KVMemory{}),
+	)
+
+	obj, err := st.UploadFile(ctx, bucket, filepath.Join(testStorePath, "bucket/file/prim.jpg"))
+	if !assert.NoError(t, err, "upload") {
+		return
+	}
+	id := obj.ID().String()
+
+	cached, err := st.Object(ctx, id)
+	if !assert.NoError(t, err, "Object after upload") {
+		return
+	}
+	assert.Nil(t, cached.Meta().ItemByName("w320.jpg"))
+	assert.Equal(t, "", cached.Meta().ManifestVersion)
+
+	diskMeta, err := st.ReadMeta(ctx, obj.ID())
+	if !assert.NoError(t, err, "ReadMeta") {
+		return
+	}
+	derived := &models.ItemMeta{}
+	derived.UpdateName("w320.jpg")
+	derived.Width = 320
+	diskMeta.SetItem(derived)
+	diskMeta.ManifestVersion = "1"
+	if !assert.NoError(t, fsdriver.PersistMeta(ctx, obj.ID(), diskMeta), "PersistMeta bypass cache") {
+		return
+	}
+
+	stale, err := st.Object(ctx, id)
+	if !assert.NoError(t, err, "Object stale cache") {
+		return
+	}
+	assert.Nil(t, stale.Meta().ItemByName("w320.jpg"), "cache should still miss derived item")
+	assert.Equal(t, "", stale.Meta().ManifestVersion)
+
+	fresh, err := st.ObjectReload(ctx, id)
+	if !assert.NoError(t, err, "ObjectReload") {
+		return
+	}
+	if item := fresh.Meta().ItemByName("w320.jpg"); assert.NotNil(t, item) {
+		assert.Equal(t, 320, item.Width)
+	}
+	assert.Equal(t, "1", fresh.Meta().ManifestVersion)
+
+	again, err := st.Object(ctx, id)
+	if !assert.NoError(t, err, "Object after reload") {
+		return
+	}
+	assert.NotNil(t, again.Meta().ItemByName("w320.jpg"), "cache must be refreshed by ObjectReload")
+	assert.Equal(t, "1", again.Meta().ManifestVersion)
+
+	assert.NoError(t, st.Delete(ctx, obj))
+}
+
+type memDB struct {
+	mu sync.Mutex
+	m  map[string]*models.Object
+}
+
+func (d *memDB) Get(id string) (*models.Object, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if o, ok := d.m[id]; ok {
+		return o, nil
+	}
+	return nil, os.ErrNotExist
+}
+
+func (d *memDB) Set(obj *models.Object) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.m[obj.ID] = obj
+	return nil
+}
+
+func (d *memDB) Delete(id string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	delete(d.m, id)
+	return nil
 }
 
 func pipelineSteps(source, target string, actions ...*models.Action) []*models.WorkflowStep {

@@ -49,6 +49,7 @@ message ObjectID {
   // The list of possible required files. Will be taked only first existing file
   repeated string       name      = 2;
   ObjectRequestOptions  options   = 3; // optional; nil = default (no extras)
+  bool                  nocache   = 4; // skip metadb, reload meta.json and refresh cache
 }
 
 message ObjectIDNames {

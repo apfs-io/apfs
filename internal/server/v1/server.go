@@ -123,8 +123,16 @@ func NewServer(ctx context.Context, connect, storageConnect, stateConnect string
 func (s *server) Head(ctx context.Context, obj *protocol.ObjectID) (*protocol.SimpleObjectResponse, error) {
 	ctxlogger.Get(ctx).Info("Object HEAD", zap.String("object_id", obj.GetId()))
 
-	// Get object descriptor
-	sObject, err := s.store.Object(ctx, obj.GetId())
+	// Get object descriptor. nocache reloads meta.json and refreshes metadb.
+	var (
+		sObject storio.Object
+		err     error
+	)
+	if obj.GetNocache() {
+		sObject, err = s.store.ObjectReload(ctx, obj.GetId())
+	} else {
+		sObject, err = s.store.Object(ctx, obj.GetId())
+	}
 	if err != nil && !storerrors.IsNotFound(err) {
 		return &protocol.SimpleObjectResponse{
 			Status:  protocol.ResponseStatusCode_FAILED,

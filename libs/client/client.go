@@ -85,6 +85,7 @@ func (c *client) Head(ctx context.Context, id *ObjectID, opts ...RequestOption) 
 
 	protoID := toProtoObjectID(id, ro.group)
 	protoID.Options = toProtoRequestOptions(&ro)
+	protoID.Nocache = ro.noCache
 
 	objResp, err := c.sclient.Head(prepareContext(ctx), protoID, ro.grpcOpts...)
 	return prepareSimpleObjectResponse(objResp, err, ro.includeStateFull)

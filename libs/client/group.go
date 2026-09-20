@@ -24,6 +24,7 @@ func (c *client) Group(name string) *Group {
 }
 
 // Head returns the meta information for the named object.
+// Pass WithNoCache() to reload meta.json and refresh the metadb cache.
 func (g *Group) Head(ctx context.Context, id string, opts ...RequestOption) (*Object, error) {
 	all := append(opts, WithGroupOpt(g.name))
 	return g.client.Head(ctx, &ObjectID{Id: id}, all...)

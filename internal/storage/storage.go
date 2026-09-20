@@ -222,6 +222,29 @@ func (s *Storage) Object(ctx context.Context, obj any) (storio.Object, error) {
 	return nObject, nil
 }
 
+// ObjectReload loads the object from the storage driver (meta.json), writes
+// the fresh snapshot into the metadb cache, and returns it. A failed cache
+// write is returned as an error so the next Object() call cannot keep serving
+// a stale record after a successful disk read.
+func (s *Storage) ObjectReload(ctx context.Context, id string) (storio.Object, error) {
+	if id == "" {
+		return nil, errors.Wrap(ErrStorageInvalidParameterType, "empty object ID")
+	}
+	nObject, err := s.driver.Open(ctx, storio.ObjectIDType(id))
+	if err != nil {
+		return nil, err
+	}
+	objectMode, err := object.ToModel(nObject)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.db.Set(objectMode); err != nil {
+		return nil, err
+	}
+	nObject.StatusUpdate(s.getProcessingStatus(ctx, nObject))
+	return nObject, nil
+}
+
 // OpenObject to read data
 func (s *Storage) OpenObject(ctx context.Context, obj any, name string) (storio.Object, io.ReadCloser, error) {
 	nObject, err := s.Object(ctx, obj)

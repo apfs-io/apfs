@@ -21,6 +21,7 @@ type ObjectManagerClient interface {
 
 	// Head returns the object descriptor. Pass WithWorkflow(), WithState(), or
 	// WithFullState() to include additional data in the single response.
+	// WithNoCache() reloads meta.json from storage and refreshes the metadb cache.
 	Head(ctx context.Context, id *ObjectID, opts ...RequestOption) (*Object, error)
 
 	// Get returns the object descriptor and a content stream.
