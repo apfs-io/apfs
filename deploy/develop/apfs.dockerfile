@@ -19,11 +19,12 @@ RUN apt-get update \
  && update-ca-certificates
 
 ENV STORAGE_PROCEDURE_DIR=/procedures
+ENV STORAGE_METADB_CONNECT=badger:///opt/data/apfs.bdb
 ENV STORAGE_CONVERTERS=image,procedure,shell,exec,docker
 ENV WORKER_TAGS=image,gpu,cpu,docker,video,any
 ENV WORKFLOWS_DIR=/workflows
 
-RUN mkdir -p /tmp/data/
+RUN mkdir -p /tmp/data/ /opt/data
 ADD deploy/procedures /procedures
 ADD deploy/workflow-examples /workflows
 ADD .build/${TARGETPLATFORM}/apfs /apfs

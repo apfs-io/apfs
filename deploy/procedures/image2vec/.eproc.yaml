@@ -1,8 +1,8 @@
 # image2vec — compute a ResNet-18 embedding vector for an image.
 #
-# Pairs with: deploy/procedures/image2vec.py
-# Requires:   torch, img2vec_pytorch, Pillow (see requirements.txt)
-# Init:       run image2vec-init.py once before starting the worker
+# Pairs with: deploy/procedures/image2vec/image2vec.py
+# Requires:   torch, img2vec_pytorch, Pillow (see deploy/procedures/requirements.txt)
+# Init:       run image2vec/image2vec-init.py once before starting the worker
 #
 # Usage in a workflow step:
 #

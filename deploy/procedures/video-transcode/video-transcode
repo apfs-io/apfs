@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+height="$1"
+crf="$2"
+input="$3"
+out="$4"
+
+ffmpeg -hide_banner -loglevel error -i "$input" \
+  -map 0:v:0 -map 0:a:0? \
+  -vf "scale=-2:${height}" \
+  -c:v libx264 -preset fast -crf "$crf" -pix_fmt yuv420p \
+  -c:a aac -b:a 128k \
+  -movflags +faststart \
+  -f mp4 \
+  -y "$out"

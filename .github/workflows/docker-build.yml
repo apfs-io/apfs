@@ -136,3 +136,12 @@ jobs:
           platforms: ${{ env.DOCKER_BUILD_PLATFORMS_IMAGEMAGICK }}
           push: true
           tags: "${{ env.IMAGE_NAME }}:ubuntu-imagemagick-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:ubuntu-imagemagick-latest"
+
+      - name: Build and push ubuntu-media Docker image of the service
+        uses: docker/build-push-action@v7
+        with:
+          context: ./
+          file: deploy/production/ubuntu-media.dockerfile
+          platforms: ${{ env.DOCKER_BUILD_PLATFORMS_REDUCE }}
+          push: true
+          tags: "${{ env.IMAGE_NAME }}:ubuntu-media-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:ubuntu-media-latest"

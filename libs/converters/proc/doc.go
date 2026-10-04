@@ -17,9 +17,9 @@
 // # Procedure Store
 //
 // Named procedures live in the deploy/procedures/ directory. Each procedure
-// consists of a shell/Python script and a companion .eproc.yaml manifest that
-// declares its parameters and output type. The [Store] is loaded once at
-// startup via [NewStore] and passed to [New].
+// is its own subdirectory: a .eproc.yaml manifest next to the executable
+// (shell or Python script). The manifest declares parameters and output type.
+// The [Store] is loaded once at startup via [NewStore] and passed to [New].
 //
 // # Step Syntax
 //

@@ -1,6 +1,6 @@
 # image-strip-meta — strip EXIF/IPTC metadata from an image using ImageMagick.
 #
-# Pairs with: deploy/procedures/image-strip-meta (bash script)
+# Pairs with: deploy/procedures/image-strip-meta/image-strip-meta (bash script)
 #
 # Usage in a workflow step:
 #

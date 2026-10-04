@@ -1,12 +1,12 @@
 # Video Transcoding Workflow
 #
-# Demonstrates Docker steps for heavy FFmpeg workloads.
-# Requires a worker with the "video" tag and access to a Docker daemon.
+# Uses local ffmpeg procedures (video-transcode, video-thumbnail).
+# Requires a worker with the "video" tag (ubuntu-media image).
 #
 # Produces:
 #   main.mp4  — H.264 @ 1080p
 #   small.mp4 — H.264 @ 480p
-#   thumb.jpg — first-frame thumbnail
+#   thumb.jpg — frame at 00:00:01
 #
 # Bucket/group: videos
 
@@ -33,49 +33,30 @@ jobs:
     runs-on: video
     steps:
       - name: ffmpeg-hd
-        uses: docker
-        docker:
-          image: jrottenberg/ffmpeg:4.4-alpine
-          remove_after_done: true
+        uses: procedure
         with:
+          name: video-transcode
+          height: "1080"
+          crf: "22"
           target: main.mp4
-        run: |
-          ffmpeg -i "{{inputFile}}" \
-            -vf "scale=-2:1080" \
-            -c:v libx264 -preset fast -crf 22 \
-            -c:a aac -b:a 128k \
-            -movflags +faststart \
-            -y "{{outputFile}}"
 
   sd:
     runs-on: video
     steps:
       - name: ffmpeg-sd
-        uses: docker
-        docker:
-          image: jrottenberg/ffmpeg:4.4-alpine
-          remove_after_done: true
+        uses: procedure
         with:
+          name: video-transcode
+          height: "480"
+          crf: "26"
           target: small.mp4
-        run: |
-          ffmpeg -i "{{inputFile}}" \
-            -vf "scale=-2:480" \
-            -c:v libx264 -preset fast -crf 26 \
-            -c:a aac -b:a 96k \
-            -movflags +faststart \
-            -y "{{outputFile}}"
 
   thumbnail:
     runs-on: video
     steps:
       - name: ffmpeg-thumb
-        uses: docker
-        docker:
-          image: jrottenberg/ffmpeg:4.4-alpine
-          remove_after_done: true
+        uses: procedure
         with:
+          name: video-thumbnail
+          time: "00:00:01"
           target: thumb.jpg
-        run: |
-          ffmpeg -i "{{inputFile}}" \
-            -vframes 1 -q:v 2 \
-            -y "{{outputFile}}"

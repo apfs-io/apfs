@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+time="$1"
+input="$2"
+out="$3"
+
+ffmpeg -hide_banner -loglevel error -ss "$time" -i "$input" \
+  -vframes 1 -q:v 2 \
+  -f image2 \
+  -y "$out"

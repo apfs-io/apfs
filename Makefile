@@ -93,6 +93,11 @@ build-docker-dev-im: build
 	echo "Build develop docker image with imagemagick"
 	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker build -t ${IMAGE_NAME}:ubuntu-imagemagick-latest -f deploy/production/ubuntu-imagemagick.dockerfile .
 
+.PHONY: build-docker-dev-media
+build-docker-dev-media: build
+	echo "Build develop docker image with ffmpeg and imagemagick"
+	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker build -t ${IMAGE_NAME}:ubuntu-media-latest -f deploy/production/ubuntu-media.dockerfile .
+
 .PHONY: build-docker-testapp
 build-docker-testapp: build-testapp
 	echo "Build test app docker image"
@@ -107,6 +112,9 @@ buildx-docker-production: ## Build production docker image
 	docker buildx build \
 		--platform ${DOCKER_IMAGEMAGICK_PLATFORMS} \
 		-t ${IMAGE_NAME}:ubuntu-imagemagick -f deploy/production/ubuntu-imagemagick.dockerfile .
+	docker buildx build \
+		--platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
+		-t ${IMAGE_NAME}:ubuntu-media -f deploy/production/ubuntu-media.dockerfile .
 	docker buildx build \
 		--platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
 		-t ${IMAGE_NAME}:ubuntu -f deploy/production/ubuntu.dockerfile .

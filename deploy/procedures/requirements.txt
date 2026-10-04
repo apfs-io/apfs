@@ -1,4 +1,4 @@
-# Python deps for deploy/procedures ML scripts (image2vec.py, facemeta.py).
+# Python deps for deploy/procedures ML scripts (image2vec/image2vec.py, facemeta/facemeta.py).
 # Keep versions installable on current Ubuntu/Python (Plucky / 3.13+).
 
 opencv-python-headless>=4.8,<5

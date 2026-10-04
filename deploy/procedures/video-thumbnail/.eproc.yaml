@@ -1,0 +1,32 @@
+# video-thumbnail — extract a single JPEG frame from a video.
+#
+# Pairs with: deploy/procedures/video-thumbnail/video-thumbnail (bash script)
+# Requires:   ffmpeg (ubuntu-media image)
+#
+# Usage in a workflow step:
+#
+#   steps:
+#     - name: Thumbnail
+#       uses: procedure
+#       with:
+#         name: video-thumbnail
+#         time: "00:00:01"
+#         target: thumb.jpg
+#
+# {{time}} is an ffmpeg -ss timestamp. The frame is written to {{out}}.
+
+driver: exec
+
+args:
+  - "{{time}}"
+  - "{{inputFile}}"
+  - "{{out}}"
+
+params:
+  - name: time
+    type: string
+  - name: inputFile
+    type: file
+
+output:
+  type: file

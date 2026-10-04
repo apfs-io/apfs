@@ -18,7 +18,7 @@ services:
       - apfs.env
     volumes:
       - ./data/storage:/data/storage
-      - ./data/meta:/data/meta
+      - ./data/meta:/opt/data
       - ./workflows:/workflows:ro
       - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:

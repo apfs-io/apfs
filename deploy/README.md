@@ -14,18 +14,20 @@ deploy/
 │   └── testapp.dockerfile
 ├── init/
 │   └── upload_workflow.py   # HTTP upload helper for a single group
-├── procedures/              # plugeproc .eproc manifests + scripts
-│   ├── *.eproc.yaml
-│   ├── image-resize-w
-│   ├── image-strip-meta
-│   ├── image2vec.py
-│   ├── facemeta.py
+├── procedures/              # one directory per plugeproc procedure
+│   ├── image-resize-w/      # .eproc.yaml + bash script
+│   ├── image-strip-meta/
+│   ├── facemeta/            # .eproc.yaml + facemeta.py
+│   ├── image2vec/           # .eproc.yaml + image2vec.py + init
+│   ├── video-transcode/     # ffmpeg scale + H.264
+│   ├── video-thumbnail/     # ffmpeg single frame
 │   └── requirements.txt     # Python deps for ML procedures
 ├── production/              # Production Docker images
 │   ├── scratch.dockerfile
 │   ├── debian.dockerfile
 │   ├── ubuntu.dockerfile
-│   └── ubuntu-imagemagick.dockerfile
+│   ├── ubuntu-imagemagick.dockerfile
+│   └── ubuntu-media.dockerfile
 ├── standalone/              # Ubuntu systemd + Docker Compose (APFS + Redis)
 │   ├── install.sh
 │   ├── docker-compose.yaml
@@ -95,7 +97,7 @@ Each file in `workflows/{group}/manifest.yaml` is a **v2 workflow**
 | `images`   | procedure + shell + docker resize pipeline   |
 | `analysis` | ML embedding + face detection + dimensions   |
 | `avatars`  | Avatar + micro thumbnail                     |
-| `videos`   | FFmpeg Docker transcode + thumbnail          |
+| `videos`   | Local ffmpeg transcode + thumbnail (`video` tag) |
 
 See [docs/WORKFLOW.md](../docs/WORKFLOW.md) for the full schema.
 
@@ -105,7 +107,7 @@ Workflow steps use the `proc` runner ([libs/converters/proc](../libs/converters/
 
 | `uses:`     | Description                                              |
 | ----------- | -------------------------------------------------------- |
-| `procedure` | Named `.eproc.yaml` from `deploy/procedures/`            |
+| `procedure` | Named procedure directory under `deploy/procedures/` |
 | `shell`     | Inline bash via `run:`                                   |
 | `exec`      | Alias for `procedure`                                    |
 | `docker`    | Command in container (`docker:` block + optional `run:`) |
@@ -120,20 +122,24 @@ Jobs declare affinity via `runs-on:`. The worker handles a job when one of its
 WORKER_TAGS=image,gpu,cpu,docker,video,any
 ```
 
-| Tag      | Typical worker setup                          |
-| -------- | --------------------------------------------- |
-| `image`  | ImageMagick installed (resize, strip EXIF)    |
-| `gpu`    | Python + torch (image2vec)                    |
-| `cpu`    | Python + OpenCV (facemeta)                    |
-| `docker` | Docker daemon available                       |
-| `video`  | Docker + FFmpeg image pulled on demand        |
-| `any`    | Matches all jobs with `runs-on: any`          |
+| Tag          | Typical worker setup                                      |
+| ------------ | --------------------------------------------------------- |
+| `image`      | ImageMagick installed (resize, strip EXIF)                |
+| `imagemagic` | Same ImageMagick worker (`ubuntu-media`)                  |
+| `gpu`        | Python + torch (image2vec)                                |
+| `cpu`        | Python + OpenCV (facemeta)                                |
+| `docker`     | Docker daemon available                                   |
+| `video`      | Local ffmpeg (`ubuntu-media`)                             |
+| `ffmpeg`     | Same local-ffmpeg worker (`ubuntu-media`)                 |
+| `any`        | Matches all jobs with `runs-on: any`                      |
 
 ## Procedures
 
 Procedures are loaded from `STORAGE_PROCEDURE_DIR` (default `/procedures`).
-Each procedure has a companion `.eproc.yaml` manifest consumed by
-[plugeproc](https://github.com/demdxx/plugeproc).
+Each procedure is a directory: `.eproc.yaml` next to its executable. The loader
+([plugeproc](https://github.com/demdxx/plugeproc)) walks the tree, takes the
+directory name as the procedure name, and runs the executable beside the
+manifest.
 
 Example workflow step:
 
@@ -197,6 +203,13 @@ volumes:
 | `debian.dockerfile`      | debian:stable-slim| Binary + procedures + workflows   |
 | `ubuntu.dockerfile`      | ubuntu:plucky     | Binary + procedures + workflows   |
 | `ubuntu-imagemagick`     | ubuntu:plucky     | + ImageMagick, Python ML deps     |
+| `ubuntu-media`           | ubuntu:plucky     | + ffmpeg, ImageMagick; tags `video,image,ffmpeg,imagemagic` |
+
+Local media image (`ghcr.io/apfs-io/apfs:ubuntu-media-latest`):
+
+```bash
+make build-docker-dev-media
+```
 
 Build all production variants:
 
@@ -205,7 +218,8 @@ make buildx-docker-production
 ```
 
 Pick worker tags per deployment — e.g. a GPU node runs with
-`WORKER_TAGS=gpu,any`, an image node with `WORKER_TAGS=image,any`.
+`WORKER_TAGS=gpu,any`, an image node with `WORKER_TAGS=image,any`, a media
+node with `WORKER_TAGS=video,image,ffmpeg,imagemagic`.
 
 ## Uploading a workflow manually
 

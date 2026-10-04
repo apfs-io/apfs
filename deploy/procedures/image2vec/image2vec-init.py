@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Execute all init file before run
-# $ find /procedures/*-init* | xargs -I '{}' bash -c '{}'
+# $ find /procedures -name '*-init*' -type f | xargs -I '{}' bash -c '{}'
 
 from img2vec_pytorch import Img2Vec
 import torch

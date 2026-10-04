@@ -101,3 +101,70 @@ func TestShouldDeleteExcessOnUpdate(t *testing.T) {
 	assert.True(t, shouldDeleteExcessOnUpdate(wf, stale),
 		"manifest revision bump still strips leftovers")
 }
+
+func TestSnapshotDerivedItemsKeepsNames(t *testing.T) {
+	meta := &models.Meta{
+		Items: []*models.ItemMeta{
+			{Name: "1080p", NameExt: "mp4"},
+			{Name: "preview", NameExt: "jpg"},
+		},
+		Attributes: map[string]any{"key": "val"},
+	}
+	items := snapshotDerivedItems(meta)
+	assert.Equal(t, []string{"1080p", "preview"}, []string{items[0].Name, items[1].Name})
+	assert.Empty(t, meta.Items)
+	assert.Nil(t, meta.Attributes)
+	assert.Nil(t, snapshotDerivedItems(nil))
+}
+
+func TestNewRefreshProcessingStateResetsJobs(t *testing.T) {
+	wf := &models.Workflow{
+		Version: "3",
+		Jobs: map[string]*models.WorkflowJob{
+			"mp4-1080p": {},
+			"preview":   {},
+		},
+	}
+	state := newRefreshProcessingState("video/obj", wf)
+	assert.Equal(t, "video/obj", state.ObjectID)
+	assert.Equal(t, "3", state.ManifestVersion)
+	assert.Equal(t, models.ProcessingStatusPending, state.Status)
+	assert.Equal(t, models.JobStatusPending, state.Jobs["mp4-1080p"].Status)
+	assert.Equal(t, models.JobStatusPending, state.Jobs["preview"].Status)
+
+	empty := newRefreshProcessingState("video/obj", nil)
+	assert.Equal(t, models.ProcessingStatusPending, empty.Status)
+	assert.Empty(t, empty.ManifestVersion)
+	assert.Empty(t, empty.Jobs)
+}
+
+func TestDerivedItemsForEventRefreshVsUpdate(t *testing.T) {
+	wf := &models.Workflow{
+		Version: "3",
+		Jobs: map[string]*models.WorkflowJob{
+			"mp4": {
+				Steps: []*models.WorkflowStep{
+					{With: map[string]any{"target": "1080p.mp4"}},
+				},
+			},
+		},
+	}
+	prior := &models.ProcessingState{
+		Status:          models.ProcessingStatusPartial,
+		ManifestVersion: "3",
+	}
+	meta := &models.Meta{
+		Items: []*models.ItemMeta{
+			{Name: "1080p", NameExt: "mp4"},
+		},
+	}
+
+	updateItems := derivedItemsForEvent(models.UpdateEventType, meta, wf, prior)
+	assert.Empty(t, updateItems, "successful terminal Update must not strip workflow targets")
+	assert.Len(t, meta.Items, 1, "Update must leave meta items in place")
+
+	refreshItems := derivedItemsForEvent(models.RefreshEventType, meta, wf, prior)
+	assert.Len(t, refreshItems, 1)
+	assert.Equal(t, "1080p.mp4", refreshItems[0].Fullname())
+	assert.Empty(t, meta.Items, "Refresh clears derived items after the snapshot")
+}

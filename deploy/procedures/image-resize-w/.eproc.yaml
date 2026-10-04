@@ -1,6 +1,6 @@
 # image-resize-w — resize an image to a maximum width using ImageMagick.
 #
-# Pairs with: deploy/procedures/image-resize-w (bash script)
+# Pairs with: deploy/procedures/image-resize-w/image-resize-w (bash script)
 #
 # Usage in a workflow step:
 #

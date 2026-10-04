@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -572,10 +573,7 @@ func (s *server) Receive(message nc.Message) error {
 	}
 
 	switch event.Type {
-	case models.RefreshEventType:
-		cObject.Meta().CleanSubItems()
-		fallthrough
-	case models.UpdateEventType:
+	case models.RefreshEventType, models.UpdateEventType:
 		s.updateEventAction(ctx, &event, cObject, fields)
 	case models.ProcessedEventType:
 		ctxlogger.Get(ctx).Info("processed object", fields...)
@@ -609,10 +607,20 @@ func (s *server) updateEventAction(ctx context.Context, event *models.Event, cOb
 
 	wf := s.store.ObjectWorkflow(ctx, cObject)
 	priorState, _ := s.store.GetProcessingState(ctx, cObject.ID().String())
+	items = derivedItemsForEvent(event.Type, cObject.Meta(), wf, priorState)
 	if event.Type == models.RefreshEventType {
-		items = cObject.Meta().Items
-	} else if shouldDeleteExcessOnUpdate(wf, priorState) {
-		items = cObject.Meta().ExcessItems(wf)
+		// Same manifest version does not reset jobs inside ProcessObject.
+		// Refresh is the explicit reprocess path, so replace the terminal state first.
+		if meta := cObject.Meta(); meta != nil {
+			if werr := s.store.WriteMeta(ctx, cObject.ID(), meta); werr != nil {
+				ctxlogger.Get(ctx).Error("refresh clear meta", append(fields, zap.Error(werr))...)
+			}
+		}
+		reset := newRefreshProcessingState(cObject.ID().String(), wf)
+		if serr := s.store.SetProcessingState(ctx, cObject.ID().String(), reset); serr != nil {
+			ctxlogger.Get(ctx).Error("refresh reset state", append(fields, zap.Error(serr))...)
+			return
+		}
 	}
 	// Remove redundant extra objects
 	_ = s.removeObjectItems(ctx, cObject, items, fields...)
@@ -741,6 +749,43 @@ func shouldEnqueueUpdateFromHead(consistent bool, state *models.ProcessingState)
 		return false
 	}
 	return true
+}
+
+// derivedItemsForEvent returns artifacts to delete before processing.
+// Refresh copies every derived item and then clears them on meta.
+// Update deletes only leftovers, and only when shouldDeleteExcessOnUpdate says so.
+func derivedItemsForEvent(eventType models.EventType, meta *models.Meta, wf *models.Workflow, prior *models.ProcessingState) []*models.ItemMeta {
+	if eventType == models.RefreshEventType {
+		return snapshotDerivedItems(meta)
+	}
+	if shouldDeleteExcessOnUpdate(wf, prior) {
+		if meta == nil {
+			return nil
+		}
+		return meta.ExcessItems(wf)
+	}
+	return nil
+}
+
+// snapshotDerivedItems copies derived artifacts, then drops them from meta
+// so a later refresh can delete the stored files by the copied names.
+func snapshotDerivedItems(meta *models.Meta) []*models.ItemMeta {
+	if meta == nil {
+		return nil
+	}
+	items := slices.Clone(meta.Items)
+	meta.CleanSubItems()
+	return items
+}
+
+// newRefreshProcessingState is a pending state for the current workflow.
+// ProcessObject only rebuilds jobs when the manifest version changes;
+// Refresh must reset them even when the version is unchanged.
+func newRefreshProcessingState(objectID string, wf *models.Workflow) *models.ProcessingState {
+	if wf == nil {
+		return models.NewProcessingState(objectID, "", nil)
+	}
+	return models.NewProcessingState(objectID, wf.Version, wf.JobIDs())
 }
 
 // shouldDeleteExcessOnUpdate reports whether Update should strip artifacts

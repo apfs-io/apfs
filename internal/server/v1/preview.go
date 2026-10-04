@@ -3,12 +3,18 @@ package v1
 import (
 	"context"
 	"io"
+	"mime"
+	"path/filepath"
+	"strings"
 
 	"github.com/apfs-io/apfs/internal/preview"
 	protocol "github.com/apfs-io/apfs/internal/server/protocol/v1"
 	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/libs/storerrors"
+	"github.com/apfs-io/apfs/models"
 )
+
+const previewItemName = "preview"
 
 type objectPreview struct {
 	ContentType string
@@ -34,8 +40,9 @@ func (s *server) resolvePreview(ctx context.Context, objectID string) (*objectPr
 }
 
 func (s *server) previewForObject(ctx context.Context, obj storio.Object) (*objectPreview, error) {
+	meta := obj.MetaOrNew()
 	ct := ""
-	if meta := obj.MetaOrNew(); meta != nil {
+	if meta != nil {
 		ct = meta.Main.ContentType
 	}
 	if preview.IsImage(ct) {
@@ -45,8 +52,63 @@ func (s *server) previewForObject(ctx context.Context, obj storio.Object) (*obje
 		}
 		return &objectPreview{ContentType: ct, Reader: data}, nil
 	}
+	if item := previewImageItem(meta); item != nil {
+		_, data, err := s.store.OpenObject(ctx, obj, previewItemName)
+		if err == nil {
+			return &objectPreview{ContentType: previewContentType(item), Reader: data}, nil
+		}
+	}
 	iconType, body := preview.IconForContentType(ct)
 	return &objectPreview{ContentType: iconType, Body: body}, nil
+}
+
+// previewImageItem returns the derived item named preview when it is an image.
+func previewImageItem(meta *models.Meta) *models.ItemMeta {
+	if meta == nil {
+		return nil
+	}
+	item := meta.ItemByName(previewItemName)
+	if !isPreviewImage(item) {
+		return nil
+	}
+	return item
+}
+
+func isPreviewImage(item *models.ItemMeta) bool {
+	if item == nil {
+		return false
+	}
+	if preview.IsImage(item.ContentType) || item.Type.IsImage() {
+		return true
+	}
+	return preview.IsImage(imageMIME(item))
+}
+
+func previewContentType(item *models.ItemMeta) string {
+	if item != nil && preview.IsImage(item.ContentType) {
+		return item.ContentType
+	}
+	if ct := imageMIME(item); preview.IsImage(ct) {
+		return ct
+	}
+	if item == nil {
+		return ""
+	}
+	return item.ContentType
+}
+
+func imageMIME(item *models.ItemMeta) string {
+	if item == nil {
+		return ""
+	}
+	ext := strings.TrimPrefix(item.NameExt, ".")
+	if ext == "" {
+		ext = strings.TrimPrefix(filepath.Ext(item.Fullname()), ".")
+	}
+	if ext == "" {
+		return ""
+	}
+	return mime.TypeByExtension("." + ext)
 }
 
 // Preview returns display bytes and mime type for the object's main file.

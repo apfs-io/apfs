@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"sync"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -99,8 +98,9 @@ func (s *Storage) ReadMeta(ctx context.Context, id storio.ObjectID) (*models.Met
 }
 
 // WriteMeta persists updated Meta for an object (used by the workflow executor).
-// The record is written to disk (meta.json) and to the object DB cache so Head
-// and ReadMeta observe the same Items and ManifestVersion.
+// The record is written to meta.json. The metadb cache entry is deleted so the
+// next Object() reloads that file. An empty Items list does not replace items
+// already stored by the driver.
 func (s *Storage) WriteMeta(ctx context.Context, id storio.ObjectID, meta *models.Meta) error {
 	if meta == nil {
 		return nil
@@ -109,11 +109,14 @@ func (s *Storage) WriteMeta(ctx context.Context, id storio.ObjectID, meta *model
 	if err != nil {
 		return err
 	}
-	*obj.MetaOrNew() = *meta
-	if err := s.driver.PersistMeta(ctx, id, meta); err != nil {
+	toSave := *meta
+	if len(toSave.Items) == 0 && len(obj.MetaOrNew().Items) > 0 {
+		toSave.Items = obj.Meta().Items
+	}
+	if err := s.driver.PersistMeta(ctx, id, &toSave); err != nil {
 		return err
 	}
-	return s.UpdateObjectInfo(ctx, obj)
+	return s.db.Delete(id.ID().String())
 }
 
 // UploadFile into storage
@@ -307,18 +310,21 @@ func (s *Storage) ObjectWorkflow(ctx context.Context, obj storio.Object) *models
 	return obj.Workflow()
 }
 
-// MarkProcessingComplete sets the object status to OK in both the processing-status
-// KV (read by every Head call) and the database. Call this once the event pipeline
-// determines that all tasks have finished (isComplete=true).
+// MarkProcessingComplete sets the object status to OK in the processing-status KV
+// (read by every Head call) and drops the metadb cache. Call this once the event
+// pipeline determines that all tasks have finished. The next Object() reloads
+// meta.json instead of writing this in-memory object back into the cache.
 func (s *Storage) MarkProcessingComplete(ctx context.Context, obj storio.Object) error {
-	object.TouchUpdatedAt(obj, time.Now())
 	s.mx.Lock()
 	if err := setProcessingStatus(ctx, s.processingStatus, obj, models.StatusOK); err != nil {
 		s.mx.Unlock()
 		return err
 	}
 	s.mx.Unlock()
-	return s.UpdateObjectInfo(ctx, obj)
+	if obj == nil {
+		return nil
+	}
+	return s.db.Delete(obj.ID().String())
 }
 
 func (s *Storage) getProcessingStatus(ctx context.Context, cObject storio.Object) models.ObjectStatus {

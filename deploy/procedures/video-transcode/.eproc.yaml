@@ -1,0 +1,37 @@
+# video-transcode — scale a video to a maximum height and encode H.264/AAC.
+#
+# Pairs with: deploy/procedures/video-transcode/video-transcode (bash script)
+# Requires:   ffmpeg (ubuntu-media image)
+#
+# Usage in a workflow step:
+#
+#   steps:
+#     - name: Transcode 1080p
+#       uses: procedure
+#       with:
+#         name: video-transcode
+#         height: "1080"
+#         crf: "22"
+#         target: main.mp4
+#
+# The input is written to a temp file ({{inputFile}}). ffmpeg writes the
+# result to the temp output file ({{out}}).
+
+driver: exec
+
+args:
+  - "{{height}}"
+  - "{{crf}}"
+  - "{{inputFile}}"
+  - "{{out}}"
+
+params:
+  - name: height
+    type: string
+  - name: crf
+    type: string
+  - name: inputFile
+    type: file
+
+output:
+  type: file

@@ -1,7 +1,7 @@
 # facemeta — detect faces in an image using OpenCV Haar cascades.
 #
-# Pairs with: deploy/procedures/facemeta.py
-# Requires:   opencv-python, opencv-contrib-python (see requirements.txt)
+# Pairs with: deploy/procedures/facemeta/facemeta.py
+# Requires:   opencv-python, opencv-contrib-python (see deploy/procedures/requirements.txt)
 #
 # Usage in a workflow step:
 #

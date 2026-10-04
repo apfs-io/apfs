@@ -357,6 +357,119 @@ func TestStorageObjectReloadUpdatesCache(t *testing.T) {
 	assert.NoError(t, st.Delete(ctx, obj))
 }
 
+func TestWriteMetaEmptyItemsKeepsStoredAndDropsCache(t *testing.T) {
+	const bucket = "images-invalidate"
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
+	defer cancel()
+	defer func() { _ = os.RemoveAll(filepath.Join(testStorePath, bucket)) }()
+
+	db := &memDB{m: map[string]*models.Object{}}
+	st := NewStorage(
+		WithDatabase(db),
+		WithDriver(fsdriver),
+		WithProcessingStatus(&memory.KVMemory{}),
+	)
+
+	obj, err := st.UploadFile(ctx, bucket, filepath.Join(testStorePath, "bucket/file/prim.jpg"))
+	if !assert.NoError(t, err, "upload") {
+		return
+	}
+	id := obj.ID().String()
+
+	if _, err = st.Object(ctx, id); !assert.NoError(t, err, "prime cache") {
+		return
+	}
+
+	diskMeta, err := st.ReadMeta(ctx, obj.ID())
+	if !assert.NoError(t, err, "ReadMeta") {
+		return
+	}
+	derived := &models.ItemMeta{}
+	derived.UpdateName("preview.jpg")
+	derived.ContentType = "image/jpeg"
+	diskMeta.SetItem(derived)
+	if !assert.NoError(t, fsdriver.PersistMeta(ctx, obj.ID(), diskMeta), "PersistMeta") {
+		return
+	}
+
+	stale, err := st.Object(ctx, id)
+	if !assert.NoError(t, err, "stale Object") {
+		return
+	}
+	assert.Nil(t, stale.Meta().ItemByName("preview.jpg"))
+
+	cleared := *diskMeta
+	cleared.Items = nil
+	cleared.ManifestVersion = "3"
+	if !assert.NoError(t, st.WriteMeta(ctx, obj.ID(), &cleared), "WriteMeta") {
+		return
+	}
+	_, err = db.Get(id)
+	assert.Error(t, err, "cache key must be deleted")
+
+	fresh, err := st.Object(ctx, id)
+	if !assert.NoError(t, err, "Object after WriteMeta") {
+		return
+	}
+	assert.NotNil(t, fresh.Meta().ItemByName("preview.jpg"))
+	assert.Equal(t, "3", fresh.Meta().ManifestVersion)
+
+	assert.NoError(t, st.Delete(ctx, obj))
+}
+
+func TestMarkProcessingCompleteDropsStaleCache(t *testing.T) {
+	const bucket = "images-complete"
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*10)
+	defer cancel()
+	defer func() { _ = os.RemoveAll(filepath.Join(testStorePath, bucket)) }()
+
+	db := &memDB{m: map[string]*models.Object{}}
+	st := NewStorage(
+		WithDatabase(db),
+		WithDriver(fsdriver),
+		WithProcessingStatus(&memory.KVMemory{}),
+	)
+
+	obj, err := st.UploadFile(ctx, bucket, filepath.Join(testStorePath, "bucket/file/prim.jpg"))
+	if !assert.NoError(t, err, "upload") {
+		return
+	}
+	id := obj.ID().String()
+
+	stale, err := st.Object(ctx, id)
+	if !assert.NoError(t, err, "cached upload") {
+		return
+	}
+	assert.Nil(t, stale.Meta().ItemByName("preview.jpg"))
+
+	diskMeta, err := st.ReadMeta(ctx, obj.ID())
+	if !assert.NoError(t, err, "ReadMeta") {
+		return
+	}
+	derived := &models.ItemMeta{}
+	derived.UpdateName("preview.jpg")
+	derived.ContentType = "image/jpeg"
+	diskMeta.SetItem(derived)
+	if !assert.NoError(t, fsdriver.PersistMeta(ctx, obj.ID(), diskMeta), "PersistMeta") {
+		return
+	}
+
+	if !assert.NoError(t, st.MarkProcessingComplete(ctx, stale), "MarkProcessingComplete") {
+		return
+	}
+	_, err = db.Get(id)
+	assert.Error(t, err, "stale cache must not be written back")
+
+	fresh, err := st.Object(ctx, id)
+	if !assert.NoError(t, err, "Object after complete") {
+		return
+	}
+	assert.NotNil(t, fresh.Meta().ItemByName("preview.jpg"))
+	assert.Equal(t, models.StatusOK, fresh.Status())
+
+	assert.NoError(t, st.Delete(ctx, obj))
+}
+
 type memDB struct {
 	mu sync.Mutex
 	m  map[string]*models.Object

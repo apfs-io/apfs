@@ -11,7 +11,9 @@ import (
 	plugeproc "github.com/demdxx/plugeproc"
 	"github.com/demdxx/plugeproc/manifest"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 
+	"github.com/apfs-io/apfs/internal/context/ctxlogger"
 	"github.com/apfs-io/apfs/internal/workflow"
 	"github.com/apfs-io/apfs/models"
 )
@@ -97,7 +99,11 @@ func (r *StepRunner) Run(ctx context.Context, step *models.WorkflowStep, in work
 		return workflow.StepOutput{}, err
 	}
 
+	log := ctxlogger.Get(ctx)
+	fields := procCallFields(step, m, params)
+	log.Debug("procedure exec", fields...)
 	if err := p.Exec(ctx, execTarget, params...); err != nil {
+		log.Error("procedure exec", append(fields, zap.Error(err))...)
 		return workflow.StepOutput{}, errors.Wrapf(err, "exec step %q", step.Name)
 	}
 
@@ -237,6 +243,43 @@ func toPlugeprocDocker(d *models.WorkflowStepDocker) *manifest.DockerConf {
 		RemoveAfterDone: d.RemoveAfterDone,
 		ContainerName:   d.ContainerName,
 	}
+}
+
+// procCallFields describes a procedure invocation. File and reader values are
+// marked "<file>" so logs never include object bytes.
+func procCallFields(step *models.WorkflowStep, m *manifest.Manifest, params []any) []zap.Field {
+	return []zap.Field{
+		zap.String("step", step.Name),
+		zap.String("uses", step.Uses),
+		zap.String("procedure", procedureName(step)),
+		zap.String("driver", m.Driver),
+		zap.Strings("command", []string(m.Command)),
+		zap.Strings("args", m.Args),
+		zap.Any("params", logParams(m, params)),
+	}
+}
+
+func logParams(m *manifest.Manifest, params []any) map[string]string {
+	out := make(map[string]string, len(m.Params))
+	for i, pd := range m.Params {
+		if i >= len(params) {
+			break
+		}
+		out[pd.Name] = logParamValue(pd, params[i])
+	}
+	return out
+}
+
+func logParamValue(pd manifest.ParamDef, v any) string {
+	if pd.Stdin || pd.Type == "binary" || pd.Type == "file" || pd.IsTmpFile {
+		return "<file>"
+	}
+	switch v.(type) {
+	case io.Reader, []byte:
+		return "<file>"
+	}
+	s, _ := v.(string)
+	return s
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
