@@ -120,7 +120,18 @@ func (s *ServerHTTPWrapper) _getHTTPHandler(w http.ResponseWriter, r *http.Reque
 	if id == "" {
 		id = query.Get("id")
 	}
-	ctxlogger.Get(ctx).Info("Object GET", zap.String("object_id", id))
+	// If name is not provided, check ID could contain a name as last path segment with "." in the last segment
+	if name == "" {
+		parts := strings.Split(id, "/")
+		if len(parts) > 0 && strings.Contains(parts[len(parts)-1], ".") {
+			name = parts[len(parts)-1]
+			id = id[:len(id)-len(name)-1]
+		}
+	}
+	ctxlogger.Get(ctx).Info("Object GET",
+		zap.String("object_id", id),
+		zap.String("object_name", name),
+		zap.Bool("head_only", headOnly))
 
 	// Get object reference by ID
 	sObject, err := s.store.Object(ctx, id)
