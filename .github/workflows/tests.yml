@@ -14,14 +14,14 @@ on:
   workflow_dispatch:
 
 env:
-  GO_VERSION: "1.26"
+  GO_VERSION: "1.27"
 
 jobs:
   can_continue:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Get all changed project improtant files
         id: changed-pi-files
         uses: tj-actions/changed-files@v45
@@ -49,10 +49,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ~${{ env.GO_VERSION }}
 
@@ -74,12 +74,12 @@ jobs:
     steps:
       - name: Install Go
         if: success()
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run tests
         run: go test -v -covermode=count ./...
@@ -88,10 +88,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: go test -v -coverprofile=profile.cov ./...
       - name: Send coverage
         uses: shogo82148/actions-goveralls@v1
