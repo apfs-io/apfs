@@ -93,6 +93,16 @@ build-docker-dev-im: build
 	echo "Build develop docker image with imagemagick"
 	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker build -t ${IMAGE_NAME}:ubuntu-imagemagick-latest -f deploy/production/ubuntu-imagemagick.dockerfile .
 
+.PHONY: build-docker-dev-im-deps
+build-docker-dev-im-deps:
+	echo "Build develop docker image with imagemagick"
+	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker build -t ${IMAGE_NAME}:ubuntu-imagemagick-deps-latest -f deploy/production/ubuntu-imagemagick-deps.dockerfile .
+
+.PHONY: build-docker-dev-media-deps
+build-docker-dev-media-deps:
+	echo "Build develop docker image with ffmpeg and imagemagick"
+	DOCKER_BUILDKIT=${DOCKER_BUILDKIT} docker build -t ${IMAGE_NAME}:ubuntu-media-deps-latest -f deploy/production/ubuntu-media-deps.dockerfile .
+
 .PHONY: build-docker-dev-media
 build-docker-dev-media: build
 	echo "Build develop docker image with ffmpeg and imagemagick"

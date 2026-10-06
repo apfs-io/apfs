@@ -5,6 +5,11 @@ on:
     workflows: [ Tests ]
     types: [ completed ]
   workflow_dispatch:
+    inputs:
+      build_deps:
+        description: Build ubuntu imagemagick and media dependency images
+        type: boolean
+        default: false
 
 env:
   GO_VERSION: "1.27"
@@ -127,6 +132,26 @@ jobs:
           platforms: ${{ env.DOCKER_BUILD_PLATFORMS_REDUCE }}
           push: true
           tags: "${{ env.IMAGE_NAME }}:ubuntu-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:ubuntu-latest"
+
+      - name: Build and push ubuntu-imagemagick-deps Docker image
+        if: github.event_name == 'workflow_dispatch' && inputs.build_deps
+        uses: docker/build-push-action@v7
+        with:
+          context: ./
+          file: deploy/production/ubuntu-imagemagick-deps.dockerfile
+          platforms: ${{ env.DOCKER_BUILD_PLATFORMS_REDUCE }}
+          push: true
+          tags: "${{ env.IMAGE_NAME }}:ubuntu-imagemagick-deps-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:ubuntu-imagemagick-deps-latest"
+
+      - name: Build and push ubuntu-media-deps Docker image
+        if: github.event_name == 'workflow_dispatch' && inputs.build_deps
+        uses: docker/build-push-action@v7
+        with:
+          context: ./
+          file: deploy/production/ubuntu-media-deps.dockerfile
+          platforms: ${{ env.DOCKER_BUILD_PLATFORMS_REDUCE }}
+          push: true
+          tags: "${{ env.IMAGE_NAME }}:ubuntu-media-deps-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:ubuntu-media-deps-latest"
 
       - name: Build and push ubuntu-imagemagick Docker image of the service
         uses: docker/build-push-action@v7
