@@ -27,5 +27,3 @@ RUN set -eux; \
         ;; \
     esac; \
     rm -f /tmp/procedures-requirements.txt
-
-COPY .build/zoneinfo.zip /usr/local/go/lib/time/

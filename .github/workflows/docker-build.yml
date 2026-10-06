@@ -139,7 +139,7 @@ jobs:
         with:
           context: ./
           file: deploy/production/ubuntu-imagemagick-deps.dockerfile
-          platforms: ${{ env.DOCKER_BUILD_PLATFORMS_REDUCE }}
+          platforms: ${{ env.DOCKER_BUILD_PLATFORMS_IMAGEMAGICK }}
           push: true
           tags: "${{ env.IMAGE_NAME }}:ubuntu-imagemagick-deps-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:ubuntu-imagemagick-deps-latest"
 
@@ -149,7 +149,7 @@ jobs:
         with:
           context: ./
           file: deploy/production/ubuntu-media-deps.dockerfile
-          platforms: ${{ env.DOCKER_BUILD_PLATFORMS_REDUCE }}
+          platforms: ${{ env.DOCKER_BUILD_PLATFORMS_IMAGEMAGICK }}
           push: true
           tags: "${{ env.IMAGE_NAME }}:ubuntu-media-deps-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:ubuntu-media-deps-latest"
 
@@ -167,6 +167,6 @@ jobs:
         with:
           context: ./
           file: deploy/production/ubuntu-media.dockerfile
-          platforms: ${{ env.DOCKER_BUILD_PLATFORMS_REDUCE }}
+          platforms: ${{ env.DOCKER_BUILD_PLATFORMS_IMAGEMAGICK }}
           push: true
           tags: "${{ env.IMAGE_NAME }}:ubuntu-media-${{ env.DEPLOY_TAG_VALUE }},${{ env.IMAGE_NAME }}:ubuntu-media-latest"
