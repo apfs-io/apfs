@@ -11,6 +11,7 @@ import (
 
 	"github.com/apfs-io/apfs/internal/context/ctxlogger"
 	"github.com/apfs-io/apfs/internal/context/ctxstatusstream"
+	datalib "github.com/apfs-io/apfs/internal/storage/data"
 	storio "github.com/apfs-io/apfs/internal/storio"
 	"github.com/apfs-io/apfs/models"
 )
@@ -85,22 +86,34 @@ func (e *Executor) ExecuteJob(ctx context.Context, w *models.Workflow, objectID 
 		return nil
 	}
 
-	job, ok := w.Jobs[jobID]
-	if !ok || job == nil {
+	job := w.JobByID(jobID)
+	if job == nil {
 		return fmt.Errorf("executor: job %q not found in workflow", jobID)
 	}
 
 	// Collect upstream outputs for evaluator and template resolution
 	jobOutputs := collectOutputs(state)
 
+	// Load meta (if: conditions read main.* from it)
+	meta, err := e.storage.ReadMeta(ctx, id)
+	if err != nil {
+		return fmt.Errorf("executor: load meta: %w", err)
+	}
+	if meta == nil {
+		meta = &models.Meta{}
+	}
+
 	// Evaluate if: condition
-	skip, err := EvaluateIf(job.If, state)
+	skip, err := EvaluateIf(job.If, EvalContext{State: state, Meta: meta})
 	if err != nil {
 		log.Warn("if condition evaluation failed", zap.Error(err))
 		skip = false
 	}
 	if skip {
 		js.MarkSkipped("if condition evaluated to false")
+		// Record the skip so the job's target is not reported as missing.
+		meta.SetJobSkipped(jobID, true)
+		writeJobMeta(ctx, e.storage, id, w, meta, log)
 		state.UpdatedAt = time.Now()
 		state.ComputeProgress()
 		state.ComputeStatus()
@@ -119,13 +132,18 @@ func (e *Executor) ExecuteJob(ctx context.Context, w *models.Workflow, objectID 
 		log.Warn("write state before job start", zap.Error(err))
 	}
 
-	// Load meta
-	meta, err := e.storage.ReadMeta(ctx, id)
-	if err != nil {
-		return fmt.Errorf("executor: load meta: %w", err)
-	}
-	if meta == nil {
-		meta = &models.Meta{}
+	isPrime := jobID == models.PrimeJobID
+	if isPrime && meta.PrimeHash != "" && meta.PrimeHash == w.PrimeHash() {
+		js.Outputs = map[string]any{"skipped": "already-encoded"}
+		js.MarkCompleted(js.Outputs)
+		state.UpdatedAt = time.Now()
+		state.ComputeProgress()
+		state.ComputeStatus()
+		if err := e.storage.WriteState(ctx, id, state); err != nil {
+			return err
+		}
+		_ = ctxstatusstream.PublishFromState(ctx, state, state.Status.IsTerminal())
+		return nil
 	}
 
 	// Apply timeout
@@ -176,6 +194,10 @@ func (e *Executor) ExecuteJob(ctx context.Context, w *models.Workflow, objectID 
 		}
 	} else {
 		js.MarkCompleted(js.Outputs)
+		if isPrime {
+			meta.PrimeHash = w.PrimeHash()
+		}
+		meta.SetJobSkipped(jobID, false)
 		writeJobMeta(ctx, e.storage, id, w, meta, log)
 	}
 
@@ -208,6 +230,7 @@ func (e *Executor) runSteps(
 		js.Outputs = map[string]any{}
 	}
 	js.Steps = make([]*models.StepState, 0, len(job.Steps))
+	isPrime := jobID == models.PrimeJobID
 
 	for _, step := range job.Steps {
 		ss := &models.StepState{Name: step.Name, Status: models.StepStatusRunning}
@@ -222,6 +245,9 @@ func (e *Executor) runSteps(
 
 		start := time.Now()
 		sourceName := stepSourceName(step, meta)
+		if isPrime {
+			sourceName = models.OriginalFilename
+		}
 		reader, err := e.storage.ReadFile(ctx, id, sourceName)
 		if err != nil {
 			ss.Status = models.StepStatusFailed
@@ -251,6 +277,17 @@ func (e *Executor) runSteps(
 			js.Outputs[k] = v
 		}
 
+		// Prime steps overwrite the original instead of producing an artifact.
+		if isPrime && out.Writer != nil {
+			if err := e.writePrime(ctx, id, meta, out); err != nil {
+				ss.Status = models.StepStatusFailed
+				ss.Error = err.Error()
+				return fmt.Errorf("step %q write original: %w", step.Name, err)
+			}
+			log.Debug("original re-encoded", zap.String("path", meta.Main.Fullname()))
+			continue
+		}
+
 		// Write artifact if the step produced one
 		if out.Writer != nil && out.TargetPath != "" {
 			im := out.ItemMeta
@@ -268,6 +305,39 @@ func (e *Executor) runSteps(
 				zap.String("role", jobID))
 		}
 	}
+	return nil
+}
+
+// writePrime stores a prime step output as the original file (prim.<ext>).
+// The extension follows the output content type so prim.mov becomes prim.mp4.
+func (e *Executor) writePrime(ctx context.Context, id storio.ObjectID, meta *models.Meta, out StepOutput) error {
+	head, data, err := datalib.ReadHead(out.Writer)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = data.Close() }()
+
+	ext := strings.TrimPrefix(datalib.ExtensionByContentType(datalib.ContentTypeByData(head)), ".")
+	if ext == "" {
+		ext = meta.Main.ObjectTypeExt()
+	}
+	name := models.OriginalFilename
+	if ext != "" {
+		name += "." + ext
+	}
+
+	im := &models.ItemMeta{}
+	if out.ItemMeta != nil {
+		cp := *out.ItemMeta
+		im = &cp
+	}
+	im.Path = ""
+	im.Role = models.PrimeJobID
+	im.UpdateName(name)
+	if err := e.storage.WriteFile(ctx, id, name, data, im); err != nil {
+		return err
+	}
+	meta.SetItem(im)
 	return nil
 }
 

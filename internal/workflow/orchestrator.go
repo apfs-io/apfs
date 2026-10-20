@@ -29,7 +29,7 @@ func (e *Executor) ProcessObject(
 	workerTags []string,
 	maxJobs int,
 ) (complete bool, err error) {
-	if w == nil || len(w.Jobs) == 0 {
+	if !w.HasJobs() {
 		state := models.NewProcessingState(objectID, "", nil)
 		if w != nil {
 			state.ManifestVersion = w.Version

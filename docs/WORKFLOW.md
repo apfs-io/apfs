@@ -58,9 +58,53 @@ original_name: original
 # Synchronous pre-upload validation (see below).
 validate: ...
 
+# Re-encodes the original before any job runs (see below).
+prime: ...
+
 # Processing DAG (see below).
 jobs: ...
 ```
+
+---
+
+## `prime` block
+
+`prime` re-encodes the original file itself (stored as `prim.<ext>`), for example to turn an uploaded `.mov` into an H.264 `.mp4`. It has the same fields as a job (`runs-on`, `timeout-minutes`, `on-failure`, `if`, `steps`) and runs under the reserved job ID `prime`.
+
+```yaml
+prime:
+  runs-on: video
+  steps:
+    - name: ffmpeg-prime
+      uses: procedure
+      with:
+        name: video-transcode
+        height: "1080"
+        crf: "22"
+```
+
+Rules:
+
+- Every step that produces a file overwrites the original. The old file is removed and the new one is stored as `prim.<ext>`, with the extension taken from the output content type (`prim.mov` becomes `prim.mp4`). `Meta.Main` (content type, size, hash) is updated.
+- Each step reads the current original, so chained steps inside `prime` read the output of the previous step.
+- `target` and `source` are not allowed in `prime` steps, and `prime` has no `needs`.
+- Every job in `jobs` implicitly depends on `prime` and reads the re-encoded original. Do not list `prime` in `needs`, and do not name a job `prime`.
+- When `prime` fails under `on-failure: fail`, every job is skipped.
+- The output content type must be accepted by `content_types`, otherwise the write fails.
+- After success `Meta.prime_hash` stores a hash of the `prime` block. Re-processing (version bump, Refresh) skips `prime` while that hash matches, so the original is not encoded twice. Changing the `prime` block re-encodes the current original (already encoded, so one generation is lost). Uploading a new original clears the hash.
+
+---
+
+## File metadata
+
+Every stored file (the original and each artifact) gets `content_type`, `size` and `hashid` in its meta item. Media properties depend on the type:
+
+| Type  | Fields                                                 | Source                        |
+| ----- | ------------------------------------------------------ | ----------------------------- |
+| image | `width`, `height`                                      | Go image decoder              |
+| video | `width`, `height`, `duration` (seconds), `bitrate`, `codec` | `ffprobe` (first video stream) |
+
+Video `width` / `height` are the displayed dimensions: a 90 or 270 degree rotation swaps them. Video fields are filled only where `ffprobe` is on `PATH` (the `ubuntu-media` image). On images without ffmpeg the uploaded original has no video properties, but files written by a media worker (the `prime` re-encode, renditions) get them. A probe failure never fails the write.
 
 ---
 
@@ -165,7 +209,7 @@ steps:
 
 ## `if:` expressions
 
-The `if:` field accepts a simple expression evaluated against the current processing state. The job is **skipped** when the expression evaluates to `false`.
+The `if:` field is evaluated right before the job starts, against the processing state and the original file's meta. The job is **skipped** when the expression evaluates to `false`. Every `${{ ... }}` in the string is replaced by its content, so a whole-expression wrap and per-reference wraps both work.
 
 ### Supported forms
 
@@ -174,7 +218,15 @@ The `if:` field accepts a simple expression evaluated against the current proces
 if: "true"
 if: "false"
 
-# Numeric comparison
+# Original file properties — skip a downscale that would upscale
+if: "${{ main.height > 720 }}"
+if: "${{ main.height }} > 480 && ${{ main.codec }} == 'h264'"
+
+# Combined conditions
+if: "${{ main.width > main.height && (main.duration < 60 || main.size > 100000000) }}"
+if: "${{ !(main.codec == 'h264') }}"
+
+# Numeric comparison on a job output
 if: "${{ probe.outputs.duration }} < 3600"
 
 # Job status check
@@ -184,11 +236,34 @@ if: "${{ jobs.probe.status }} != 'failed'"
 
 ### Expression syntax
 
-| Token      | Examples                                               |
-| ---------- | ------------------------------------------------------ |
-| Reference  | `${{ jobID.outputs.key }}`, `${{ jobs.jobID.status }}` |
-| Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=`                       |
-| Literal    | `'completed'`, `'failed'`, `42`, `true`, `false`       |
+| Token      | Examples                                                                 |
+| ---------- | ------------------------------------------------------------------------ |
+| Reference  | `main.height`, `jobs.jobID.status`, `jobs.jobID.outputs.key`, `jobID.outputs.key` |
+| Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=`                                         |
+| Logical    | `&&`, `\|\|`, `!`, parentheses (precedence: `!` > comparison > `&&` > `\|\|`) |
+| Literal    | `'completed'`, `"h264"`, `42`, `-1`, `true`, `false`, `null`             |
+
+### `main.*` — the original file
+
+`main` is the current original (after `prime`, the re-encoded file). `main` is reserved and cannot be used as a job ID.
+
+| Reference               | Value                                   |
+| ----------------------- | --------------------------------------- |
+| `main.width` / `height` | pixels (images and probed videos)       |
+| `main.duration`         | seconds (probed videos)                 |
+| `main.size`             | bytes                                   |
+| `main.bitrate`          | bits per second (probed videos)         |
+| `main.codec`            | e.g. `h264`, `hevc`, `vp9`              |
+| `main.content_type`     | e.g. `video/mp4`                        |
+| `main.type`             | `image`, `video`, `audio`, …            |
+| `main.ext`              | file extension without the dot          |
+| `main.attributes.<key>` | original file attribute                 |
+
+A missing value (unknown field, or a video without ffprobe data) is `null`. Any ordering comparison with `null` is `false`, so `main.height > 720` and `main.height <= 720` are both false when the height is unknown; compare with `null` explicitly to handle that case.
+
+### Skipped jobs
+
+A job skipped by its `if:` is recorded in `Meta.skipped_jobs`. Its targets are not expected: they do not count as missing artifacts and do not keep the object in processing. The record is cleared when the job later runs (e.g. a re-processed original is taller) or on Refresh.
 
 ---
 

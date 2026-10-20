@@ -59,7 +59,7 @@ func (o *Object) IncompleteJobs() (resp []string) {
 	meta := o.Meta.Data
 	wf := o.Workflow.Data
 	for jobID, job := range wf.Jobs {
-		if job == nil {
+		if job == nil || meta.IsJobSkipped(jobID) {
 			continue
 		}
 		for _, step := range job.Steps {

@@ -100,6 +100,106 @@ func TestWorkflow_JobIDs(t *testing.T) {
 	assert.Nil(t, (*Workflow)(nil).JobIDs())
 }
 
+// ── Prime ─────────────────────────────────────────────────────────────────────
+
+func primeTestWorkflow() *Workflow {
+	return &Workflow{
+		Version: "2",
+		Prime: &WorkflowJob{Steps: []*WorkflowStep{
+			{Uses: "procedure", With: map[string]any{"name": "video-transcode", "crf": "22"}},
+		}},
+		Jobs: map[string]*WorkflowJob{
+			"sd": {Steps: []*WorkflowStep{{Uses: "procedure", With: map[string]any{"target": "small.mp4"}}}},
+		},
+	}
+}
+
+func TestWorkflow_Prime(t *testing.T) {
+	wf := primeTestWorkflow()
+	assert.True(t, wf.HasPrime())
+	assert.True(t, wf.HasJobs())
+	assert.False(t, wf.IsEmpty())
+	assert.Equal(t, []string{PrimeJobID, "sd"}, wf.JobIDs())
+	assert.Same(t, wf.Prime, wf.JobByID(PrimeJobID))
+	assert.Same(t, wf.Jobs["sd"], wf.JobByID("sd"))
+	assert.NoError(t, wf.ValidateReserved())
+
+	onlyPrime := &Workflow{Prime: wf.Prime}
+	assert.True(t, onlyPrime.HasJobs())
+	assert.Equal(t, []string{PrimeJobID}, onlyPrime.JobIDs())
+
+	assert.False(t, (&Workflow{}).HasPrime())
+	assert.Empty(t, (&Workflow{}).PrimeHash())
+}
+
+func TestWorkflow_PrimeHash(t *testing.T) {
+	a, b := primeTestWorkflow(), primeTestWorkflow()
+	assert.NotEmpty(t, a.PrimeHash())
+	assert.Equal(t, a.PrimeHash(), b.PrimeHash())
+
+	b.Version = "3"
+	b.Jobs["sd"].Steps[0].With["crf"] = "30"
+	assert.Equal(t, a.PrimeHash(), b.PrimeHash(), "only the prime block counts")
+
+	b.Prime.Steps[0].With["crf"] = "20"
+	assert.NotEqual(t, a.PrimeHash(), b.PrimeHash())
+}
+
+func TestWorkflow_ValidateReserved(t *testing.T) {
+	wf := primeTestWorkflow()
+	wf.Jobs[PrimeJobID] = &WorkflowJob{}
+	assert.Error(t, wf.ValidateReserved(), "reserved job id")
+
+	wf = primeTestWorkflow()
+	wf.Jobs[ConditionMainRef] = &WorkflowJob{}
+	assert.Error(t, wf.ValidateReserved(), "main is reserved for if:")
+
+	wf = primeTestWorkflow()
+	wf.Jobs["sd"].Needs = []string{PrimeJobID}
+	assert.Error(t, wf.ValidateReserved(), "implicit needs")
+
+	wf = primeTestWorkflow()
+	wf.Prime.Needs = []string{"sd"}
+	assert.Error(t, wf.ValidateReserved(), "prime needs")
+
+	wf = primeTestWorkflow()
+	wf.Prime.Steps[0].With["target"] = "main.mp4"
+	assert.Error(t, wf.ValidateReserved(), "prime target")
+
+	wf = primeTestWorkflow()
+	wf.Prime.Steps[0].With["source"] = "thumb.jpg"
+	assert.Error(t, wf.ValidateReserved(), "prime source")
+}
+
+func TestMeta_SkippedJobs(t *testing.T) {
+	wf := primeTestWorkflow()
+	meta := Meta{ManifestVersion: "2"}
+	assert.Equal(t, []string{"sd"}, meta.MissingJobTargets(wf))
+
+	meta.SetJobSkipped("sd", true)
+	meta.SetJobSkipped("sd", true)
+	assert.Equal(t, []string{"sd"}, meta.SkippedJobs)
+	assert.True(t, meta.IsJobSkipped("sd"))
+	assert.Empty(t, meta.MissingJobTargets(wf))
+	assert.True(t, meta.IsConsistent(wf))
+
+	meta.SetJobSkipped("sd", false)
+	assert.Nil(t, meta.SkippedJobs)
+	assert.Equal(t, []string{"sd"}, meta.MissingJobTargets(wf))
+
+	meta.SetJobSkipped("sd", true)
+	meta.CleanSubItems()
+	assert.Nil(t, meta.SkippedJobs)
+}
+
+func TestMeta_PrimeIgnoredByTargets(t *testing.T) {
+	wf := primeTestWorkflow()
+	meta := Meta{ManifestVersion: "2", Items: []*ItemMeta{{Name: "small", NameExt: "mp4", Path: "small.mp4"}}}
+	assert.Empty(t, meta.MissingJobTargets(wf))
+	assert.Empty(t, meta.ExcessItems(wf))
+	assert.False(t, wf.HasTarget("prim.mp4"))
+}
+
 // ── WorkflowValidate ──────────────────────────────────────────────────────────
 
 func TestWorkflowValidate_SizeBytes(t *testing.T) {

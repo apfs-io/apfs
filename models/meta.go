@@ -38,6 +38,14 @@ type Meta struct {
 	// was last fully processed. Used to detect stale meta after manifest changes.
 	ManifestVersion string `json:"manifest_version,omitempty"`
 
+	// PrimeHash is the Workflow.PrimeHash of the prime section that re-encoded
+	// Main. Empty when Main is the uploaded file as-is.
+	PrimeHash string `json:"prime_hash,omitempty"`
+
+	// SkippedJobs lists jobs skipped by their if: condition at ManifestVersion.
+	// Their targets are not expected, so they do not count as missing.
+	SkippedJobs []string `json:"skipped_jobs,omitempty"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -149,7 +157,7 @@ func (m *Meta) MissingJobTargets(w *Workflow) []string {
 	}
 	missing := make([]string, 0)
 	for jobID, job := range w.Jobs {
-		if job == nil {
+		if job == nil || m.IsJobSkipped(jobID) {
 			continue
 		}
 		for _, step := range job.Steps {
@@ -209,4 +217,28 @@ func (m *Meta) CleanSubItems() {
 	m.Items = m.Items[:0]
 	m.Attributes = nil
 	m.Main.Attributes = nil
+	m.SkippedJobs = nil
+}
+
+// IsJobSkipped reports whether jobID was skipped by its if: condition.
+func (m *Meta) IsJobSkipped(jobID string) bool {
+	return m != nil && slices.Contains(m.SkippedJobs, jobID)
+}
+
+// SetJobSkipped records (skipped=true) or clears a job skipped by its if:.
+func (m *Meta) SetJobSkipped(jobID string, skipped bool) {
+	if m == nil {
+		return
+	}
+	idx := slices.Index(m.SkippedJobs, jobID)
+	switch {
+	case skipped && idx < 0:
+		m.SkippedJobs = append(m.SkippedJobs, jobID)
+		slices.Sort(m.SkippedJobs)
+	case !skipped && idx >= 0:
+		m.SkippedJobs = slices.Delete(m.SkippedJobs, idx, idx+1)
+		if len(m.SkippedJobs) == 0 {
+			m.SkippedJobs = nil
+		}
+	}
 }

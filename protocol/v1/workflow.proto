@@ -64,6 +64,7 @@ message Workflow {
   string                    original_name   = 7;
   WorkflowValidate          validate        = 8;
   repeated WorkflowJob      jobs            = 9;
+  WorkflowJob               prime           = 10; // re-encodes the original before jobs
 }
 
 // DataWorkflow is the request body for SetWorkflow RPC.

@@ -67,6 +67,16 @@ func CollectReadSeekerInfo(meta *models.ItemMeta, reader io.ReadSeeker, fileFull
 		width, height, err = imageSizeByReader(reader)
 	}
 
+	// Video properties come from ffprobe; a missing binary or probe error
+	// leaves them empty instead of failing the write.
+	meta.Duration, meta.Bitrate, meta.Codec = 0, "", ""
+	if objectType.IsVideo() {
+		if info, perr := probeVideo(reader); perr == nil && info != nil {
+			width, height = info.Width, info.Height
+			meta.Duration, meta.Bitrate, meta.Codec = info.Duration, info.Bitrate, info.Codec
+		}
+	}
+
 	meta.Name = trimExt(basename)
 	meta.NameExt = strings.ToLower(strings.TrimLeft(fileExt, "."))
 	meta.Type = objectType

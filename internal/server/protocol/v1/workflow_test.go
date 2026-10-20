@@ -63,4 +63,32 @@ func TestWorkflowRoundTripPreservesRunAndDocker(t *testing.T) {
 	assert.Equal(t, orig.Jobs["preview"].Steps[0].Docker.RemoveAfterDone, job.Steps[0].Docker.RemoveAfterDone)
 	assert.Equal(t, orig.Jobs["preview"].Steps[0].Docker.ContainerName, job.Steps[0].Docker.ContainerName)
 	assert.Equal(t, "preview.jpg", job.Steps[0].With["target"])
+	assert.Nil(t, back.Prime)
+}
+
+func TestWorkflowRoundTripPreservesPrime(t *testing.T) {
+	orig := &models.Workflow{
+		Version: "3",
+		Prime: &models.WorkflowJob{
+			RunsOn:         "video",
+			TimeoutMinutes: 30,
+			Steps: []*models.WorkflowStep{
+				{Name: "ffmpeg-prime", Uses: "procedure", With: map[string]any{"name": "video-transcode", "crf": "22"}},
+			},
+		},
+	}
+
+	proto := WorkflowFromModel(orig)
+	require.NotNil(t, proto)
+	require.NotNil(t, proto.GetPrime())
+	assert.Equal(t, models.PrimeJobID, proto.GetPrime().GetId())
+	assert.Empty(t, proto.GetJobs())
+
+	back := WorkflowToModel(proto)
+	require.NotNil(t, back.Prime)
+	assert.Equal(t, "video", back.Prime.RunsOn)
+	assert.Equal(t, 30, back.Prime.TimeoutMinutes)
+	require.Len(t, back.Prime.Steps, 1)
+	assert.Equal(t, "video-transcode", back.Prime.Steps[0].With["name"])
+	assert.Equal(t, orig.PrimeHash(), back.PrimeHash())
 }

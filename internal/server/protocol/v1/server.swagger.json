@@ -1218,6 +1218,10 @@
             "type": "object",
             "$ref": "#/definitions/v1WorkflowJob"
           }
+        },
+        "prime": {
+          "$ref": "#/definitions/v1WorkflowJob",
+          "title": "re-encodes the original before jobs"
         }
       },
       "description": "Workflow is the top-level v2 manifest."

@@ -40,32 +40,14 @@ func WorkflowFromModel(w *models.Workflow) *Workflow {
 		}
 		pw.Validate = pv
 	}
+	if w.Prime != nil {
+		pw.Prime = workflowJobFromModel(models.PrimeJobID, w.Prime)
+	}
 	for jobID, job := range w.Jobs {
 		if job == nil {
 			continue
 		}
-		pj := &WorkflowJob{
-			Id:             jobID,
-			RunsOn:         job.RunsOn,
-			Needs:          append([]string{}, job.Needs...),
-			TimeoutMinutes: int32(job.TimeoutMinutes),
-			OnFailure:      job.OnFailure,
-			IfExpr:         job.If,
-		}
-		for _, step := range job.Steps {
-			if step == nil {
-				continue
-			}
-			withJSON, _ := json.Marshal(step.With)
-			pj.Steps = append(pj.Steps, &WorkflowStep{
-				Name:     step.Name,
-				Uses:     step.Uses,
-				Run:      step.Run,
-				WithJson: string(withJSON),
-				Docker:   workflowStepDockerFromModel(step.Docker),
-			})
-		}
-		pw.Jobs = append(pw.Jobs, pj)
+		pw.Jobs = append(pw.Jobs, workflowJobFromModel(jobID, job))
 	}
 	return pw
 }
@@ -104,37 +86,69 @@ func WorkflowToModel(p *Workflow) *models.Workflow {
 		}
 		w.Validate = v
 	}
+	if pp := p.GetPrime(); pp != nil {
+		w.Prime = workflowJobToModel(pp)
+	}
 	if len(p.GetJobs()) > 0 {
 		w.Jobs = make(map[string]*models.WorkflowJob, len(p.GetJobs()))
 		for _, pj := range p.GetJobs() {
 			if pj == nil {
 				continue
 			}
-			job := &models.WorkflowJob{
-				RunsOn:         pj.GetRunsOn(),
-				Needs:          append([]string{}, pj.GetNeeds()...),
-				TimeoutMinutes: int(pj.GetTimeoutMinutes()),
-				OnFailure:      pj.GetOnFailure(),
-				If:             pj.GetIfExpr(),
-			}
-			for _, ps := range pj.GetSteps() {
-				if ps == nil {
-					continue
-				}
-				var withMap map[string]any
-				_ = json.Unmarshal([]byte(ps.GetWithJson()), &withMap)
-				job.Steps = append(job.Steps, &models.WorkflowStep{
-					Name:   ps.GetName(),
-					Uses:   ps.GetUses(),
-					Run:    ps.GetRun(),
-					With:   withMap,
-					Docker: workflowStepDockerToModel(ps.GetDocker()),
-				})
-			}
-			w.Jobs[pj.GetId()] = job
+			w.Jobs[pj.GetId()] = workflowJobToModel(pj)
 		}
 	}
 	return w
+}
+
+func workflowJobFromModel(jobID string, job *models.WorkflowJob) *WorkflowJob {
+	pj := &WorkflowJob{
+		Id:             jobID,
+		RunsOn:         job.RunsOn,
+		Needs:          append([]string{}, job.Needs...),
+		TimeoutMinutes: int32(job.TimeoutMinutes),
+		OnFailure:      job.OnFailure,
+		IfExpr:         job.If,
+	}
+	for _, step := range job.Steps {
+		if step == nil {
+			continue
+		}
+		withJSON, _ := json.Marshal(step.With)
+		pj.Steps = append(pj.Steps, &WorkflowStep{
+			Name:     step.Name,
+			Uses:     step.Uses,
+			Run:      step.Run,
+			WithJson: string(withJSON),
+			Docker:   workflowStepDockerFromModel(step.Docker),
+		})
+	}
+	return pj
+}
+
+func workflowJobToModel(pj *WorkflowJob) *models.WorkflowJob {
+	job := &models.WorkflowJob{
+		RunsOn:         pj.GetRunsOn(),
+		Needs:          append([]string{}, pj.GetNeeds()...),
+		TimeoutMinutes: int(pj.GetTimeoutMinutes()),
+		OnFailure:      pj.GetOnFailure(),
+		If:             pj.GetIfExpr(),
+	}
+	for _, ps := range pj.GetSteps() {
+		if ps == nil {
+			continue
+		}
+		var withMap map[string]any
+		_ = json.Unmarshal([]byte(ps.GetWithJson()), &withMap)
+		job.Steps = append(job.Steps, &models.WorkflowStep{
+			Name:   ps.GetName(),
+			Uses:   ps.GetUses(),
+			Run:    ps.GetRun(),
+			With:   withMap,
+			Docker: workflowStepDockerToModel(ps.GetDocker()),
+		})
+	}
+	return job
 }
 
 func workflowStepDockerFromModel(d *models.WorkflowStepDocker) *WorkflowStepDocker {

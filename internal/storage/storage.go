@@ -160,6 +160,10 @@ func (s *Storage) Upload(ctx context.Context, group string, data io.Reader, opti
 		return nil, err
 	}
 
+	// A freshly uploaded original has not been re-encoded by prime yet
+	// (overwrite keeps the previous meta otherwise).
+	obj.MetaOrNew().PrimeHash = ""
+
 	// Upload object data
 	err = s.driver.Update(ctx, obj, models.OriginalFilename, data, nil)
 	if err != nil {

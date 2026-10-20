@@ -25,20 +25,28 @@ func BuildDAG(w *models.Workflow) (*DAG, error) {
 		return &DAG{workflow: w, deps: map[string]map[string]struct{}{}, dependents: map[string][]string{}}, nil
 	}
 
+	if err := w.ValidateReserved(); err != nil {
+		return nil, fmt.Errorf("workflow dag: %w", err)
+	}
+
+	jobIDs := w.JobIDs()
 	d := &DAG{
 		workflow:   w,
-		deps:       make(map[string]map[string]struct{}, len(w.Jobs)),
-		dependents: make(map[string][]string, len(w.Jobs)),
+		deps:       make(map[string]map[string]struct{}, len(jobIDs)),
+		dependents: make(map[string][]string, len(jobIDs)),
 	}
 
 	// Initialise
-	for id := range w.Jobs {
+	for _, id := range jobIDs {
 		d.deps[id] = map[string]struct{}{}
 		d.dependents[id] = nil
 	}
 
 	// Build edges
 	for id, job := range w.Jobs {
+		if job == nil {
+			continue
+		}
 		for _, dep := range job.Needs {
 			if _, ok := w.Jobs[dep]; !ok {
 				return nil, fmt.Errorf("workflow dag: job %q needs unknown job %q", id, dep)
@@ -48,13 +56,21 @@ func BuildDAG(w *models.Workflow) (*DAG, error) {
 		}
 	}
 
+	// Every job reads the original, so it waits for prime to rewrite it.
+	if w.HasPrime() {
+		for id := range w.Jobs {
+			d.deps[id][models.PrimeJobID] = struct{}{}
+			d.dependents[models.PrimeJobID] = append(d.dependents[models.PrimeJobID], id)
+		}
+	}
+
 	// Topological sort (Kahn's algorithm)
-	inDegree := make(map[string]int, len(w.Jobs))
-	for id := range w.Jobs {
+	inDegree := make(map[string]int, len(jobIDs))
+	for _, id := range jobIDs {
 		inDegree[id] = len(d.deps[id])
 	}
 
-	queue := make([]string, 0, len(w.Jobs))
+	queue := make([]string, 0, len(jobIDs))
 	for id, deg := range inDegree {
 		if deg == 0 {
 			queue = append(queue, id)
@@ -62,7 +78,7 @@ func BuildDAG(w *models.Workflow) (*DAG, error) {
 	}
 	sortStrings(queue)
 
-	order := make([]string, 0, len(w.Jobs))
+	order := make([]string, 0, len(jobIDs))
 	for len(queue) > 0 {
 		node := queue[0]
 		queue = queue[1:]
@@ -76,7 +92,7 @@ func BuildDAG(w *models.Workflow) (*DAG, error) {
 			}
 		}
 	}
-	if len(order) != len(w.Jobs) {
+	if len(order) != len(jobIDs) {
 		return nil, fmt.Errorf("workflow dag: cycle detected among jobs")
 	}
 
@@ -111,7 +127,7 @@ func (d *DAG) ReadyJobs(state *models.ProcessingState, workerTags []string) []st
 		if !ok || js == nil || js.Status != models.JobStatusPending {
 			continue
 		}
-		job := d.workflow.Jobs[id]
+		job := d.workflow.JobByID(id)
 		if job == nil {
 			continue
 		}

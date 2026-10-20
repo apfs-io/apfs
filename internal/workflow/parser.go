@@ -68,6 +68,9 @@ func prepareDefaults(w *models.Workflow) {
 			job.RunsOn = "any"
 		}
 	}
+	if w.Prime != nil && w.Prime.RunsOn == "" {
+		w.Prime.RunsOn = "any"
+	}
 }
 
 func trimLeft(b []byte) []byte {

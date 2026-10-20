@@ -4,15 +4,15 @@
 # Requires a worker with the "video" tag (ubuntu-media image).
 #
 # Produces:
-#   main.mp4  — H.264 @ 1080p
+#   prim.mp4  — the original, re-encoded to H.264 @ 1080p (prime)
 #   small.mp4 — H.264 @ 480p
 #   thumb.jpg — frame at 00:00:01
 #
 # Bucket/group: videos
 
-version: "2"
+version: "3"
 name: video-transcode
-description: Transcode uploaded video to HD/SD MP4 and extract a thumbnail.
+description: Re-encode the uploaded video to H.264 MP4, then derive an SD copy and a thumbnail.
 
 content_types:
   - video/mp4
@@ -28,18 +28,18 @@ validate:
     - video/quicktime
     - video/x-msvideo
 
-jobs:
-  hd:
-    runs-on: video
-    steps:
-      - name: ffmpeg-hd
-        uses: procedure
-        with:
-          name: video-transcode
-          height: "1080"
-          crf: "22"
-          target: main.mp4
+# Runs before every job and overwrites the original (prim.<ext>).
+prime:
+  runs-on: video
+  steps:
+    - name: ffmpeg-prime
+      uses: procedure
+      with:
+        name: video-transcode
+        height: "1080"
+        crf: "22"
 
+jobs:
   sd:
     runs-on: video
     steps:

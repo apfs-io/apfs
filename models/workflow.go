@@ -1,6 +1,8 @@
 package models
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -37,9 +39,97 @@ type Workflow struct {
 	// A validation failure returns an error to the caller immediately.
 	Validate *WorkflowValidate `json:"validate,omitempty" yaml:"validate,omitempty"`
 
+	// Prime re-encodes the original file before any job runs. Every step
+	// that produces a file overwrites the original (prim.<ext>); all jobs
+	// implicitly depend on it and read the re-encoded original.
+	Prime *WorkflowJob `json:"prime,omitempty" yaml:"prime,omitempty"`
+
 	// Jobs is the processing DAG. Keys are job IDs; order of execution is
 	// determined by the needs graph, not by map iteration order.
 	Jobs map[string]*WorkflowJob `json:"jobs,omitempty" yaml:"jobs,omitempty"`
+}
+
+// PrimeJobID is the reserved job ID of the Workflow.Prime section.
+const PrimeJobID = "prime"
+
+// HasPrime reports whether the workflow declares a prime section with steps.
+func (w *Workflow) HasPrime() bool {
+	return w != nil && w.Prime != nil && len(w.Prime.Steps) > 0
+}
+
+// HasJobs reports whether there is anything to execute (prime or jobs).
+func (w *Workflow) HasJobs() bool {
+	return w != nil && (len(w.Jobs) > 0 || w.HasPrime())
+}
+
+// JobByID returns the job for id, including the reserved prime job.
+func (w *Workflow) JobByID(id string) *WorkflowJob {
+	if w == nil {
+		return nil
+	}
+	if id == PrimeJobID && w.HasPrime() {
+		return w.Prime
+	}
+	return w.Jobs[id]
+}
+
+// PrimeHash returns a stable hash of the prime section, or "" when absent.
+// It marks which prime configuration produced the current original.
+func (w *Workflow) PrimeHash() string {
+	if !w.HasPrime() {
+		return ""
+	}
+	data, err := json.Marshal(w.Prime)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+// ConditionMainRef is the reserved if: reference to the original file
+// (main.height, …); no job may use it as its ID.
+const ConditionMainRef = "main"
+
+// ValidateReserved checks reserved job IDs and the prime section constraints.
+func (w *Workflow) ValidateReserved() error {
+	if w == nil {
+		return nil
+	}
+	if _, ok := w.Jobs[PrimeJobID]; ok {
+		return fmt.Errorf("workflow: job id %q is reserved for the prime section", PrimeJobID)
+	}
+	if _, ok := w.Jobs[ConditionMainRef]; ok {
+		return fmt.Errorf("workflow: job id %q is reserved for if: conditions", ConditionMainRef)
+	}
+	for id, job := range w.Jobs {
+		if job == nil {
+			continue
+		}
+		for _, dep := range job.Needs {
+			if dep == PrimeJobID {
+				return fmt.Errorf("workflow: job %q must not list %q in needs (implicit)", id, PrimeJobID)
+			}
+		}
+	}
+	if w.Prime == nil {
+		return nil
+	}
+	if len(w.Prime.Needs) > 0 {
+		return fmt.Errorf("workflow: prime must not declare needs")
+	}
+	for _, step := range w.Prime.Steps {
+		if step == nil || step.With == nil {
+			continue
+		}
+		if _, ok := step.With["target"]; ok {
+			return fmt.Errorf("workflow: prime step %q must not declare target", step.Name)
+		}
+		if _, ok := step.With["source"]; ok {
+			return fmt.Errorf("workflow: prime step %q must not declare source", step.Name)
+		}
+	}
+	return nil
 }
 
 // ShouldKeepOriginal returns true unless keep_original is explicitly false.
@@ -57,7 +147,7 @@ func (w *Workflow) OriginalBaseName() string {
 
 // IsEmpty reports whether the workflow has no jobs and no validation.
 func (w *Workflow) IsEmpty() bool {
-	return w == nil || (len(w.Jobs) == 0 && w.Validate == nil)
+	return w == nil || (!w.HasJobs() && w.Validate == nil)
 }
 
 // IsValidContentType checks whether ct is accepted by this workflow.
@@ -75,15 +165,19 @@ func (w *Workflow) IsValidContentType(ct string) bool {
 }
 
 // JobIDs returns a deterministic-order slice of job IDs (sorted by name).
+// The prime job, when declared, comes first.
 func (w *Workflow) JobIDs() []string {
 	if w == nil {
 		return nil
 	}
-	ids := make([]string, 0, len(w.Jobs))
+	ids := make([]string, 0, len(w.Jobs)+1)
 	for id := range w.Jobs {
 		ids = append(ids, id)
 	}
 	sortStrings(ids)
+	if w.HasPrime() {
+		ids = append([]string{PrimeJobID}, ids...)
+	}
 	return ids
 }
 
